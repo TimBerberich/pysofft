@@ -1,2 +1,1 @@
-# pysoft
-Numba Python implementation of SOFT ( Fourier transform on SO(3) )
+To install call 'pip install . ' in the folder containing this readme.
