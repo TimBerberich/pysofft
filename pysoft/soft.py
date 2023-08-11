@@ -1,9 +1,9 @@
 import numpy as np
 from numba import njit, objmode, types,int64,float64,complex128
-from pySOFT.make_wiegner import SinEvalPts,SinEvalPts2,CosEvalPts,CosEvalPts2
-from pySOFT.wignerTransform import wigNaiveAnalysis_fftw,wigNaiveSynthesis_fftw
-from pySOFT.wignerTransform import wigNaiveAnalysis_fftwX,wigNaiveSynthesis_fftwX
-from pySOFT.wignerTransform import wigNaiveAnalysis_fftwY,wigNaiveSynthesis_fftwY
+from pysoft.make_wiegner import SinEvalPts,SinEvalPts2,CosEvalPts,CosEvalPts2
+from pysoft.wignerTransform import wigNaiveAnalysis_fftw,wigNaiveSynthesis_fftw
+from pysoft.wignerTransform import wigNaiveAnalysis_fftwX,wigNaiveSynthesis_fftwX
+from pysoft.wignerTransform import wigNaiveAnalysis_fftwY,wigNaiveSynthesis_fftwY
 
 
 complex_3d = types.complex128[:,:,:]

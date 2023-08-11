@@ -3,10 +3,10 @@
 #from pySOFT import wignerWeights as wignerWeights
 #from pySOFT import wignerTransform as wignerTransform
 
-from pySOFT import soft 
-from pySOFT import make_wiegner 
-from pySOFT import wignerWeights
-from pySOFT import wignerTransform
+from pysoft import soft 
+from pysoft import make_wiegner 
+from pysoft import wignerWeights
+from pysoft import wignerTransform
 
 
 #The following is a bit of a hack
