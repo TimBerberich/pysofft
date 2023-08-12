@@ -1,4 +1,4 @@
-# PySOFT
+# PySOFFT
 This package allows to compute Fourier transforms on the rotation group SO(3).\
 It is a partial python port of soft-2.0 released by Peter Kostelec and Daniel Rockmore.
 
