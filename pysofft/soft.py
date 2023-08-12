@@ -1,9 +1,12 @@
 import numpy as np
 from numba import njit, objmode, types,int64,float64,complex128
 from pysofft.make_wiegner import SinEvalPts,SinEvalPts2,CosEvalPts,CosEvalPts2
+from pysofft.make_wiegner import genWigAll,genWigAllTrans,get_euler_angles
 from pysofft.wignerTransform import wigNaiveAnalysis_fftw,wigNaiveSynthesis_fftw
 from pysofft.wignerTransform import wigNaiveAnalysis_fftwX,wigNaiveSynthesis_fftwX
 from pysofft.wignerTransform import wigNaiveAnalysis_fftwY,wigNaiveSynthesis_fftwY
+from pysofft.wignerWeights import makeweights2
+from pysofft.rotate import rotate_coeff_multi,rotate_coeff
 
 
 complex_3d = types.complex128[:,:,:]
@@ -1494,3 +1497,124 @@ def forward_fft(bw,data):
     data = data.flatten() * bw/pi #ffted_data * bw/pi
     return data
 
+
+##########################################
+
+def list_of_lnk(bw):
+    L=bw-1
+    ls = []
+    ns = []
+    ks = []
+    for l in range(bw):
+        for n in range(-l,l+1):
+            for k in range(-l,l+1):
+                ls.append(l)
+                ns.append(n)
+                ks.append(k)
+    return np.stack([ls,ns,ks]).T
+
+##########################################
+
+
+class Soft():
+    def __init__(self,bw):
+        self.bw = bw
+        tmp = self.generate_data()
+        self.grid = self.make_SO3_grid()
+        self.coeff_grid = self.make_coeff_grid()
+        self.wigners = tmp[0]
+        self.wigners_transposed = tmp[1] #small d matrices with m1,m2 swapped
+        self.legendre_weights = tmp[2]
+        self.n_coeffs = totalCoeffs_so3(bw)
+        self.n_points = (2*bw)**3
+        self.so_shape=(2*bw,)*3
+        
+    def generate_data(self):
+        band_width = self.bw
+        wigners = genWigAll(band_width)
+        wigners_transposed = genWigAllTrans(band_width)
+        legendre_weights = makeweights2(band_width)
+        return wigners, wigners_transposed, legendre_weights
+    
+    def forward_cmplx(self,data):        
+        if data.ndim>1:
+            data=data.flatten()
+        if (data.dtype != np.dtype(np.complex128)):
+            print('Warning: input dtype is {} but {} is required. Trying to change dtype.'.format(data.dtype,np.dtype(np.complex128)))
+            data = data.astype(np.complex128)
+        if (len(data) != self.n_points):
+            raise AssertionError('input data needs to be of length {}. Given length = {}'.format(self.n_points,data.dtype,len(data)))        
+        coeffs = Forward_SO3_Naive_fft_pc(self.bw,data,self.legendre_weights,self.wigners,True)        
+        return coeffs
+    
+    def inverse_cmplx(self,coeff):
+        if (coeff.dtype != np.dtype(np.complex128)):
+            print('Warning: input dtype is {} but {} is required. Trying to change dtype.'.format(coeff.dtype,np.dtype(np.complex128)))
+            coeff = coeff.astype(np.complex128)
+        if (len(coeff) != self.n_coeffs) or (coeff.dtype != np.dtype(np.complex128)):
+            raise AssertionError('input coeffs need to be of type complex128 and of length {}. Given data dtype = {} length = {}'.format(self.n_coeffs,coeff.dtype,len(coeff)))        
+        data = Inverse_SO3_Naive_fft_pc(self.bw,coeff,self.wigners_transposed,True)
+        return data.reshape(self.so_shape)
+
+    def make_SO3_grid(self):
+        alpha,beta,gamma = get_euler_angles(self.bw)
+
+        grid = np.stack(np.meshgrid(alpha,beta,gamma,indexing='ij'),3)
+        #grid = GridFactory.construct_grid('uniform',[alpha,beta,gamma])[:]
+        return grid
+
+    def make_coeff_grid(self):
+        bw= self.bw
+        lnks = list_of_lnk(bw)
+        #print(lnks.shape)
+        coeff_grid = np.zeros((totalCoeffs_so3(bw),3))
+        for lnk in lnks:
+            l,n,k = lnk
+            _id = so3CoefLoc(n,k,l,bw)
+            #print(_id)
+            coeff_grid[_id]=lnk
+        return coeff_grid
+    
+    def get_empty_coeff(self):
+        return np.zeros(self.n_coeffs,dtype = complex)
+        
+
+
+    #################################################
+    # computes the rotated harmonic coefficients
+    # f_{l,m} ---> \sum_n D^l_{n,m} f_{l,n}
+    # assumes f_{l,m}=coeff to be a complex array of length bw**2
+    # split_ids such that np.split(coeff,split_ids) gives a list of coefficients indexed by l.
+    # euler_angles is an array of length 3 containing the euler angles (alpha,beta,gamma) in ZYZ format
+    def rotate_coeff(self,coeff,split_ids,euler_angles):
+        #print('coeff.shape before rotation = {}'.format(coeff[0].shape))
+        rotated_coeff = rotate_coeff_multi(self.bw, coeff,split_ids, euler_angles)
+        return rotated_coeff
+
+    def rotate_coeff_single(self,coeff,split_ids,euler_angles):
+        #print('coeff.shape before rotation = {}'.format(coeff.shape))
+        rotated_coeff = rotate_coeff(self.bw, coeff,split_ids, euler_angles)
+        return rotated_coeff
+
+    
+    #######################################
+    # let f,g be two square integrable functions on the 2 sphere 
+    # Define C: SO(3) ---> R,   R |---> <f,g \circ R> = \int_{S^2} dx f(x)*\overline{g(Rx)}
+    # This function calculates C(R) for all R defined in make_SO3_grid
+    #
+    # arguments :
+    #   f_coeff: f_{l,m} spherical harmonic coefficients of f 
+    #   g_coeff: g_{l,m} spherical harmonic coefficients of g 
+    #            f_coeff, g_coeff are complex numpy arrays of shape bw*(bw+1)+bw+1
+    #   split _ids: ids that split coefficients in 2*bw+1 sub arrays indexed by m
+    #
+    def calc_mean_C(self,f_coeff,g_coeff,r_split_ids,ml_split_ids):
+        r_split_lower=r_split_ids[0]
+        r_split_upper=r_split_ids[1]
+        mean_C = calc_mean_C_array(self.bw,f_coeff,g_coeff,r_split_lower,r_split_upper,ml_split_ids,self.wigners_transposed,True)
+        return mean_C
+
+
+    #testing 
+    def combine_coeffs(self,f_coeff,g_coeff,split_ids):
+        return combine_harmonic_coeffs(self.bw,f_coeff,g_coeff,split_ids)
