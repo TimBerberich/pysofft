@@ -1,5 +1,5 @@
 import numpy as np
-from pysoft.make_wiegner import CosEvalPts,CosEvalPts2,SinEvalPts,SinEvalPts2,genWig_L2,genWigAll,genWigAllTrans
+from pysofft.make_wiegner import CosEvalPts,CosEvalPts2,SinEvalPts,SinEvalPts2,genWig_L2,genWigAll,genWigAllTrans
 
 bw = 5
 cs = CosEvalPts(2*bw)

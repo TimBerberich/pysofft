@@ -1,9 +1,9 @@
 import numpy as np
-from pysoft.make_wiegner import CosEvalPts,CosEvalPts2,SinEvalPts,SinEvalPts2,genWigTrans_L2,genWig_L2
-from pysoft.wignerTransform import wigNaiveSynthesis_fftw,wigNaiveAnalysis_fftw
-from pysoft.wignerTransform import wigNaiveSynthesis_fftwX,wigNaiveAnalysis_fftwX
-from pysoft.wignerTransform import wigNaiveSynthesis_fftwY,wigNaiveAnalysis_fftwY
-from pysoft.wignerWeights import makeweights2
+from pysofft.make_wiegner import CosEvalPts,CosEvalPts2,SinEvalPts,SinEvalPts2,genWigTrans_L2,genWig_L2
+from pysofft.wignerTransform import wigNaiveSynthesis_fftw,wigNaiveAnalysis_fftw
+from pysofft.wignerTransform import wigNaiveSynthesis_fftwX,wigNaiveAnalysis_fftwX
+from pysofft.wignerTransform import wigNaiveSynthesis_fftwY,wigNaiveAnalysis_fftwY
+from pysofft.wignerWeights import makeweights2
 bw = 5
 cs = CosEvalPts(2*bw)
 si2 = SinEvalPts2(2*bw)

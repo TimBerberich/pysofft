@@ -1,0 +1,26 @@
+[project]
+name = "pysofft"
+version = "0.1.0"
+description = "Python port of the C library SOFT 2.0, that computes fourier transforms on the rotation group SO(3)."
+keywords = ["SO(3)", "FFT", "fourier transform", "SOFT"]
+readme = "README.md"
+authors = [
+    {email = "tim.berberich@xfel.eu"},
+]
+classifiers = [
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Programming Language :: Python :: 3 :: Only",
+]
+dependencies = [
+    "numba",
+    "numpy",
+]
+requires-python = ">=3.11"
+
+[project.urls]
+Homepage = "https://github.com/TimBerberich/pysoft"
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"

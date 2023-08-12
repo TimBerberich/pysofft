@@ -2,11 +2,11 @@ import time
 import sys
 import numpy as np
 
-from pysoft.make_wiegner import CosEvalPts,CosEvalPts2,SinEvalPts,SinEvalPts2,genWigTrans_L2
-from pysoft.make_wiegner import genWigAll,genWigAllTrans
-from pysoft.wignerTransform import wigNaiveSynthesis_fftw
-from pysoft.wignerWeights import makeweights2
-from pysoft.soft import Inverse_SO3_Naive_fft_pc,Forward_SO3_Naive_fft_pc,coefLoc_so3,sampLoc_so3,forward_fft,inverse_fft,forward_wigner,inverse_wigner 
+from pysofft.make_wiegner import CosEvalPts,CosEvalPts2,SinEvalPts,SinEvalPts2,genWigTrans_L2
+from pysofft.make_wiegner import genWigAll,genWigAllTrans
+from pysofft.wignerTransform import wigNaiveSynthesis_fftw
+from pysofft.wignerWeights import makeweights2
+from pysofft.soft import Inverse_SO3_Naive_fft_pc,Forward_SO3_Naive_fft_pc,coefLoc_so3,sampLoc_so3,forward_fft,inverse_fft,forward_wigner,inverse_wigner 
 from c_arrays import tcoeff_forward, tcoeff_forward_2, tdata_inverse, tdata_inverse_ffted, tdata_inverse_ffted_2 
 
 
