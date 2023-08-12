@@ -1,6 +1,6 @@
 [project]
 name = "pysofft"
-version = "0.1.0"
+version = "0.1.2"
 description = "Python port of the C library SOFT 2.0, that computes fourier transforms on the rotation group SO(3)."
 keywords = ["SO(3)", "FFT", "fourier transform", "SOFT"]
 readme = "README.md"
