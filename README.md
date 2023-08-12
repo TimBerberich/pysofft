@@ -24,7 +24,7 @@ from pysofft.soft import Soft
 bandwidth = 32
 soft_obj = Soft(bandwidth)
 ```
-SO(3) grid points (gives as (2 bandwidth,2 bandwidth,2 bandwidth,3) of euler angles $\alpha,\beta,\gamma$):
+SO(3) grid points (gives as (2 bandwidth,2 bandwidth,2 bandwidth,3) array of euler angles $\alpha,\beta,\gamma$):
 ```
 soft_obj.grid
 ```
