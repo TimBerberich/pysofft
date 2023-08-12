@@ -35,10 +35,11 @@ soft_obj.coeff_grid
 
 Creating random coefficients and computing the FFT on SO(3)
 ```
+import numpy as np
 Flnm=np.random.rand(*soft_obj.coeff_grid.shape[:-1]).astype('complex')
 
-f = soft_obj.inverse_cmplx(Flmn) # inverse Transform   (Dlnm Coefficients -> SO(3))
-Flmn2 = soft_obj.forward_cmplx(f) # forward Transform  (SO(3) -> Dlnm Coefficients)
+f = soft_obj.inverse_cmplx(Flnm) # inverse Transform   (Dlnm Coefficients -> SO(3))
+Flnm2 = soft_obj.forward_cmplx(f) # forward Transform  (SO(3) -> Dlnm Coefficients)
 ```
 
 ## Known Issues
