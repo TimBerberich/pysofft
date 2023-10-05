@@ -1,5 +1,5 @@
 import numpy as np
-from numba import njit, objmode, types
+from numba import njit, objmode, types, int64,float64,complex128
 
 pi = np.pi
 
@@ -292,6 +292,12 @@ def get_exponentials(bw):
     ms = np.concatenate((ls,-1*ls[::-1]))
     return np.exp(-1.j*np.expand_dims(ms,-1)*np.expand_dims(alpha,0))
 
+
+@njit(int64(int64),cache=True)
+def n_wigners(bw):
+    bw = float(bw)
+    return int(1/3 * bw**2 * (2 + 3*bw + bw**2))
+    
 #######################################################################
 # genAllWig: make ALL the Wigner little-d's necessary to do a full
 #            FORWARD SOFT (i.e. SO(3)) transform. Designed to be used in
@@ -305,10 +311,13 @@ def get_exponentials(bw):
 #   wigners: array to store ALL the wigners, of size (gulp)
 # 
 #      1/3 * bw^2 * (2 + 3*bw + bw^2)
+#
+#   These wigner small d are multiplied by 1/\sqrt{2}
 # 
 #   workspace: scratch space, of size 12 * n, where n = 2*bw
+@njit(float64[:](int64),cache=True)
 def genWigAll(bw):
-    n = 2 * bw
+    n = int(2 * bw)
     wigners = np.zeros( int(0.5+1/3 * bw**2 * (2 + 3*bw + bw**2)) )
     
     # precompute appropriate sine and cosine values 
@@ -320,7 +329,7 @@ def genWigAll(bw):
     # precompute Wigner little-d's for m1 = m2 = 0
     pt = 0
     wigners[:bw*n] = genWig_L2( 0, 0, bw, cosPts, sinPts2, cosPts2)
-    pt += bw*n
+    pt += int(bw*n)
     
     # precompute Wigner little-d's for abs(m1)=abs(m2)
     for m1 in range(1,bw):
@@ -334,7 +343,7 @@ def genWigAll(bw):
         tmp = genWig_L2( m1, 0,bw, cosPts, sinPts2, cosPts2)
         size = len(tmp)
         wigners[pt:pt+size] = tmp
-        pt += size        
+        pt += size
 
     # precompute Wigner little-d's for m1, m2
     for m1 in range(1,bw):
@@ -361,6 +370,7 @@ def genWigAll(bw):
 #      1/3 * bw^2 * (2 + 3*bw + bw^2)
 # 
 #   workspace: scratch space, of size 12 * n, where n = 2*bw
+@njit()
 def genWigAllTrans(bw):
     n = 2 * bw
     wigners = np.zeros( int(0.5+1/3 * bw**2 * (2 + 3*bw + bw**2)) )
@@ -377,7 +387,7 @@ def genWigAllTrans(bw):
     pt += bw*n
 
     # precompute Wigner little-d's for abs(m1)=abs(m2)
-    for m1 in range(1,bw):
+    for m1 in range(1,bw):        
         tmp = genWigTrans_L2( m1, m1,bw, cosPts, sinPts2, cosPts2)
         size = len(tmp)
         wigners[pt:pt+size] = tmp
@@ -398,6 +408,90 @@ def genWigAllTrans(bw):
             wigners[pt:pt+size] = tmp
             pt += size
     return wigners
+
+def wigLen_so3(m1,m2,bw):
+    m = max( abs(m1),abs(m2) )
+    size = bw-m
+    return (bw-m)*2*bw
+def wig_ls(m1,m2,bw):
+    return np.arange(np.max((abs(m1),abs(m2))),bw)
+def _write_lids(lnkb,m1,m2,beta_ids,bw):
+    nbetas=len(beta_ids)
+    ls = wig_ls(m1,m2,bw)
+    for l_id,l in enumerate(ls):
+        next_id = l_id+1
+        view = lnkb[:,l_id*nbetas:next_id*nbetas]
+        view[0]=l
+        view[1]=m1
+        view[2]=m2
+        view[3]=beta_ids
+
+def wig_little_d_grid(bw):
+    nwigners = int(1/3 * bw**2 * (2 + 3*bw + bw**2))
+    nbetas = 2*bw
+    beta_ids = np.arange(nbetas)
+    lnkbs = np.zeros((4,nwigners),dtype=np.int32)
+
+    # m1=m2=0
+    lnkb = lnkbs[:,:wigLen_so3(0,0,bw)]
+    _write_lids(lnkb,0,0,beta_ids,bw)
+    wigPos = lnkb.shape[1]
+    # m1=m2
+    for m1 in range(1,bw):
+        lnkb = lnkbs[:,wigPos : wigPos + wigLen_so3(m1,m1,bw)]
+        _write_lids(lnkb,m1,m1,beta_ids,bw)
+        wigPos += lnkb.shape[1]
+    # m1=0
+    for m1 in range(1,bw):
+        lnkb = lnkbs[:,wigPos : wigPos + wigLen_so3(m1,0,bw)]
+        _write_lids(lnkb,m1,0,beta_ids,bw)
+        wigPos += lnkb.shape[1]
+    # m1<m2<bw
+    for m1 in range(1,bw):
+        for m2 in range(m1+1,bw):
+            lnkb = lnkbs[:,wigPos : wigPos + wigLen_so3(m1,m2,bw)]
+            _write_lids(lnkb,m1,m2,beta_ids,bw)
+            wigPos += lnkb.shape[1]
+    return lnkbs
+
+
+
+def _write_lookup(lookup,m1,m2,bw,start_pos):
+    nbetas = 2*bw
+    ls = wig_ls(m1,m2,bw)
+    #print(f'm1,m2 = {(m1,m2)}, ls = {ls}')
+    for l_id,l in enumerate(ls):
+        #print(f'{(l,m1,m2)}:  start {start_pos+l_id*nbetas} stop {start_pos+(l_id+1)*nbetas}')
+        lookup[(l,m1,m2)] = slice(start_pos+l_id*nbetas, start_pos+(l_id+1)*nbetas)
+        
+def wig_little_d_lookup(bw):    
+    nwigners = int(1/3 * bw**2 * (2 + 3*bw + bw**2))
+    nbetas = 2*bw
+    beta_ids = np.arange(nbetas)    
+    lookup={}
+    
+    # m1=m2=0
+    wigPos = 0
+    wig_len = wigLen_so3(0,0,bw)
+    _write_lookup(lookup,0,0,bw,wigPos)
+    wigPos = wig_len
+    # m1=m2
+    for m1 in range(1,bw):
+        wig_len = wigLen_so3(m1,m1,bw)
+        _write_lookup(lookup,m1,m1,bw,wigPos)
+        wigPos += wig_len
+    # m1=0
+    for m1 in range(1,bw):
+        wig_len = wigLen_so3(m1,0,bw)
+        _write_lookup(lookup,m1,0,bw,wigPos)
+        wigPos += wig_len
+    # m1<m2<bw
+    for m1 in range(1,bw):
+        for m2 in range(m1+1,bw):
+            wig_len = wigLen_so3(m1,m2,bw)
+            _write_lookup(lookup,m1,m2,bw,wigPos)
+            wigPos += wig_len
+    return lookup
 
 
 if __name__ == '__main__':

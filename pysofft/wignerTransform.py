@@ -2,6 +2,13 @@ import numpy as np
 from numba import njit, objmode, types
 from numba.types import float64,int64,complex128
 
+def wigNaiveIntegrate(bw,signal,wigner000,weights):
+    n = 2*bw
+    weighted_signal=weights*signal
+    integral = 0
+    for j in range(n):
+        integral += wigner000[j]*weighted_signal[j]
+    return integral
 
 #   wigNaiveAnalysis
 #
@@ -38,8 +45,6 @@ from numba.types import float64,int64,complex128
 #              workspace = scratch area, of length n
 #              weights = ptr to length 2*bw array containing the
 #                        quadrature weights - PRECOMPUTED by makeweights()
-
-
 @njit(complex128[:](int64,int64,int64,complex128[:],float64[:],float64[:]))
 def wigNaiveAnalysis_fftw(m1,m2,bw,signal,wigners,weights):
     #  m is the degree of the "first" wigner function at
