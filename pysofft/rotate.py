@@ -83,6 +83,8 @@ def rotate_coeff(bw, coeff,split_ids, euler_angles):
     expA = np.exp(-1j*ms*alpha)
     expG = np.exp(-1j*ms*gamma)
 
+    if not isinstance(split_ids,np.ndarray):
+        split_ids = np.arange(1,bw)**2
     rotated_coeff=np.zeros_like(coeff)
     coeff = np.split(coeff,split_ids)
     matIn = np.zeros((n-1)**2)
