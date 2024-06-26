@@ -73,6 +73,32 @@ def rotateCoefDegree(L,coeff,wigner,expA,expG):
 #
 #
 @njit()
+def precompute_wigner(bw, euler_angles):
+    n = 2*bw
+    alpha,beta,gamma = euler_angles
+    sqrts = np.sqrt(np.arange(n))
+    trigs = np.array([np.cos(beta/2),np.sin(beta/2)])
+    ms = np.arange(-bw+1,bw)
+    #print('len ms = ',len(ms))
+    expA = np.exp(-1j*ms*alpha)
+    expG = np.exp(-1j*ms*gamma)
+    matIn = np.zeros((n-1)**2)
+    D = [np.zeros((2*L+1,2*L+1)).astype(np.complex128) for L in range(bw)]
+
+    for deg in range(bw):
+        dim = 2*deg + 1
+        matIn = wignerdmat(deg,matIn,trigs,sqrts)
+        expA_part = expA[bw-deg-1:bw+deg]
+        expG_part = expG[bw-deg-1:bw+deg]
+        DL = D[deg]
+        temp= np.zeros_like(DL)
+        for i in range(dim):
+            temp[i,:]= expA_part[i]*matIn[i*dim:(i+1)*dim]*expG_part
+        DL[:]=temp.T
+    return D
+
+
+@njit()
 def rotate_coeff(bw, coeff,split_ids, euler_angles):
     n = 2*bw
     alpha,beta,gamma = euler_angles
@@ -83,8 +109,8 @@ def rotate_coeff(bw, coeff,split_ids, euler_angles):
     expA = np.exp(-1j*ms*alpha)
     expG = np.exp(-1j*ms*gamma)
 
-    if not isinstance(split_ids,np.ndarray):
-        split_ids = np.arange(1,bw)**2
+    #if not isinstance(split_ids,np.ndarray):
+    #    split_ids = np.arange(1,bw)**2
     rotated_coeff=np.zeros_like(coeff)
     coeff = np.split(coeff,split_ids)
     matIn = np.zeros((n-1)**2)
@@ -107,9 +133,28 @@ def rotate_coeff(bw, coeff,split_ids, euler_angles):
         pos+=dim
     return rotated_coeff
 
+
 @njit()
-def rotate_coeff_multi(bw, coeffs,split_ids, euler_angles):
+def rotate_coeff_multi_old(bw, coeffs,split_ids, euler_angles):
     rotated_coeff = np.zeros_like(coeffs)
     for i in range(len(coeffs)):
         rotated_coeff[i] = rotate_coeff(bw, coeffs[i],split_ids, euler_angles)
     return rotated_coeff
+
+@njit()
+def rotate_coeff_multi(bw, coeffs,split_ids, euler_angles):
+    D = precompute_wigner(bw,euler_angles)
+    rotated_coeffs = np.zeros_like(coeffs)
+    l_slice_ids = np.zeros(len(split_ids)+2)
+    l_slice_ids[1:-1]=split_ids
+    l_slice_ids[-1]=(2*bw-1)**2
+    for coeff,rot_coeff in zip(coeffs,rotated_coeffs):
+        rot_coeff[0]=coeff[0]
+        for l in range(1,bw):
+            start = l_slice_ids[l]
+            stop = l_slice_ids[l+1]
+            #print(f'L = {l}, start = {start}, stop = {stop}, all ids = {l_slice_ids}')
+            coeff_l = coeff[start:stop]
+            #print(f'L = {l}, coeff shape = {coeff_l.shape},rot coeff shape = { rot_coeff[start:stop].shape}, wig shape = {D[l].shape}')
+            rot_coeff[start:stop]= np.dot(D[l],coeff_l)
+    return rotated_coeffs
