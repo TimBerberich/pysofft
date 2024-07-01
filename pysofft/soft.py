@@ -1153,6 +1153,37 @@ def calc_mean_C_array(bw,f_coeff,g_coeff,r_lower_limit,r_upper_limit,split_ids,w
         C += tmp        
     return C/n_steps
 
+#######################################
+# Calculates the integral of above C over 0- axis of f_coeff,g_coeff.
+# This is the radial coordinate axis in a spherical coordinate system.
+# The radial sampling is assumed to correspond to the usiform sampling used in the midpoint rule.
+# let f,g be two square integrable functions on the 2 sphere 
+# Define C: SO(3) ---> R,   R |---> <f,g \circ R> = \int_{S^2} dx f(x)*\overline{g(Rx)}
+# This function calculates C(R) for all R defined in make_SO3_grid
+#
+# arguments :
+#   f_coeff: f_{l,m} spherical harmonic coefficients of f 
+#   g_coeff: g_{l,m} spherical harmonic coefficients of g 
+#            f_coeff, g_coeff are complex numpy arrays of shape (N,bw*(bw+1)+bw+1)
+#            for an asbitrary integer N.
+#   split _ids: ids that split coefficients in 2*bw+1 sub arrays indexed by m
+#   r_cutoff_id: int64, 0<=r_cutoff_id<=N only the first r_cutoff_id radial coordinates are averaged over
+#
+@njit()
+def calc_int_C_array(bw,f_coeff,g_coeff,r_lower_limit,r_upper_limit,split_ids,wigners_transposed,data_is_complex,radial_sampling_points):
+    n= 2*bw
+    C = np.zeros(n**3,np.complex128)
+    n_steps = r_upper_limit - r_lower_limit
+    r_step = radial_sampling_points[1]-radial_sampling_points[0]
+    R = radial_sampling_points[r_upper_limit] - radial_sampling_points[r_lower_limit] + r_step
+    for i in range(r_lower_limit,r_upper_limit):
+        r = radial_sampling_points[i]
+        #print('find_rotation step',i+1,' of ',n_steps)
+        tmp = calc_C_lm(bw,f_coeff[i],g_coeff[i],split_ids,wigners_transposed,data_is_complex)
+        #print_angles(bw,tmp)
+        C += tmp*r**2        
+    return C/R
+
 #########################################
 # Calculate Rotated spherical harmonic coefficients
 # F_{lm} ----> \sum_n D^l_{m,n}(\alpha,\beta,\gamma) F_{ln}
@@ -1356,6 +1387,23 @@ class Soft():
         r_split_upper=r_split_ids[1]
         mean_C = calc_mean_C_array(self.bw,f_coeff,g_coeff,r_split_lower,r_split_upper,ml_split_ids,self.wigners_transposed,True)
         return mean_C
+
+    #######################################
+    # let f,g be two square integrable functions on the 2 sphere 
+    # Define C: SO(3) ---> R,   R |---> <f,g \circ R> = \int_{S^2} dx f(x)*\overline{g(Rx)}
+    # This function calculates C(R) for all R defined in make_SO3_grid
+    #
+    # arguments :
+    #   f_coeff: f_{l,m} spherical harmonic coefficients of f 
+    #   g_coeff: g_{l,m} spherical harmonic coefficients of g 
+    #            f_coeff, g_coeff are complex numpy arrays of shape bw*(bw+1)+bw+1
+    #   split _ids: ids that split coefficients in 2*bw+1 sub arrays indexed by m
+    #
+    def calc_int_C(self,f_coeff,g_coeff,r_split_ids,ml_split_ids,radial_sampling_points):
+        r_split_lower=r_split_ids[0]
+        r_split_upper=r_split_ids[1]
+        int_C = calc_int_C_array(self.bw,f_coeff,g_coeff,r_split_lower,r_split_upper,ml_split_ids,self.wigners_transposed,True,radial_sampling_points)
+        return int_C
 
 
     #testing 
