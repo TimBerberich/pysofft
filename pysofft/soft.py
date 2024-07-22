@@ -683,10 +683,7 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
     # normalization (1/n is contained in numpy fft)
     data = data.flatten() * bw/pi
     #print(data.shape)
-    return data
-
-    n = 2*bw
-    coeffs = np.zeros(int((4*bw**3-bw)/3 + 0.5),np.complex128)    
+    return data  
 
 ####################################################################
 #  ok, the forward transform
@@ -1127,6 +1124,7 @@ def calc_C_lm(bw,f_coeff,g_coeff,split_ids,wigners_transposed,data_is_complex):
     return C
 
 
+
 #######################################
 # Calculates the mean of above C over 0- axis of f_coeff,g_coeff.
 # let f,g be two square integrable functions on the 2 sphere 
@@ -1141,7 +1139,7 @@ def calc_C_lm(bw,f_coeff,g_coeff,split_ids,wigners_transposed,data_is_complex):
 #   split _ids: ids that split coefficients in 2*bw+1 sub arrays indexed by m
 #   r_cutoff_id: int64, 0<=r_cutoff_id<=N only the first r_cutoff_id radial coordinates are averaged over
 #
-@njit()
+@njit(boundscheck=True)
 def calc_mean_C_array(bw,f_coeff,g_coeff,r_lower_limit,r_upper_limit,split_ids,wigners_transposed,data_is_complex):
     n= 2*bw
     C = np.zeros(n**3,np.complex128)
@@ -1169,7 +1167,7 @@ def calc_mean_C_array(bw,f_coeff,g_coeff,r_lower_limit,r_upper_limit,split_ids,w
 #   split _ids: ids that split coefficients in 2*bw+1 sub arrays indexed by m
 #   r_cutoff_id: int64, 0<=r_cutoff_id<=N only the first r_cutoff_id radial coordinates are averaged over
 #
-@njit()
+@njit(boundscheck=True)
 def calc_int_C_array(bw,f_coeff,g_coeff,r_lower_limit,r_upper_limit,split_ids,wigners_transposed,data_is_complex,radial_sampling_points):
     n= 2*bw
     C = np.zeros(n**3,np.complex128)
@@ -1180,6 +1178,21 @@ def calc_int_C_array(bw,f_coeff,g_coeff,r_lower_limit,r_upper_limit,split_ids,wi
         r = radial_sampling_points[i]
         #print('find_rotation step',i+1,' of ',n_steps)
         tmp = calc_C_lm(bw,f_coeff[i],g_coeff[i],split_ids,wigners_transposed,data_is_complex)
+        #print_angles(bw,tmp)
+        C += tmp*r**2        
+    return C/R
+
+def _calc_int_C_array(bw,f_coeff,g_coeff,r_lower_limit,r_upper_limit,split_ids,wigners_transposed,data_is_complex,radial_sampling_points):
+    n= 2*bw
+    C = np.zeros(n**3,np.complex128)
+    n_steps = r_upper_limit - r_lower_limit
+    r_step = radial_sampling_points[1]-radial_sampling_points[0]
+    R = radial_sampling_points[r_upper_limit] - radial_sampling_points[r_lower_limit] + r_step
+    for i in range(r_lower_limit,r_upper_limit):
+        r = radial_sampling_points[i]
+        #print('find_rotation step',i+1,' of ',n_steps)
+        C_coeff = _calc_C_coefficients(bw,f_coeff[i],g_coeff[i],split_ids)
+        tmp = _inverse_sofft(bw,coeff,wigners_transposed,data_is_complex)
         #print_angles(bw,tmp)
         C += tmp*r**2        
     return C/R
@@ -1289,9 +1302,13 @@ def list_of_lnk(bw):
 
 
 class Soft():
-    def __init__(self,bw):
+    def __init__(self,bw,wigner_data=None):
         self.bw = bw
-        tmp = self.generate_data()
+        if wignerdata is None:
+            tmp = self.generate_data()
+        else:
+            tmp = wigner_data
+        
         self.grid = self.make_SO3_grid()
         self.coeff_grid = self.make_coeff_grid()
         self.wigners = tmp[0]
@@ -1301,6 +1318,7 @@ class Soft():
         self.n_points = (2*bw)**3
         self.so_shape=(2*bw,)*3
         self.wigners000=self.wigners[:2*bw]
+    
         
     def generate_data(self):
         band_width = self.bw
