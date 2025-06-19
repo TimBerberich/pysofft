@@ -36,3 +36,4 @@ sdist/
 var/
 *.egg-info/
 *.egg
+*.so

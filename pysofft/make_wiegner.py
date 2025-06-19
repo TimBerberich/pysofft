@@ -460,10 +460,10 @@ def _write_lookup(lookup,m1,m2,bw,start_pos):
     nbetas = 2*bw
     ls = wig_ls(m1,m2,bw)
     #print(f'm1,m2 = {(m1,m2)}, ls = {ls}')
+    lookup[(m1,m2)]=slice(start_pos,start_pos+len(ls)*nbetas)
     for l_id,l in enumerate(ls):
         #print(f'{(l,m1,m2)}:  start {start_pos+l_id*nbetas} stop {start_pos+(l_id+1)*nbetas}')
         lookup[(l,m1,m2)] = slice(start_pos+l_id*nbetas, start_pos+(l_id+1)*nbetas)
-        
 def wig_little_d_lookup(bw):    
     nwigners = int(1/3 * bw**2 * (2 + 3*bw + bw**2))
     nbetas = 2*bw

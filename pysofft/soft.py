@@ -1123,6 +1123,48 @@ def calc_C_lm(bw,f_coeff,g_coeff,split_ids,wigners_transposed,data_is_complex):
 
     return C
 
+#######################################
+# let f,g be two square integrable functions on the 2 sphere 
+# This function calculates the inverse sofft of the product of plmn = f_lm*g_ln.
+#
+# arguments :
+#   f_coeff: f_{l,m} spherical harmonic coefficients of f 
+#   g_coeff: g_{l,m} spherical harmonic coefficients of g 
+#            f_coeff, g_coeff are complex numpy arrays of shape bw*(bw+1)+bw+1
+#   split _ids: ids that split coefficients in 2*bw+1 sub arrays indexed by m
+#
+# output :
+#   C_values: array of shape (2*bw,2*bw,2*bw)
+#   The maximum in C corresponds to the Rotation that best maps f to g
+#
+#   The Idis of the maximum in C i_max,j_max,k_max correspond to the euler anglees beta,alpha,gamma in this order.
+#   Somehow there is still a bug. The resulting euler angles need to be modified as follows to yield correct results
+#   alpha,beta,gamma -----> 2*pi - alpha, beta , 2*pi-gamma
+@njit()
+def _calc_prod_lm(bw,f_coeff,g_coeff,split_ids,wigners_transposed,data_is_complex):    
+    coeff = np.zeros(totalCoeffs_so3(bw),np.complex128)
+    f_coeff = np.split(f_coeff,split_ids)
+    g_coeff = np.split(g_coeff,split_ids)
+    #    coeff_pos = 0
+    for l in range(bw):
+        wigNorm = 2.*pi*np.sqrt(2./(2.*l+1.))
+        f_l = f_coeff[l]
+        g_l = g_coeff[l]
+        m0_pos=l # position of the m = 0 component in arrays with components -l,...,l
+        for m1 in range(-l,l+1):
+            f_lm1 = f_l[m0_pos - m1] #should give f_{l-m1}
+            for m2 in range(-l,l+1):
+                #first take the CONJUGATE of the pattern g_coef              
+                g_lm2 =  g_l[m0_pos - m2] #fudge* g_l[m0_pos - m2].conjugate() # f_l[m0_pos - m2] should give f_{l-m2}                
+                #/* now multiply the signal f_coef by the pattern g_coef,
+                # and save it in the so3 coefficient array */                
+                index = so3CoefLoc(m1,m2,l,bw)
+                coeff[index] =wigNorm * f_lm1 * g_lm2 #* (-1)**(m1-m2)
+    # Calculate C by inverse SOFT
+    C = Inverse_SO3_Naive_fft_pc(bw,coeff,wigners_transposed,data_is_complex)
+
+    return C
+
 
 
 #######################################
@@ -1304,7 +1346,7 @@ def list_of_lnk(bw):
 class Soft():
     def __init__(self,bw,wigner_data=None):
         self.bw = bw
-        if wignerdata is None:
+        if wigner_data is None:
             tmp = self.generate_data()
         else:
             tmp = wigner_data
@@ -1404,6 +1446,12 @@ class Soft():
         r_split_lower=r_split_ids[0]
         r_split_upper=r_split_ids[1]
         mean_C = calc_mean_C_array(self.bw,f_coeff,g_coeff,r_split_lower,r_split_upper,ml_split_ids,self.wigners_transposed,True)
+        return mean_C
+
+    def calc_prod_lm(self,f_coeff,g_coeff,r_split_ids,ml_split_ids):
+        r_split_lower=r_split_ids[0]
+        r_split_upper=r_split_ids[1]
+        mean_C = _calc_prod_lm(self.bw,f_coeff,g_coeff,ml_split_ids,self.wigners_transposed,True)
         return mean_C
 
     #######################################
