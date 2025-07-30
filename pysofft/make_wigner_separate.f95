@@ -1,15 +1,15 @@
-module precission
+module precision
     implicit none
     integer(kind=8), parameter :: dp = 8
-end module precission
+end module precision
 
 module math_constants
-    use precission
+    use precision
     real(kind=dp), parameter :: pi = 4._dp*atan(1._dp)
 end module math_constants
 
 module make_wigner
-    use precission
+    use precision
     use math_constants
     implicit none
 contains
@@ -198,10 +198,15 @@ contains
     end function genWig_L2
     
     function wigner_slice(m1,m2,bw) result(slice)
+      ! For given m1,m2 computes the start and stop indices
+      ! of the corresponging segment int he genWigAll output array.
         ! starting points for different m1=M1+1 m2=M1+1 is given by:
         integer(kind = dp) m1,m2,bw,n1,n2
         integer(kind = dp) L,m,N,size,slice(2)
-        L     = bw-1_dp
+        if (.NOT. (m1>=0 .AND. m1<=m2 .AND. m1<bw .AND. m2<bw )) then
+           print *, "Invalid arguments: m1,m2 have to satisfy 0<m1<=m2<bw"
+        end if
+        L  = bw-1_dp
         m=max(abs(m1),abs(m2))
         size  = 2_dp*bw*(bw-m)
         !start = 1
