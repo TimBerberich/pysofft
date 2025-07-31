@@ -476,7 +476,6 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
     coefHere = coefLoc_so3( 0, 0, bw )
     coef = coeffs[coefHere[0]:coefHere[1]]
     wig = wigners[:wigLen_so3(0,0,bw)]
-    
     data[sampHere[0]:sampHere[1]] = wigNaiveSynthesis_fftw(0, 0, bw, coef, wig)
     wignerPos = len(wig)
     
@@ -487,7 +486,7 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
         ###########################
         # {f_{m1,m1}} coefficient #
         ###########################
-        sampHere = sampLoc_so3( m1, m1, bw ) 
+        sampHere = sampLoc_so3( m1, m1, bw )
         coefHere = coefLoc_so3( m1, m1, bw )    
         coef = coeffs[coefHere[0]:coefHere[1]]
         data[sampHere[0]:sampHere[1]] = wigNaiveSynthesis_fftw(m1, m1, bw, coef, wig)
@@ -496,7 +495,7 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
         # {f_{-m1,-m1}} coefficient #
         #############################
         if data_is_complex:
-            sampHere = sampLoc_so3( -m1, -m1, bw ) 
+            sampHere = sampLoc_so3( -m1, -m1, bw )
             coefHere = coefLoc_so3( -m1, -m1, bw )    
             coef = coeffs[coefHere[0]:coefHere[1]]
             data[sampHere[0]:sampHere[1]] = wigNaiveSynthesis_fftw(-m1, -m1, bw, coef, wig)
@@ -508,7 +507,7 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
         ############################
         # {f_{-m1,m1}} coefficient #
         ############################
-        sampHere = sampLoc_so3( -m1, m1, bw ) 
+        sampHere = sampLoc_so3( -m1, m1, bw )
         coefHere = coefLoc_so3( -m1, m1, bw )    
         coef = coeffs[coefHere[0]:coefHere[1]]
         data[sampHere[0]:sampHere[1]] = wigNaiveSynthesis_fftwY(-m1, m1, bw, coef, wig)
@@ -517,7 +516,7 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
         # {f_{m1,-m1}} coefficient #
         ############################
         if data_is_complex:
-            sampHere = sampLoc_so3( m1, -m1, bw ) 
+            sampHere = sampLoc_so3( m1, -m1, bw )
             coefHere = coefLoc_so3( m1, -m1, bw )    
             coef = coeffs[coefHere[0]:coefHere[1]]
             data[sampHere[0]:sampHere[1]] = wigNaiveSynthesis_fftwY(m1, -m1, bw, coef, wig)
@@ -535,7 +534,7 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
         ##########################
         # {f_{m1,0}} coefficient #
         ##########################
-        sampHere = sampLoc_so3( m1, 0, bw ) 
+        sampHere = sampLoc_so3( m1, 0, bw )
         coefHere = coefLoc_so3( m1, 0, bw )    
         coef = coeffs[coefHere[0]:coefHere[1]]
         data[sampHere[0]:sampHere[1]] = wigNaiveSynthesis_fftw(m1, 0, bw, coef, wig)
@@ -544,7 +543,7 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
         # {f_{-m1,0}} coefficient #
         ###########################
         if data_is_complex:
-            sampHere = sampLoc_so3( -m1, 0, bw ) 
+            sampHere = sampLoc_so3( -m1, 0, bw )
             coefHere = coefLoc_so3( -m1, 0, bw )    
             coef = coeffs[coefHere[0]:coefHere[1]]
             data[sampHere[0]:sampHere[1]] = wigNaiveSynthesis_fftwX(-m1, 0, bw, coef, wig)
@@ -556,7 +555,7 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
         ##########################
         # {f_{0,m1}} coefficient #
         ##########################
-        sampHere = sampLoc_so3( 0, m1, bw ) 
+        sampHere = sampLoc_so3( 0, m1, bw )
         coefHere = coefLoc_so3( 0, m1, bw )    
         coef = coeffs[coefHere[0]:coefHere[1]]
         data[sampHere[0]:sampHere[1]] = wigNaiveSynthesis_fftwX(0, m1, bw, coef, wig)
@@ -565,7 +564,7 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
         # {f_{0,-m1}} coefficient #
         ###########################
         if data_is_complex:
-            sampHere = sampLoc_so3( 0, -m1, bw ) 
+            sampHere = sampLoc_so3( 0, -m1, bw )
             coefHere = coefLoc_so3( 0, -m1, bw )    
             coef = coeffs[coefHere[0]:coefHere[1]]
             data[sampHere[0]:sampHere[1]] = wigNaiveSynthesis_fftw(0, -m1, bw, coef, wig)
@@ -586,7 +585,7 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
             ###########################
             # {f_{m1,m2}} coefficient #
             ###########################
-            sampHere = sampLoc_so3( m1, m2, bw ) 
+            sampHere = sampLoc_so3( m1, m2, bw )
             coefHere = coefLoc_so3( m1, m2, bw )    
             coef = coeffs[coefHere[0]:coefHere[1]]
             data[sampHere[0]:sampHere[1]] = wigNaiveSynthesis_fftw(m1, m2, bw, coef, wig)
@@ -595,7 +594,7 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
             # {f_{-m1,-m2}} coefficient #
             #############################            
             if data_is_complex:
-                sampHere = sampLoc_so3( -m1, -m2, bw ) 
+                sampHere = sampLoc_so3( -m1, -m2, bw )
                 coefHere = coefLoc_so3( -m1, -m2, bw )    
                 coef = coeffs[coefHere[0]:coefHere[1]]
                 data[sampHere[0]:sampHere[1]] = wigNaiveSynthesis_fftwX(-m1, -m2, bw, coef, wig)            
@@ -607,7 +606,7 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
             ###########################
             # {f_{m1,-m2}} coefficient #
             ###########################
-            sampHere = sampLoc_so3( m1, -m2, bw ) 
+            sampHere = sampLoc_so3( m1, -m2, bw )
             coefHere = coefLoc_so3( m1, -m2, bw )    
             coef = coeffs[coefHere[0]:coefHere[1]]
             data[sampHere[0]:sampHere[1]] = wigNaiveSynthesis_fftwY(m1, -m2, bw, coef, wig)
@@ -616,7 +615,7 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
             # {f_{-m1,m2}} coefficient #
             #############################
             if data_is_complex:
-                sampHere = sampLoc_so3( -m1, m2, bw ) 
+                sampHere = sampLoc_so3( -m1, m2, bw )
                 coefHere = coefLoc_so3( -m1, m2, bw )    
                 coef = coeffs[coefHere[0]:coefHere[1]]
                 data[sampHere[0]:sampHere[1]] = wigNaiveSynthesis_fftwY(-m1, m2, bw, coef, wig)     
@@ -630,7 +629,7 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
             ###########################
             # {f_{m2,m1}} coefficient #
             ###########################
-            sampHere = sampLoc_so3( m2, m1, bw ) 
+            sampHere = sampLoc_so3( m2, m1, bw )
             coefHere = coefLoc_so3( m2, m1, bw )    
             coef = coeffs[coefHere[0]:coefHere[1]]
             data[sampHere[0]:sampHere[1]] = wigNaiveSynthesis_fftwX(m2, m1, bw, coef, wig)
@@ -639,7 +638,7 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
             # {f_{-m2,-m1}} coefficient #
             #############################
             if data_is_complex:
-                sampHere = sampLoc_so3( -m2, -m1, bw ) 
+                sampHere = sampLoc_so3( -m2, -m1, bw )
                 coefHere = coefLoc_so3( -m2, -m1, bw )    
                 coef = coeffs[coefHere[0]:coefHere[1]]
                 data[sampHere[0]:sampHere[1]] = wigNaiveSynthesis_fftw(-m2, -m1, bw, coef, wig)            
@@ -651,7 +650,7 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
             ###########################
             # {f_{m2,-m1}} coefficient #
             ###########################
-            sampHere = sampLoc_so3( m2, -m1, bw ) 
+            sampHere = sampLoc_so3( m2, -m1, bw )
             coefHere = coefLoc_so3( m2, -m1, bw )    
             coef = coeffs[coefHere[0]:coefHere[1]]
             data[sampHere[0]:sampHere[1]] = wigNaiveSynthesis_fftwY(m1, -m2, bw, coef, wig)
@@ -660,7 +659,7 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
             # {f_{-m2,m1}} coefficient #
             #############################
             if data_is_complex:
-                sampHere = sampLoc_so3( -m2, m1, bw ) 
+                sampHere = sampLoc_so3( -m2, m1, bw )
                 coefHere = coefLoc_so3( -m2, m1, bw )    
                 coef = coeffs[coefHere[0]:coefHere[1]]
                 data[sampHere[0]:sampHere[1]] = wigNaiveSynthesis_fftwY(-m1, m2, bw, coef, wig)            
@@ -671,18 +670,15 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
                                             
             wignerPos += len(wig)
     #print(data)
-
-
-    # matrix n2,n3,n1 ---> n1,n2,n3     
-    #data = data.reshape(n**2,n).T.reshape(n,n,n)
-    with objmode(data=complex_3d):
-        #data = np.fft.fft2(data,norm='ortho')
-        data = np.fft.fft2(data.reshape(n,n,n),axes=(0,1),norm='ortho')
-    # matrix n1,n3,n2 ---> n1,n2,n3     
-    data = np.transpose(data,(0,2,1))    
-    # normalization (1/n is contained in numpy fft)
-    data = data.flatten() * bw/pi
-    #print(data.shape)
+    
+    #with objmode(data=complex_3d):
+    #    #data = np.fft.fft2(data,norm='ortho')
+    #    data = np.fft.fft2(data.reshape(n,n,n),axes=(0,1),norm='ortho')
+    ## matrix n1,n3,n2 ---> n1,n2,n3     
+    #data = np.transpose(data,(0,2,1))    
+    ## normalization (1/n is contained in numpy fft)
+    #data = data.flatten() * bw/pi
+    ##print(data.shape)
     return data  
 
 ####################################################################
@@ -730,13 +726,14 @@ def Forward_SO3_Naive_fft_pc(bw,data,weights,wigners,data_is_complex):
     n = 2*bw
     coeffs = np.zeros(int((4*bw**3-bw)/3 + 0.5),np.complex128)    
 
-    # n1,n2,n3 ------> n1,n3,n2
-    data=np.transpose(data.reshape(n,n,n),(0,2,1))
-    # n1,n2,n3 ------> n2,n3,n1
-    #data = data.reshape(n,n**2).T.reshape(n,n,n)
-    with objmode(data=complex_3d):
-        data = np.fft.ifft2(data,axes=(0,1),norm='ortho')
-    data = data.flatten() * pi/bw
+    ## n1,n2,n3 ------> n1,n3,n2
+    #data=np.transpose(data.reshape(n,n,n),(0,2,1))
+    ## n1,n2,n3 ------> n2,n3,n1
+    ##data = data.reshape(n,n**2).T.reshape(n,n,n)
+    #with objmode(data=complex_3d):
+    #    data = np.fft.ifft2(data,axes=(0,1),norm='ortho')
+    #data = data.flatten() * pi/bw
+    
     # normalize data (numpy ifft already contains contains 1/n factor) 
 
     # Stage 5: Do the Wigner transforms. This is the tricky bit.
