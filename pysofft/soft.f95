@@ -575,20 +575,23 @@ contains
   
   subroutine init_fft(use_real_fft)
     logical, intent(in) :: use_real_fft
-    integer(kind = sp) :: fft_rank,fft_n(2),fft_howmany,fft_inembed(2),fft_istride,fft_idist,fft_onembed(2),fft_ostride,fft_odist
+    integer(kind = sp) :: fft_rank,fft_n(2),fft_howmany,fft_inembed(2),fft_istride,fft_idist,fft_onembed(2),fft_ostride,fft_odist,bw2
     integer(kind = dp) :: elshape(3),output_shape_real(3)
 
     elshape = euler_shape(bw)
-    
+
+    bw2 = int(2_dp*bw,kind = sp)
     fft_rank = 2
-    fft_n = [int(2_dp*bw,kind = sp),int(2_dp*bw,kind=sp)]
-    fft_howmany = int(2_dp*bw,kind = sp)
+    fft_n = [bw2,bw2]
+    fft_howmany = bw2
     fft_istride = 1
     fft_ostride = 1
-    fft_inembed = 0
-    fft_onembed = 0
+    fft_inembed = fft_n
+    fft_onembed = fft_n
     fft_idist = product(fft_n)
     fft_odist = product(fft_n)
+
+
     if (use_real_fft) then
        output_shape_real(1)=elshape(1)/2_dp+1_dp
        output_shape_real(2)=elshape(2)/2_dp+1_dp
@@ -627,8 +630,6 @@ contains
        allocate(fft_c2c_in(elshape(1),elshape(2),elshape(2)))
        allocate(fft_c2c_out(elshape(1),elshape(2),elshape(2)))       
 
-       fft_inembed = fft_n
-       fft_onembed = fft_n
        call dfftw_plan_many_dft(plan_c2c_forward,&
             & fft_rank,fft_n,fft_howmany,&
             & fft_c2c_in,fft_inembed,fft_istride,fft_idist,&
@@ -1010,21 +1011,21 @@ contains
     end do    
   end subroutine forward_wigner_trf_cmplx
   
-  subroutine inverse_soft_precomputed_cmplx(coeff,so3func)
+  subroutine inverse_soft_cmplx(coeff,so3func)
     complex(kind = dp), intent(in) :: coeff(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)    
     call inverse_wigner_trf_cmplx(coeff,fft_c2c_in)
     call dfftw_execute_dft(plan_c2c_forward,fft_c2c_in,so3func)
-    so3func = so3func *(0.5_dp*pi)!* 1/(2*bw) * (2*bw)/(2*pi)
-  end subroutine inverse_soft_precomputed_cmplx
+    so3func = so3func * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)
 
-  subroutine forward_soft_precomputed_cmplx(so3func,coeff)
+  end subroutine inverse_soft_cmplx
+  subroutine forward_soft_cmplx(so3func,coeff)
     complex(kind = dp), intent(inout) :: coeff(:)
     complex(kind = dp), intent(in) :: so3func(:,:,:)
     call dfftw_execute_dft(plan_c2c_backward,so3func,fft_c2c_out)
-    fft_c2c_out = fft_c2c_out * (pi/real(2_dp*bw**2,kind=dp))!* 1/(2*bw) * 2*pi/(2*bw)
+    fft_c2c_out = fft_c2c_out * (2.0_dp*pi/real(2_dp*bw,kind=dp)**2) ! * 1/(2*bw) * 2*pi/(2*bw)
     call forward_wigner_trf_cmplx(fft_c2c_out,coeff)    
-  end subroutine forward_soft_precomputed_cmplx
+  end subroutine forward_soft_cmplx
 
   subroutine test_fft(a,b)
     complex(kind = dp), intent(in) :: a(:,:,:)

@@ -1,0 +1,1 @@
+FFLAGS=-fopenmp -lfftw3 -I/usr/include CFLAGS=-fopenmp -lfftw3 gfortran -I/usr/include -lfftw3 -O3 ./soft.f95 ./soft_timing.f95 -o ./soft_test

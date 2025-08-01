@@ -671,14 +671,14 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
             wignerPos += len(wig)
     #print(data)
     
-    #with objmode(data=complex_3d):
-    #    #data = np.fft.fft2(data,norm='ortho')
-    #    data = np.fft.fft2(data.reshape(n,n,n),axes=(0,1),norm='ortho')
-    ## matrix n1,n3,n2 ---> n1,n2,n3     
-    #data = np.transpose(data,(0,2,1))    
-    ## normalization (1/n is contained in numpy fft)
-    #data = data.flatten() * bw/pi
-    ##print(data.shape)
+    with objmode(data=complex_3d):
+        #data = np.fft.fft2(data,norm='ortho')
+        data = np.fft.fft2(data.reshape(n,n,n),axes=(0,1),norm='ortho')
+    # matrix n1,n3,n2 ---> n1,n2,n3     
+    data = np.transpose(data,(0,2,1))    
+    # normalization (1/n is contained in numpy fft)
+    data = data.flatten() * bw/pi
+    #print(data.shape)
     return data  
 
 ####################################################################
@@ -726,13 +726,13 @@ def Forward_SO3_Naive_fft_pc(bw,data,weights,wigners,data_is_complex):
     n = 2*bw
     coeffs = np.zeros(int((4*bw**3-bw)/3 + 0.5),np.complex128)    
 
-    ## n1,n2,n3 ------> n1,n3,n2
-    #data=np.transpose(data.reshape(n,n,n),(0,2,1))
-    ## n1,n2,n3 ------> n2,n3,n1
-    ##data = data.reshape(n,n**2).T.reshape(n,n,n)
-    #with objmode(data=complex_3d):
-    #    data = np.fft.ifft2(data,axes=(0,1),norm='ortho')
-    #data = data.flatten() * pi/bw
+    # n1,n2,n3 ------> n1,n3,n2
+    data=np.transpose(data.reshape(n,n,n),(0,2,1))
+    # n1,n2,n3 ------> n2,n3,n1
+    #data = data.reshape(n,n**2).T.reshape(n,n,n)
+    with objmode(data=complex_3d):
+        data = np.fft.ifft2(data,axes=(0,1),norm='ortho')
+    data = data.flatten() * pi/bw
     
     # normalize data (numpy ifft already contains contains 1/n factor) 
 
