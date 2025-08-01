@@ -1,3 +1,4 @@
+! Define constants
 module precision
 implicit none
 integer(kind=8), parameter :: dp = 8
@@ -10,6 +11,7 @@ module math_constants
   real(kind=dp), parameter :: pi = 4._dp*atan(1._dp)
 end module math_constants
 
+! Start of routine code
 module make_wigner
   use precision
   use math_constants
@@ -509,13 +511,11 @@ module soft
   use precision
   use make_wigner
   use soft_utils
-  !use fftw_plan_storage
   use, intrinsic :: iso_c_binding
   implicit none
   include 'fftw3.f03'
-  
-  ! bandwidth
-  integer(kind = dp) :: bw
+
+  integer(kind = dp) :: bw,wigner_size
   real(kind = dp), allocatable, target :: wigner_d(:)
   real(kind = dp), allocatable, target :: wigner_d_trsp(:)
   real(kind = dp), allocatable, target :: legendre_weights(:)
@@ -530,9 +530,13 @@ module soft
   !$OMP THREADPRIVATE(fft_c2c_in)
   !$OMP THREADPRIVATE(fft_c2r_out)
   !$OMP THREADPRIVATE(fft_c2c_out)
+
+  !interface inverse_soft_precomputed
+  !   module procedure inverse_soft_precomputed_cmplx, inverse_soft_precomputed_real
+  !end interface inverse_soft_precomputed
   
 contains
-  subroutine deallocate_fft_arrays()
+  subroutine destroy_fft()
     if (allocated(fft_r2c_in)) then
        deallocate(fft_r2c_in)
     end if
@@ -557,39 +561,22 @@ contains
        call dfftw_destroy_plan(plan_c2r_backward)
        plans_allocated_r = .FALSE.
     end if
-  end subroutine deallocate_fft_arrays
+  end subroutine destroy_fft
+
+  subroutine init_wigners()
+    allocate(wigner_d(wigner_size))
+    allocate(wigner_d_trsp(wigner_size))
+    call genWigAll_preallocated(bw,wigner_d)
+    call trsp_wigAll(bw,wigner_d,wigner_d_trsp)
+  end subroutine init_wigners
   
-  subroutine init(bandwidth,use_real_fft)
-    integer(kind = dp), intent(in) :: bandwidth
+  subroutine init_fft(use_real_fft)
     logical, intent(in) :: use_real_fft
-    integer(kind = dp) :: nwig,input_shape(3),output_shape_real(3),n_coeff
     integer(kind = sp) :: fft_rank,fft_n(2),fft_howmany,fft_inembed(2),fft_istride,fft_idist,fft_onembed(2),fft_ostride,fft_odist
+    integer(kind = dp) :: elshape(3),output_shape_real(3)
+
+    elshape = euler_shape(bw)
     
-
-    if ( (.NOT. allocated(wigner_d) ) .OR. (bandwidth/=bw)) then
-       ! compute wigner small ds
-       call destroy()
-       bw = bandwidth
-       nwig = size_wigner_d(bandwidth)
-       allocate(wigner_d(nwig))
-       allocate(wigner_d_trsp(nwig))
-       allocate(legendre_weights(2*bw))
-       legendre_weights = legendre_quadrature_weights(bw)
-       call genWigAll_preallocated(bandwidth,wigner_d)
-       call trsp_wigAll(bandwidth,wigner_d,wigner_d_trsp)
-    else
-       call deallocate_fft_arrays()
-    end if
-
-    n_coeff = total_num_coeffs(bw)    
-    input_shape = euler_shape(bw)
-    
-    if (allocated(empty_coeff)) then
-       deallocate(empty_coeff)
-    end if
-    allocate(empty_coeff(n_coeff))
-    empty_coeff = 0
-
     fft_rank = 2
     fft_n = [int(2_dp*bw,kind = sp),int(2_dp*bw,kind=sp)]
     fft_howmany = int(2_dp*bw,kind = sp)
@@ -600,11 +587,11 @@ contains
     fft_idist = product(fft_n)
     fft_odist = product(fft_n)
     if (use_real_fft) then
-       output_shape_real(1)=input_shape(1)/2_dp+1_dp
-       output_shape_real(2)=input_shape(2)/2_dp+1_dp
-       output_shape_real(3)=input_shape(3)
+       output_shape_real(1)=elshape(1)/2_dp+1_dp
+       output_shape_real(2)=elshape(2)/2_dp+1_dp
+       output_shape_real(3)=elshape(3)
        
-       allocate(fft_r2c_in(input_shape(1),input_shape(2),input_shape(3)))       
+       allocate(fft_r2c_in(elshape(1),elshape(2),elshape(3)))       
        allocate(fft_c2r_out(output_shape_real(1),output_shape_real(2),output_shape_real(3)))
        
        call dfftw_plan_many_dft_r2c(plan_r2c_forward,&
@@ -634,8 +621,8 @@ contains
        ! odist (int) = distance betwene start of each of the howmany outputs (here prod(n))
        
     else
-       allocate(fft_c2c_in(input_shape(1),input_shape(2),input_shape(2)))
-       allocate(fft_c2c_out(input_shape(1),input_shape(2),input_shape(2)))       
+       allocate(fft_c2c_in(elshape(1),elshape(2),elshape(2)))
+       allocate(fft_c2c_out(elshape(1),elshape(2),elshape(2)))       
 
        fft_inembed = fft_n
        fft_onembed = fft_n
@@ -664,12 +651,40 @@ contains
        ! ostride (int) = distance between sucessive elements of the output data set (here 1)
        ! odist (int) = distance betwene start of each of the howmany outputs (here prod(n))
     end if
+  end subroutine init_fft
+  
+  subroutine init(bandwidth,precompute_wigners,use_real_fft)
+    integer(kind = dp), intent(in) :: bandwidth
+    logical, intent(in) :: use_real_fft,precompute_wigners
+    integer(kind = dp) :: n_coeff
     
-    
-    !plan2 = fftw_plan_many_dft(2,input_shape(1:2),input_shape(3),ac,inembed,istride,&
-    !     &idist,oc,oembed,ostride,odist,FFTW_BACKWARD,FFTW_ESTIMATE)
-    
-    !create fft plans
+
+    if (bandwidth/=bw) then
+       call destroy()
+       bw = bandwidth
+       allocate(legendre_weights(2*bw))
+       legendre_weights = legendre_quadrature_weights(bw)
+       wigner_size = size_wigner_d(bandwidth)
+
+       if (precompute_wigners) then
+          call init_wigners()
+       end if
+    else
+       if (precompute_wigners .AND. (.NOT. allocated(wigner_d)) ) then
+          call init_wigners()
+       end if
+       call destroy_fft()
+    end if                
+
+    n_coeff = total_num_coeffs(bw)        
+    if (allocated(empty_coeff)) then
+       deallocate(empty_coeff)
+    end if
+    allocate(empty_coeff(n_coeff))
+    empty_coeff = 0
+
+    call init_fft(use_real_fft)
+
   end subroutine init
   
   subroutine destroy()
@@ -683,7 +698,7 @@ contains
     if (allocated(legendre_weights)) then
        deallocate(legendre_weights)
     end if
-    call deallocate_fft_arrays()
+    call destroy_fft()
     bw=0
   end subroutine destroy
       
@@ -726,105 +741,7 @@ contains
     ! be carefull fortran ordering has to be used
     wig_mat(1:bw-m,1:2*bw) => wigner_d_trsp(slice(1):slice(2))
   end function get_wigner_matrix_trsp
-
-  subroutine plot_wig_matrix_pointer(m1,m2,trsp)
-    integer(kind = dp), intent(in):: m1,m2
-    logical, intent(in) :: trsp
-    integer(kind=dp) :: i,j
-    real(kind = dp), pointer :: wig_mat(:,:)
-    if (trsp) then
-       wig_mat => get_wigner_matrix_trsp(m1,m2)
-    else
-       wig_mat => get_wigner_matrix(m1,m2)
-    end if
-    call print_2d_real_pointer(wig_mat)
-
-  end subroutine plot_wig_matrix_pointer
   
-  subroutine plot_matmul_wig(m1,m2)
-    integer(kind = dp), intent(in):: m1,m2
-    integer(kind=dp) :: i,j,sz
-    real(kind = dp), pointer :: wig_mat(:,:),wig_mat_trsp(:,:),res(:,:)
-    real(kind = dp),allocatable,target :: res_arr(:,:),weighted_wigmat(:,:),coeff(:),coeff2(:),so3fct(:)
-    wig_mat_trsp => get_wigner_matrix_trsp(m1,m2)
-    wig_mat => get_wigner_matrix(m1,m2)
-    sz = size(matmul(wig_mat_trsp,wig_mat),1)
-    print *, shape(wig_mat)
-    print *, shape(wig_mat_trsp)
-    allocate(res_arr(sz,sz))
-    allocate(weighted_wigmat(size(wig_mat,1),size(wig_mat,2)))
-    allocate(coeff(size(wig_mat,2)))
-    allocate(coeff2(size(wig_mat,2)))
-    allocate(so3fct(size(wig_mat,1)))
-
-    coeff = 1.0
-    so3fct = matmul(coeff,wig_mat_trsp)
-
-    do j=1,size(wig_mat,2)
-       do i=1, size(wig_mat,1)
-          weighted_wigmat(i,j)= wig_mat(i,j)*legendre_weights(i)
-       end do
-    end do
-    
-    coeff2 = matmul(so3fct,weighted_wigmat)
-    res_arr = matmul(wig_mat_trsp,weighted_wigmat)
-    res => res_arr
-    call print_2d_real_pointer(res)
-    print * , coeff2
-    deallocate(res_arr)
-    deallocate(weighted_wigmat)
-    deallocate(coeff)
-    deallocate(coeff2)
-    deallocate(so3fct)
-  end subroutine plot_matmul_wig
-  
-  subroutine print_ms()
-    integer(kind=dp) :: L,m1,m2,c
-    c=0
-    L = bw-1
-    do m1=0, L
-       do m2=m1, L
-          print *, m1,m2
-          c=c+1
-          if (m1 ==0 .AND. m2 ==0) cycle
-
-          print * ,-m2,-m1
-          c=c+1
-          if (.NOT. m1==m2) then
-             print * , m2,m1
-             c=c+1
-             print * , -m1,-m2
-             c=c+1
-          end if
-
-          if (m1==0 .or. m2==0) cycle       ! prevents sign swaps on 0 ids which are already covered
-
-          print *, m1,-m2
-          c=c+1
-          print *, -m1,m2
-          c=c+1
-          
-          if (m1 == m2) cycle               ! prevents duplicates due to swapping equal numbers
-          print *, -m2,m1
-          c=c+1
-          print *, m2,-m1
-          c=c+1
-       end do
-    end do
-
-    print *
-    print *,c
-    print *
-
-    do m1=-L, L
-       do m2=-L, L
-          print*, m1,m2
-       end do
-    end do
-    print *
-    print *,(2*L+1)**2
-    
-  end subroutine print_ms
   function get_wigner_matrix_copy(m1,m2,bw) result(wig_mat)
     ! This function returns the part of the wigners array that corresponds
     ! to d_m1,m2^l(beta) for all possible l and beta
@@ -853,35 +770,38 @@ contains
     coeff_part => coeff(c_slice(1):c_slice(2))
   end function get_coeff_part
 
-  
-
   subroutine inverse_wigner_trf_cmplx(coeff,so3func)
     complex(kind = dp), intent(in) :: coeff(:)
     complex(kind = dp),contiguous,target,intent(inout) :: so3func(:,:,:)
     real(kind = dp), pointer :: wig_mat(:,:)
     complex(kind = dp), pointer :: so3func_flat(:)
-    integer(kind = dp) :: i,m1,m2,m,L,sym_const,s_slice(2),c_slice(2),sym_array(bw)
-
+    integer(kind = dp) :: i,m1,m2,m,L,s_slice(2),c_slice(2)
+    real(kind=dp) :: sym_const_m1,sym_const_m2,sym_array(bw)
+    
     ! 1d pointer int o 3d array representing a function f(\alpha,\beta,\gamma) on SO(3)
     so3func_flat(1:(2*bw)**3) => so3func
     
     ! initiallizing some constants
     L = bw-1
     do i=0,L
-       sym_array(i+1) = (-1)**i 
+       sym_array(i+1) = (-1.0)**i 
     end do
     
     ! non-fft part of the SO(3) fourier transform        
     do m1=0, L
-       do m2=m1, L
-          wig_mat => get_wigner_matrix_trsp(m1,m2)  
+       sym_const_m1 = (-1.0)**m1
+       do m2=m1, L          
+          wig_mat => get_wigner_matrix_trsp(m1,m2)
+          m = max(abs(m1),abs(m2))
+          sym_const_m2 = (-1.0)**m2
+          
           !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
           !! use of symmetries does not cause a change in d_{m1,m2}^l(beta) !!
           !! m1,m2 !!
           s_slice = sample_slice(m1,m2,bw)
           c_slice = coeff_slice(m1,m2,bw)
-          !print *, shape(wig_mat),shape(coeff(c_slice(1):c_slice(2)))
           so3func_flat(s_slice(1):s_slice(2)) = matmul(coeff(c_slice(1):c_slice(2)),wig_mat)
+
           if (m1 ==0 .AND. m2 ==0) cycle    ! prevents m1=m2=0 from beeing evaluated twice
           
           !! -m2,-m1 !!
@@ -895,16 +815,15 @@ contains
           !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{-m1,-m2}^l(\beta)        !!
           !! They cause a constant sign swap by (-1)^(m1-m2)               !!
           if (.NOT. m1==m2) then
-             sym_const = (-1)**(m1-m2)
              !!  m2,m1  !!
              s_slice = sample_slice(m2,m1,bw)
              c_slice = coeff_slice(m2,m1,bw)
-             so3func_flat(s_slice(1):s_slice(2)) = sym_const*matmul(coeff(c_slice(1):c_slice(2)),wig_mat)
+             so3func_flat(s_slice(1):s_slice(2)) = (sym_const_m1*sym_const_m2)*matmul(coeff(c_slice(1):c_slice(2)),wig_mat)
              
              !! -m1,-m2 !!
              s_slice = sample_slice(-m1,-m2,bw)
              c_slice = coeff_slice(-m1,-m2,bw)
-             so3func_flat(s_slice(1):s_slice(2)) = sym_const*matmul(coeff(c_slice(1):c_slice(2)),wig_mat)
+             so3func_flat(s_slice(1):s_slice(2)) = (sym_const_m1*sym_const_m2)*matmul(coeff(c_slice(1):c_slice(2)),wig_mat)
           end if
           
           !! branch for sgn(m1)!=sgn(m2)                                   !!
@@ -917,45 +836,46 @@ contains
           !!    a l dependent sign swap by (-1)^l                          !!
           !!    an inversion of the \beta coordinate axis                  !!
           if (m1==0 .or. m2==0) cycle       ! prevents sign swaps on 0 ids which are already covered
-          m = max(abs(m1),abs(m2))
           
           !! m1,-m2 !!
-          sym_const = (-1)**m1
           s_slice = sample_slice(m1,-m2,bw)
           c_slice = coeff_slice(m1,-m2,bw)
-          so3func_flat(s_slice(2):s_slice(1):-1) = sym_const*matmul(sym_array(m+1:)*coeff(c_slice(1):c_slice(2)),wig_mat)
-
+          so3func_flat(s_slice(2):s_slice(1):-1) = sym_const_m1*matmul(sym_array(m+1:)*coeff(c_slice(1):c_slice(2)),wig_mat)
           
           !! -m1,m2 !!
-          sym_const = (-1)**m2
           s_slice = sample_slice(-m1,m2,bw)
           c_slice = coeff_slice(-m1,m2,bw)
-          so3func_flat(s_slice(2):s_slice(1):-1) = sym_const*matmul(sym_array(m+1:)*coeff(c_slice(1):c_slice(2)),wig_mat)
-
+          so3func_flat(s_slice(2):s_slice(1):-1) = sym_const_m2*matmul(sym_array(m+1:)*coeff(c_slice(1):c_slice(2)),wig_mat)
+                
           if (m1 == m2) cycle               ! prevents duplicates due to swapping equal numbers
           
           !! -m2,m1 !!
           s_slice = sample_slice(-m2,m1,bw)
           c_slice = coeff_slice(-m2,m1,bw)
-          so3func_flat(s_slice(2):s_slice(1):-1) = sym_const*matmul(sym_array(m+1:)*coeff(c_slice(1):c_slice(2)),wig_mat)   
+          so3func_flat(s_slice(2):s_slice(1):-1) = sym_const_m2*matmul(sym_array(m+1:)*coeff(c_slice(1):c_slice(2)),wig_mat)
 
           !! m2,-m1 !!
-          sym_const = (-1)**m1
           s_slice = sample_slice(m2,-m1,bw)
           c_slice = coeff_slice(m2,-m1,bw)
-          so3func_flat(s_slice(2):s_slice(1):-1) = sym_const*matmul(sym_array(m+1:)*coeff(c_slice(1):c_slice(2)),wig_mat)
+          so3func_flat(s_slice(2):s_slice(1):-1) = sym_const_m1*matmul(sym_array(m+1:)*coeff(c_slice(1):c_slice(2)),wig_mat)
 
        end do
     end do
   end subroutine inverse_wigner_trf_cmplx
 
+  !subroutine inverse_wigner_trf_real(coeffr,so3funcr)
+  !  complex(kind = dp), intent(in) :: coeffr(:)
+  !  complex(kind = dp), contiguous,target,intent(inout) :: so3funcr(:,:,:)
+  !end subroutine inverse_wigner_trf_real
+  
   subroutine forward_wigner_trf_cmplx(so3func,coeff)
     complex(kind = dp), intent(inout) :: coeff(:)
     complex(kind = dp),contiguous,target,intent(in) :: so3func(:,:,:)
     real(kind = dp), pointer :: wig_mat(:,:)
     complex(kind = dp), pointer :: so3func_flat(:)
-    integer(kind = dp) :: i,m1,m2,m,L,sym_const,s_slice(2),c_slice(2),sym_array(bw)
-
+    integer(kind = dp) :: i,m1,m2,m,L,s_slice(2),c_slice(2)
+    real(kind=dp) :: sym_const_m1,sym_const_m2,sym_array(bw)
+    
     ! 1d pointer into 3d array representing a function f(\alpha,\beta,\gamma) on SO(3)
     so3func_flat(1:(2*bw)**3) => so3func
     
@@ -968,15 +888,17 @@ contains
     
     ! non-fft part of the SO(3) fourier transform        
     do m1=0, L
+       sym_const_m1 = (-1.0)**m1
        do m2=m1, L
           wig_mat => get_wigner_matrix(m1,m2)
+          m = max(abs(m1),abs(m2))
+          sym_const_m2 = (-1.0)**m2
           
           !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
           !! use of symmetries does not cause a change in d_{m1,m2}^l(beta) !!
           !! m1,m2 !!
           s_slice = sample_slice(m1,m2,bw)
           c_slice = coeff_slice(m1,m2,bw)
-
           coeff(c_slice(1):c_slice(2)) = matmul(legendre_weights*so3func_flat(s_slice(1):s_slice(2)),wig_mat)
           if (m1 ==0 .AND. m2 ==0) cycle    ! prevents m1=m2=0 from beeing evaluated twice
           !! -m2,-m1 !!
@@ -990,15 +912,15 @@ contains
           !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{-m1,-m2}^l(\beta)        !!
           !! They cause a constant sign swap by (-1)^(m1-m2)               !!
           if (.NOT. m1==m2) then
-             sym_const = (-1)**(m1-m2)
+             !sym_const = (-1)**(m1-m2)
              !!  m2,m1  !!
              s_slice = sample_slice(m2,m1,bw)
              c_slice = coeff_slice(m2,m1,bw)
-             coeff(c_slice(1):c_slice(2)) = sym_const*matmul(legendre_weights*so3func_flat(s_slice(1):s_slice(2)),wig_mat)
+             coeff(c_slice(1):c_slice(2)) = (sym_const_m1*sym_const_m2)*matmul(legendre_weights*so3func_flat(s_slice(1):s_slice(2)),wig_mat)
              !! -m1,-m2 !!
              s_slice = sample_slice(-m1,-m2,bw)
              c_slice = coeff_slice(-m1,-m2,bw)
-             coeff(c_slice(1):c_slice(2)) = sym_const*matmul(legendre_weights*so3func_flat(s_slice(1):s_slice(2)),wig_mat)
+             coeff(c_slice(1):c_slice(2)) = (sym_const_m1*sym_const_m2)*matmul(legendre_weights*so3func_flat(s_slice(1):s_slice(2)),wig_mat)
           end if
           
           !! branch for sgn(m1)!=sgn(m2)                                   !!
@@ -1011,29 +933,29 @@ contains
           !!    a l dependent sign swap by (-1)^l                          !!
           !!    an inversion of the \beta coordinate axis                  !!
           if (m1==0 .or. m2==0) cycle       ! prevents sign swaps on 0 ids which are already covered
-          sym_const = (-1)**m1
+          !sym_const = (-1)**m1
           m = max(abs(m1),abs(m2))
           !! m1,-m2 !!
           s_slice = sample_slice(m1,-m2,bw)
           c_slice = coeff_slice(m1,-m2,bw)
-          coeff(c_slice(1):c_slice(2)) = matmul(legendre_weights*so3func_flat(s_slice(2):s_slice(1):-1),wig_mat)*(sym_const*sym_array(m:))
+          coeff(c_slice(1):c_slice(2)) = matmul(legendre_weights*so3func_flat(s_slice(2):s_slice(1):-1),wig_mat)*(sym_const_m1*sym_array(m+1:))
           !so3func_flat(s_slice(2):s_slice(1):-1) = sym_const*matmul(wig_mat,sym_array(m:)*get_coeff_part(m1,-m2,coeff))
           
           !! -m1,m2 !!
           s_slice = sample_slice(-m1,m2,bw)
           c_slice = coeff_slice(-m1,m2,bw)
-          coeff(c_slice(1):c_slice(2)) = matmul(legendre_weights*so3func_flat(s_slice(2):s_slice(1):-1),wig_mat)*(sym_const*sym_array(m:))
+          coeff(c_slice(1):c_slice(2)) = matmul(legendre_weights*so3func_flat(s_slice(2):s_slice(1):-1),wig_mat)*(sym_const_m2*sym_array(m+1:))
 
           if (m1 == m2) cycle               ! prevents duplicates due to swapping equal numbers
-          sym_const = (-1)**m2
+          !sym_const = (-1)**m2
           !! -m2,m1 !!
           s_slice = sample_slice(-m2,m1,bw)
           c_slice = coeff_slice(-m2,m1,bw)
-          coeff(c_slice(1):c_slice(2)) = matmul(legendre_weights*so3func_flat(s_slice(2):s_slice(1):-1),wig_mat)*(sym_const*sym_array(m:))
+          coeff(c_slice(1):c_slice(2)) = matmul(legendre_weights*so3func_flat(s_slice(2):s_slice(1):-1),wig_mat)*(sym_const_m2*sym_array(m+1:))
           !! m2,-m1 !!
           s_slice = sample_slice(m2,-m1,bw)
           c_slice = coeff_slice(m2,-m1,bw)
-          coeff(c_slice(1):c_slice(2)) = matmul(legendre_weights*so3func_flat(s_slice(2):s_slice(1):-1),wig_mat)*(sym_const*sym_array(m:))
+          coeff(c_slice(1):c_slice(2)) = matmul(legendre_weights*so3func_flat(s_slice(2):s_slice(1):-1),wig_mat)*(sym_const_m1*sym_array(m+1:))
        end do
     end do    
   end subroutine forward_wigner_trf_cmplx
@@ -1282,3 +1204,128 @@ contains
   end subroutine test_wig
   
 end module soft
+
+
+! Debug tools
+module debug
+  use precision
+  use make_wigner
+  use soft_utils
+  use, intrinsic :: iso_c_binding
+  implicit none
+
+contains
+  function my_matmul(a,b,n,m) result(c)
+    complex(kind=dp) :: a(n),c(m)
+    real(kind=dp) :: b(n,m)
+    integer(kind=dp) :: n,m
+    c=matmul(a,b)
+  end function my_matmul  
+  subroutine print_ms(bw)
+    integer(kind = dp),intent(in) :: bw
+    integer(kind=dp) :: L,m1,m2,c
+    c=0
+    L = bw-1
+    do m1=0, L
+       do m2=m1, L
+          print *, m1,m2
+          c=c+1
+          if (m1 ==0 .AND. m2 ==0) cycle
+
+          print * ,-m2,-m1
+          c=c+1
+          if (.NOT. m1==m2) then
+             print * , m2,m1
+             c=c+1
+             print * , -m1,-m2
+             c=c+1
+          end if
+
+          if (m1==0 .or. m2==0) cycle       ! prevents sign swaps on 0 ids which are already covered
+
+          print *, m1,-m2
+          c=c+1
+          print *, -m1,m2
+          c=c+1
+          
+          if (m1 == m2) cycle               ! prevents duplicates due to swapping equal numbers
+          print *, -m2,m1
+          c=c+1
+          print *, m2,-m1
+          c=c+1
+       end do
+    end do
+
+    print *
+    print *,c
+    print *
+
+    do m1=-L, L
+       do m2=-L, L
+          print*, m1,m2
+       end do
+    end do
+    print *
+    print *,(2*L+1)**2
+    
+  end subroutine print_ms
+end module debug
+
+module soft_debug
+  use precision
+  use make_wigner
+  use soft_utils
+  use soft
+  use, intrinsic :: iso_c_binding
+  implicit none
+  
+contains
+  subroutine plot_matmul_wig(m1,m2)
+    integer(kind = dp), intent(in):: m1,m2
+    integer(kind=dp) :: i,j,sz
+    real(kind = dp), pointer :: wig_mat(:,:),wig_mat_trsp(:,:),res(:,:)
+    real(kind = dp),allocatable,target :: res_arr(:,:),weighted_wigmat(:,:),coeff(:),coeff2(:),so3fct(:)
+    wig_mat_trsp => get_wigner_matrix_trsp(m1,m2)
+    wig_mat => get_wigner_matrix(m1,m2)
+    sz = size(matmul(wig_mat_trsp,wig_mat),1)
+    print *, shape(wig_mat)
+    print *, shape(wig_mat_trsp)
+    allocate(res_arr(sz,sz))
+    allocate(weighted_wigmat(size(wig_mat,1),size(wig_mat,2)))
+    allocate(coeff(size(wig_mat,2)))
+    allocate(coeff2(size(wig_mat,2)))
+    allocate(so3fct(size(wig_mat,1)))
+    
+    coeff = 1.0
+    so3fct = matmul(coeff,wig_mat_trsp)
+    
+    do j=1,size(wig_mat,2)
+       do i=1, size(wig_mat,1)
+          weighted_wigmat(i,j)= wig_mat(i,j)*legendre_weights(i)
+       end do
+    end do
+    
+    coeff2 = matmul(so3fct,weighted_wigmat)
+    res_arr = matmul(wig_mat_trsp,weighted_wigmat)
+    res => res_arr
+    call print_2d_real_pointer(res)
+    print * , coeff2
+    deallocate(res_arr)
+    deallocate(weighted_wigmat)
+    deallocate(coeff)
+    deallocate(coeff2)
+    deallocate(so3fct)
+  end subroutine plot_matmul_wig
+  subroutine plot_wig_matrix_pointer(m1,m2,trsp)
+    integer(kind = dp), intent(in):: m1,m2
+    logical, intent(in) :: trsp
+    integer(kind=dp) :: i,j
+    real(kind = dp), pointer :: wig_mat(:,:)
+    if (trsp) then
+       wig_mat => get_wigner_matrix_trsp(m1,m2)
+    else
+       wig_mat => get_wigner_matrix(m1,m2)
+    end if
+    call print_2d_real_pointer(wig_mat)    
+  end subroutine plot_wig_matrix_pointer
+end module soft_debug
