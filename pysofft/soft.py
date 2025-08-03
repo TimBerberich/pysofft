@@ -75,7 +75,7 @@ def sampLoc_so3(m1,m2,bw):
 # array I should start placing this evaluated inner-products
 # of this bandwidth bw transform.
 @njit(int64[:](int64,int64,int64),cache=True)
-def coefLoc_so3(m1,m2,bw):
+def coefLoc_so3(m1,m2,bw): 
     m = max( abs(m1),abs(m2) )
     size = bw-m
     if m1 >= 0:
@@ -175,7 +175,6 @@ def so3CoefLoc( m, mp, l, bw):
             tmpA -= tmpB 
             tmpA += (l - max(-m,-mp))
     return tmpA
-
 
 def coef_id_to_lnk(bw):
     _nk_range = np.roll(np.arange(-bw+1,bw),bw)
@@ -324,7 +323,6 @@ def d_to_coeff_info_v2(bw):
                 l_lookup[n,k] = ids[pos]
                 pos += 1
     return ids,lookup
-
 
 def wigner_normalization_factor(l):
     '''
@@ -675,7 +673,7 @@ def Inverse_SO3_Naive_fft_pc(bw,coeffs,wigners,data_is_complex):
         #data = np.fft.fft2(data,norm='ortho')
         data = np.fft.fft2(data.reshape(n,n,n),axes=(0,1),norm='ortho')
     # matrix n1,n3,n2 ---> n1,n2,n3     
-    data = np.transpose(data,(0,2,1))    
+    #data = np.transpose(data,(0,2,1))    
     # normalization (1/n is contained in numpy fft)
     data = data.flatten() * bw/pi
     #print(data.shape)
@@ -727,7 +725,8 @@ def Forward_SO3_Naive_fft_pc(bw,data,weights,wigners,data_is_complex):
     coeffs = np.zeros(int((4*bw**3-bw)/3 + 0.5),np.complex128)    
 
     # n1,n2,n3 ------> n1,n3,n2
-    data=np.transpose(data.reshape(n,n,n),(0,2,1))
+    #data=np.transpose(data.reshape(n,n,n),(0,2,1))
+    data=data.reshape(n,n,n)
     # n1,n2,n3 ------> n2,n3,n1
     #data = data.reshape(n,n**2).T.reshape(n,n,n)
     with objmode(data=complex_3d):

@@ -2,13 +2,14 @@ program test
   use precision
   use soft
   implicit none
-  integer(kind = dp),parameter :: bandw = 32
+  integer(kind = dp),parameter :: bandw = 2
   integer(kind=dp) :: i,j
   real :: start, end
   complex(kind=dp) :: so3func(2*bandw,2*bandw,2*bandw),so3func2(2*bandw,2*bandw,2*bandw),so3func3(2*bandw,2*bandw,2*bandw)
   complex(kind = dp), allocatable :: coeff_out(:) 
 
   call init(bandw,.True.,.False.)
+  call init(bandw,.False.,.False.)
   empty_coeff = 0
   call random_seed()
   call random_number(empty_coeff%re)
@@ -22,7 +23,7 @@ program test
      !call inverse_wigner_trf_cmplx(empty_coeff,so3func)
      !call forward_wigner_trf_cmplx(so3func,coeff_out)
      call inverse_soft_cmplx(empty_coeff,so3func)
-     call forward_soft_cmplx(so3func,coeff_out)
+     !call forward_soft_cmplx(so3func,coeff_out)
 
      !so3func=0
      !call random_number(so3func%re)
@@ -34,7 +35,7 @@ program test
      !so3func3 = so3func3/((2*bw)**2)
 
   end do
-  print *, sum(abs(empty_coeff-coeff_out))
+  !print *, sum(abs(empty_coeff-coeff_out))
   !write(*,'(F16.6)') so3func
   !print *
   !write(*,'(F16.6)') coeff_out

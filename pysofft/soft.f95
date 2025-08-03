@@ -385,7 +385,8 @@ contains
        stop
     end if
     bw2=2*bw
-    slice(1) = bw2*(bw2*( (1_dp-sign(1_dp,m1))/2*bw2 + m1 + (1_dp-sign(1_dp,m2))/2_dp ) + m2) 
+    !slice(1) = bw2*(bw2*( (1_dp-sign(1_dp,m1))/2*bw2 + m1 + (1_dp-sign(1_dp,m2))/2_dp ) + m2)
+    slice(1) = bw2*(bw2*( (1_dp-sign(1_dp,m2))/2*bw2 + m2 + (1_dp-sign(1_dp,m1))/2_dp ) + m1) 
     slice(1) = slice(1) + 1_dp ! Fortran indexing starting at 1 
     slice(2)=slice(1)+(bw2-1)
   end function sample_slice
@@ -582,15 +583,26 @@ contains
 
     bw2 = int(2_dp*bw,kind = sp)
     fft_rank = 2
+
+    !wrong result but fast
+    !fft_n = [bw2,bw2]
+    !fft_howmany = bw2
+    !fft_istride = 1
+    !fft_ostride = 1
+    !fft_inembed = fft_n
+    !fft_onembed = fft_n
+    !fft_idist = product(fft_n)
+    !fft_odist = product(fft_n)
+
+    !slower correct result but have to roll axis (012 to 201 in c ordering) 210 to 102 in fortran
     fft_n = [bw2,bw2]
     fft_howmany = bw2
-    fft_istride = 1
-    fft_ostride = 1
+    fft_istride = bw2
+    fft_ostride = bw2
     fft_inembed = fft_n
     fft_onembed = fft_n
-    fft_idist = product(fft_n)
-    fft_odist = product(fft_n)
-
+    fft_idist = 1
+    fft_odist = 1 ! product(fft_n)
 
     if (use_real_fft) then
        output_shape_real(1)=elshape(1)/2_dp+1_dp
@@ -796,7 +808,6 @@ contains
     coeff_part => coeff(c_slice(1):c_slice(2))
   end function get_coeff_part
 
-  
   subroutine inverse_wigner_loop_body_cmplx(so3func_flat,coeff,m1,m2,sym_array,sym_const_m1,sym_const_m2)
     complex(kind = dp), pointer, intent(inout) :: so3func_flat(:)
     complex(kind = dp), intent(in) :: coeff(:)
@@ -1014,10 +1025,9 @@ contains
   subroutine inverse_soft_cmplx(coeff,so3func)
     complex(kind = dp), intent(in) :: coeff(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)    
-    call inverse_wigner_trf_cmplx(coeff,fft_c2c_in)
+    call inverse_wigner_trf_cmplx(coeff,fft_c2c_in)    
     call dfftw_execute_dft(plan_c2c_forward,fft_c2c_in,so3func)
     so3func = so3func * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)
-
   end subroutine inverse_soft_cmplx
   subroutine forward_soft_cmplx(so3func,coeff)
     complex(kind = dp), intent(inout) :: coeff(:)
@@ -1026,6 +1036,29 @@ contains
     fft_c2c_out = fft_c2c_out * (2.0_dp*pi/real(2_dp*bw,kind=dp)**2) ! * 1/(2*bw) * 2*pi/(2*bw)
     call forward_wigner_trf_cmplx(fft_c2c_out,coeff)    
   end subroutine forward_soft_cmplx
+
+
+  subroutine fft_cmplx(f1,f2)
+    complex(kind = dp), intent(in) :: f1(:,:,:)
+    complex(kind = dp), intent(inout) :: f2(:,:,:)    
+    call dfftw_execute_dft(plan_c2c_forward,f1,f2)
+    f2 = f2 * (1/(2.0_dp*real(bw,kind=dp))) !* 1/(2*bw) * (2*bw)/(2*pi)
+  end subroutine fft_cmplx
+
+  subroutine fft_cmplx2(f1,f2)
+    complex(kind = dp), intent(inout) :: f1(:,:,:)
+    complex(kind = dp), intent(inout) :: f2(:,:,:)
+    f1 = reshape(f1, [2*bw, 2*bw, 2*bw], order=[3, 2, 1])
+    call dfftw_execute_dft(plan_c2c_forward,f1,f2)
+    f2 = f2 * (1/(2.0_dp*real(bw,kind=dp))) !* 1/(2*bw) * (2*bw)/(2*pi)
+  end subroutine fft_cmplx2
+  
+  subroutine ifft_cmplx(f1,f2)
+    complex(kind = dp), intent(in) :: f1(:,:,:)
+    complex(kind = dp), intent(inout) :: f2(:,:,:)    
+    call dfftw_execute_dft(plan_c2c_backward,f1,f2)
+    f2 = f2 * (1/(2.0_dp*real(bw,kind=dp))) !* 1/(2*bw) * (2*bw)/(2*pi)
+  end subroutine ifft_cmplx
 
   subroutine test_fft(a,b)
     complex(kind = dp), intent(in) :: a(:,:,:)
@@ -1079,7 +1112,6 @@ contains
   end subroutine test_wig
   
 end module soft
-
 
 ! Debug tools
 module debug
