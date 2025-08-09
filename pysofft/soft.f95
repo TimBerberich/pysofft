@@ -337,7 +337,7 @@ contains
   end subroutine trsp_wigAll
 end module make_wigner
 
-module soft_utils
+module so3ft_utils
   use precision
   use math_constants
   implicit none
@@ -599,12 +599,12 @@ contains
     real(kind = dp) :: so3func(2*bw,2*bw,2*bw)
     so3func = 0.0
   end function get_empty_so3func_real
-end module soft_utils
+end module so3ft_utils
 
-module soft
+module so3ft
   use precision
   use make_wigner
-  use soft_utils
+  use so3ft_utils
   use, intrinsic :: iso_c_binding
   implicit none
   include 'fftw3.f03'
@@ -759,8 +759,7 @@ contains
        ! ostride (int) = distance between sucessive elements of the output data set (here 1)
        ! odist (int) = distance betwene start of each of the howmany outputs (here prod(n))
     end if
-  end subroutine init_fft
-  
+  end subroutine init_fft  
   subroutine init(bandwidth,precompute_wigners,init_ffts,fftw_flags_)
     integer(kind = dp), intent(in) :: bandwidth
     logical, intent(in) :: init_ffts,precompute_wigners
@@ -793,8 +792,7 @@ contains
        call init_fft(.FALSE.)
        call init_fft(.TRUE.)
     end if
-  end subroutine init
-  
+  end subroutine init  
   subroutine destroy()
     ! Reset soft module variables
     if (allocated(wigner_d)) then
@@ -869,39 +867,7 @@ contains
        wig_mat_p(1:bw-m2,1:2*bw) => wig_mat_arr
     end if
     !call print_2d_real_pointer(wig_mat_p)
-  end subroutine get_wigner_matrix_trsp
-
-  subroutine get_wigner_matrix2(m1,m2,wig_mat_p,wig_mat_arr)
-    ! This function returns the part of the wigners array that corresponds
-    ! to d_m1,m2^l(beta) for all possible l and beta
-    integer(kind = dp), intent(in):: m1,m2
-    real(kind = dp), pointer,intent(inout) :: wig_mat_p(:,:)
-    real(kind = dp),target, allocatable ,intent(inout) :: wig_mat_arr(:,:)
-    integer(kind = dp) slice(2)
-
-    if (.NOT. (m1>=0 .AND. m1<=m2 .AND. m1<bw .AND. m2<bw )) then
-       !Note: because of this if statement the following is true
-       ! m = max(abs(m1),abs(m2)) = m2)
-       print *, "Invalid arguments: m1,m2 have to satisfy 0<m1<=m2<bw"
-       ERROR STOP
-    end if
-    
-    slice = wigner_slice(m1,m2,bw)
-
-    ! Return pointer to precoputed wigner_d matrices or
-    ! if no wigner_ds are allocated compute the relevant matrix.
-    if (allocated(wigner_d)) then
-       ! be carefull fortran ordering has to be used
-       slice = wigner_slice(m1,m2,bw)
-       wig_mat_p(1:2*bw,1:bw-m2) => wigner_d(slice(1):slice(2))
-    else
-       allocate(wig_mat_arr(2*bw,bw-m2))
-       wig_mat_arr = reshape(genWig_L2(m1,m2,bw,trig_samples),[2*bw,bw-m2])
-       wig_mat_p(1:2*bw,1:bw-m2) => wig_mat_arr
-    end if
-    !call print_2d_real_pointer(wig_mat_p)
-  end subroutine get_wigner_matrix2
-  
+  end subroutine get_wigner_matrix_trsp  
   function get_wigner_matrix_copy(m1,m2,bw) result(wig_mat)
     ! This function returns the part of the wigners array that corresponds
     ! to d_m1,m2^l(beta) for all possible l and beta
@@ -921,14 +887,6 @@ contains
     ! be carefull fortran ordering has to be used
     wig_mat = reshape(wigner_d(slice(1):slice(2)),[2*bw,bw-m])
   end function get_wigner_matrix_copy
-  
-  function get_coeff_part(m1,m2,coeff) result(coeff_part)
-    integer(kind = dp) :: m1,m2,c_slice(2)
-    complex(kind = dp), pointer :: coeff_part(:) !bw - max(abs(m1),abs(m2)))
-    complex(kind = dp), target :: coeff(:)
-    c_slice = coeff_slice(m1,m2,bw)
-    coeff_part => coeff(c_slice(1):c_slice(2))
-  end function get_coeff_part
   
   function get_so3func_part_halfcomplex(m1,m2,so3func) result(so3func_part)
     complex(kind = dp),intent(in) :: so3func(:,:,:)
@@ -1354,7 +1312,7 @@ contains
     end do    
   end subroutine forward_wigner_trf_real
   
-  subroutine inverse_soft_cmplx(coeff,so3func)
+  subroutine isoft(coeff,so3func)
     complex(kind = dp), intent(in) :: coeff(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
 
@@ -1367,8 +1325,8 @@ contains
     !print * , fft_c2c_in
     call dfftw_execute_dft(plan_c2c_forward,fft_c2c_in,so3func)
     so3func = so3func * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)
-  end subroutine inverse_soft_cmplx
-  subroutine forward_soft_cmplx(so3func,coeff)
+  end subroutine isoft
+  subroutine soft(so3func,coeff)
     complex(kind = dp), intent(inout) :: coeff(:)
     complex(kind = dp), intent(in) :: so3func(:,:,:)
 
@@ -1381,9 +1339,9 @@ contains
     !write(*,'(F16.5, F16.5)', advance='yes') reshape(fft_c2c_out,[(2*bw)**3])
     !print *,'fft done'
     call forward_wigner_trf_cmplx(fft_c2c_out,coeff)    
-  end subroutine forward_soft_cmplx
+  end subroutine soft
 
-  subroutine inverse_soft_real(coeff,so3func)
+  subroutine irsoft(coeff,so3func)
     complex(kind = dp), intent(in) :: coeff(:)
     real(kind = dp), intent(inout) :: so3func(:,:,:)
 
@@ -1395,8 +1353,8 @@ contains
     fft_c2r_in = CONJG(fft_c2r_in) ! to correct for the fact that we have to compute the forward not the backward fft.
     call dfftw_execute_dft_c2r(plan_c2r_backward,fft_c2r_in,so3func)
     so3func = so3func * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)
-  end subroutine inverse_soft_real
-  subroutine forward_soft_real(so3func,coeff)
+  end subroutine irsoft
+  subroutine rsoft(so3func,coeff)
     complex(kind = dp), intent(inout) :: coeff(:)
     real(kind = dp), intent(in) :: so3func(:,:,:)
 
@@ -1410,7 +1368,7 @@ contains
     write(*,'(F16.5, F16.5)', advance='yes') reshape(fft_c2r_in,[(2*bw)**2*(bw+1)])
     print * , 'rfft done'
     call forward_wigner_trf_real(fft_c2r_in,coeff)    
-  end subroutine forward_soft_real
+  end subroutine rsoft
   
   subroutine fft(f1,f2)
     complex(kind = dp), intent(in) :: f1(:,:,:)
@@ -1438,64 +1396,13 @@ contains
     f2 = f2 * (1/(2.0_dp*real(bw,kind=dp))) !* 1/(2*bw) * (2*bw)/(2*pi)
   end subroutine irfft
 
-  subroutine test_fft(a,b)
-    complex(kind = dp), intent(in) :: a(:,:,:)
-    complex(kind = dp), intent(inout) :: b(:,:,:)
-    complex(kind = dp) :: c(size(a,1),size(a,2),size(a,2))
-
-    print *, a
-    call dfftw_execute_dft(plan_c2c_backward,a,c)
-    c = c*(0.5_dp*pi)!* 1/(2*bw) * (2*bw)/(2*pi)
-    
-    print *, c
-    call dfftw_execute_dft(plan_c2c_forward,c,b)
-
-    b = b * (pi/real(2_dp*bw**2,kind=dp))!* 1/(2*bw) * 2*pi/(2*bw)
-
-    print *,b
-  end subroutine test_fft
-
-  subroutine test_wig(coeff,coeff2)
-    complex(kind = dp), intent(in) :: coeff(:)
-    complex(kind = dp), intent(inout) :: coeff2(:)
-    complex(kind = dp) :: so3func(2*bw,2*bw,2*bw)
-    real(kind = dp), pointer :: wig_mat(:,:),wig_mat_trsp(:,:)
-    complex(kind = dp), pointer :: so3func_flat(:)
-    integer(kind = dp) :: i,m1,m2,m,L,sym_const,s_slice(2),c_slice(2),sym_array(bw)
-
-    ! 1d pointer int o 3d array representing a function f(\alpha,\beta,\gamma) on SO(3)
-    so3func_flat(1:(2*bw)**3) => fft_c2c_in
-    
-    ! initiallizing some constants
-    L = bw-1
-    do i=0,L
-       sym_array(i+1) = (-1)**i 
-    end do
-    
-    ! non-fft part of the SO(3) fourier transform        
-    !do m1=0, L
-    !   do m2=m1, L
-    !      wig_mat_trsp => get_wigner_matrix_trsp(m1,m2)
-    !      wig_mat => get_wigner_matrix(m1,m2)
-    !      
-    !      !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
-    !      !! use of symmetries does not cause a change in d_{m1,m2}^l(beta) !!
-    !      !! m1,m2 !!
-    !      s_slice = sample_slice(m1,m2,bw)
-    !      c_slice = coeff_slice(m1,m2,bw)
-    !      so3func_flat(s_slice(1):s_slice(2)) = matmul(wig_mat_trsp,coeff(c_slice(1):c_slice(2)))
-    !      coeff2(c_slice(1):c_slice(2)) = matmul(wig_mat,legendre_weights*so3func_flat(s_slice(1):s_slice(2)))                    
-    !   end do
-    !end do
-  end subroutine test_wig
-
-end module soft
+end module so3ft
 
 ! Debug tools
 module debug
   use precision
   use make_wigner
-  use soft_utils
+  use so3ft_utils
   use, intrinsic :: iso_c_binding
   implicit none
 
@@ -1630,8 +1537,8 @@ end module debug
 module soft_debug
   use precision
   use make_wigner
-  use soft_utils
-  use soft
+  use so3ft_utils
+  use so3ft
   use, intrinsic :: iso_c_binding
   implicit none
   
