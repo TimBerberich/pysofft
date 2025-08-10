@@ -356,7 +356,6 @@ contains
     end if
     num_coeff = bw - max(abs(m1),abs(m2))
   end function num_coeffs
-  
   function total_num_coeffs(bw) result(num_coeff)
     !  For bandwidth bw, returns the TOTAL NUMBER of coefficients
     !  that will be computed when doing a full SO3 forward transform.
@@ -369,50 +368,6 @@ contains
     num_coeff = (4_dp*(bw*bw*bw)-bw)/3_dp
   end function total_num_coeffs
   
-  function sample_slice(m1,m2,bw) result(slice)
-    ! For order m1, m2 and bandwidth bw, returns the slice in the 3-D,
-    ! fft'd array of the data necessary for the Wigner-(m1,m2)
-    ! transform. I.e. The slice of the fft'd data
-    ! needed to compute f_{m1,m2}^l for all legal l. 
-    !
-    ! Note that the array is of size 2*bw x 2*bw x 2*bw, so I
-    ! need to multiply by that 2*bw (I'm sampling at twice
-    ! the bandwidth)
-    integer(kind=dp) :: m1,m2,bw,bw2
-    integer(kind=dp) :: slice(2)
-    if (abs(m1)>=bw .OR. abs(m2)>=bw) then
-       print *, "Out of bounds error (sample_slice): |m1|>bw or |m2|>bw"
-       stop
-    end if
-    bw2=2*bw
-    !slice(1) = bw2*(bw2*( (1_dp-sign(1_dp,m1))/2_dp*bw2 + m1 + (1_dp-sign(1_dp,m2))/2_dp ) + m2) 
-    slice(1) = bw2*(bw2*( (1_dp-sign(1_dp,m2))/2_dp*bw2 + m2 + (1_dp-sign(1_dp,m1))/2_dp ) + m1)
-    slice(1) = slice(1) + 1_dp ! Fortran indexing starting at 1 
-    slice(2)=slice(1)+(bw2-1_dp)
-  end function sample_slice
-
-  function sample_slice_real(m1,m2,bw) result(slice)
-    ! For order m1, m2 and bandwidth bw, returns the slice in the 3-D,
-    ! fft'd array of the data necessary for the Wigner-(m1,m2)
-    ! transform. I.e. The slice of the fft'd data
-    ! needed to compute f_{m1,m2}^l for all legal l. 
-    !
-    ! Note that the array is of size 2*bw x 2*bw x 2*bw, so I
-    ! need to multiply by that 2*bw (I'm sampling at twice
-    ! the bandwidth)
-    integer(kind=dp) :: m1,m2,bw,bw2
-    integer(kind=dp) :: slice(2)
-    if (abs(m1)>=bw .OR. abs(m2)>=bw) then
-       print *, "Out of bounds error (sample_slice): |m1|>bw or |m2|>bw"
-       stop
-    end if
-    bw2=2_dp*bw
-    slice(1) = bw2*((bw+1_dp)*( (1_dp-sign(1_dp,m2))/2_dp*bw2 + m2) + m1)
-    !slice(1) = bw2*((bw+1_dp)*( (1_dp-sign(1_dp,m2))/2_dp*bw2 + m2) + m1)
-    slice(1) = slice(1) + 1_dp ! Fortran indexing starting at 1 
-    slice(2)=slice(1)+(bw2-1_dp)
-  end function sample_slice_real
-
   function order_to_ids(m1,m2,bw) result(ids)
     ! For order m1, m2 and bandwidth bw, returns the slice in the 3-D,
     ! fft'd array of the data necessary for the Wigner-(m1,m2)
@@ -433,7 +388,7 @@ contains
     ids(2) = (1_dp-sign(1_dp,m2))/2_dp*bw2 + m2+1_dp
   end function order_to_ids
   
-  function coeff_slice(m1,m2,bw) result(slice)
+  function coeff_slice_legacy(m1,m2,bw) result(slice)
     ! So sample_slice tells me the location of the samples 
     ! needed to do the order (m1,m2)-Wigner-transform on the
     ! just fft'd data.
@@ -474,7 +429,7 @@ contains
     start = start + 1_dp ! +1 due to fortran indexing starting at 1   
     slice(1) = start
     slice(2) = start + (size-1)
-  end function coeff_slice
+  end function coeff_slice_legacy
 
   function coeff_location(m1,m2,l,bw) result(id)
     ! This function returns the index of the coefficient array corresponding to f_{m1,m2}^l.
@@ -489,7 +444,26 @@ contains
     id = slice(1)+l-m
   end function coeff_location
 
-  function coeff_slice2(n1,n2,bw) result(slice)
+  function coeff_slice(n1,n2,bw) result(slice)
+    ! Returns the slice of coefficients f_(n1,n2)^l for all possible l valaues.
+    ! It is chosen such that in loops of the follwing type memory acces for
+    ! for the coefficients happens continuousely without jumps.
+    !
+    ! do m1=0,bw-1
+    !    do m2=m1,bw-1
+    !      f_{m1,m2}
+    !      if m1==0 and m2==0, cycle  
+    !      f_{-m2,-m1}
+    !      if m1/=m2
+    !         f_{m2,m1}
+    !         f_{-m1,-m2}
+    !      if m1==0 or m2==0
+    !      f_{m1,-m2}
+    !      f_{-m1,m2}
+    !      if m1==m2, cycle
+    !      f_{m2,-m1}
+    !      f_{-m2,m1}
+    !
     integer(kind=dp), intent(in) :: n1,n2,bw
     integer(kind=dp) :: m(2),slice(2),an1,an2,temp1,temp2,temp3
     logical :: swapped,n1_neg,n2_neg
@@ -518,7 +492,7 @@ contains
     slice(1) = slice(1) + MERGE(temp3*(bw-m(2)),0_dp,(m(1)/=n1) .OR. (m(2)/=n2))
     slice(2) = slice(1) + bw-m(2)
     slice(1) = slice(1) + 1_dp ! 1 indexing
-  end function coeff_slice2
+  end function coeff_slice
   
   function wigLen_so3(m1,m2,bw) result(wigLen)
     ! Returns the number of small wigner d values d_{m1,m2}^l(\beta)
@@ -570,30 +544,16 @@ contains
     end do
   end function legendre_quadrature_weights
 
-  subroutine print_2d_real_pointer(ip)
-    real(kind=dp),intent(in),pointer :: ip(:,:)
-    integer(kind=dp) :: i,j
-    print *, "2D Array elements:"
-    do i = 1, size(ip,1)
-        do j = 1, size(ip,2)
-           write(*,'(F16.6)', advance='no') ip(i, j)
-        end do
-        print *
-    end do
-  end subroutine print_2d_real_pointer
-
   function get_empty_coeff(bw) result(coeff)
-    integer(kind = dp) ::  bw
+    integer(kind = dp) :: bw
     complex(kind = dp) :: coeff((4_dp*(bw*bw*bw)-bw)/3_dp)
     coeff = 0.0
   end function get_empty_coeff
-
   function get_empty_so3func_cmplx(bw) result(so3func)
     integer(kind = dp) :: bw
     complex(kind = dp) :: so3func(2*bw,2*bw,2*bw)
     so3func = 0.0
   end function get_empty_so3func_cmplx
-
   function get_empty_so3func_real(bw) result(so3func)
     integer(kind = dp) ::  bw
     real(kind = dp) :: so3func(2*bw,2*bw,2*bw)
@@ -759,7 +719,7 @@ contains
        ! ostride (int) = distance between sucessive elements of the output data set (here 1)
        ! odist (int) = distance betwene start of each of the howmany outputs (here prod(n))
     end if
-  end subroutine init_fft  
+  end subroutine init_fft
   subroutine init(bandwidth,precompute_wigners,init_ffts,fftw_flags_)
     integer(kind = dp), intent(in) :: bandwidth
     logical, intent(in) :: init_ffts,precompute_wigners
@@ -792,7 +752,7 @@ contains
        call init_fft(.FALSE.)
        call init_fft(.TRUE.)
     end if
-  end subroutine init  
+  end subroutine init
   subroutine destroy()
     ! Reset soft module variables
     if (allocated(wigner_d)) then
@@ -867,7 +827,7 @@ contains
        wig_mat_p(1:bw-m2,1:2*bw) => wig_mat_arr
     end if
     !call print_2d_real_pointer(wig_mat_p)
-  end subroutine get_wigner_matrix_trsp  
+  end subroutine get_wigner_matrix_trsp
   function get_wigner_matrix_copy(m1,m2,bw) result(wig_mat)
     ! This function returns the part of the wigners array that corresponds
     ! to d_m1,m2^l(beta) for all possible l and beta
@@ -903,108 +863,6 @@ contains
     end if
        
   end function get_so3func_part_halfcomplex
-  
-  subroutine inverse_wigner_loop_body_cmplx3(coeff,so3func,m1,m2,sym_array,sym_const_m1,sym_const_m2)
-    complex(kind = dp), intent(in) :: coeff(:)
-    complex(kind = dp), intent(inout) :: so3func(:,:,:)
-    integer(kind=dp), intent(in) :: m1,m2
-    real(kind=dp),intent(in) :: sym_array(:),sym_const_m1,sym_const_m2
-    real(kind = dp),pointer :: wig_mat(:,:)
-    real(kind = dp),target :: wig_mat_arr(bw-m2,2*bw)
-    integer(kind=dp) :: s_ids(2),c_slice(2),m,bw2
-
-    bw2 = 2_dp*bw
-    
-    ! This method assiumes 0<=m1<=m2<=bw
-    ! which also means m = max(abs(m1),abs(m2)) = m2
-    
-    call get_wigner_matrix_trsp(m1,m2,wig_mat,wig_mat_arr)
-    
-    !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
-    !! use of symmetries does not cause a change in d_{m1,m2}^l(beta) !!
-    !! m1,m2 !!
-    !s_slice = sample_slice(m1,m2,bw)
-    c_slice = coeff_slice2(m1,m2,bw)
-    so3func(:,m1+1,m2+1) = matmul(coeff(c_slice(1):c_slice(2)),wig_mat)
-    
-    if (m1 ==0 .AND. m2 ==0) return    ! prevents m1=m2=0 from beeing evaluated twice
-    
-    !! -m2,-m1 !!
-    !s_slice = sample_slice(-m2,-m1,bw)
-    s_ids=order_to_ids(-m2,-m1,bw)
-    c_slice = coeff_slice2(-m2,-m1,bw)
-    so3func(:,s_ids(1),s_ids(2)) = matmul(coeff(c_slice(1):c_slice(2)),wig_mat)
-
-    !! branch for m1>m2 and sgn(m1)==sgn(m2)                         !!
-    !! uses the symmetries:                                          !!
-    !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{m2,m1}^l(\beta)          !!
-    !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{-m1,-m2}^l(\beta)        !!
-    !! They cause a constant sign swap by (-1)^(m1-m2)               !!
-    if (.NOT. m1==m2) then
-       !!  m2,m1  !!
-       s_ids=order_to_ids(m2,m1,bw)
-       c_slice = coeff_slice2(m2,m1,bw)
-       so3func(:,s_ids(1),s_ids(2)) = (sym_const_m1*sym_const_m2)*matmul(coeff(c_slice(1):c_slice(2)),wig_mat)       
-       !! -m1,-m2 !!
-       s_ids=order_to_ids(-m1,-m2,bw)
-       c_slice = coeff_slice2(-m1,-m2,bw)
-       so3func(:,s_ids(1),s_ids(2)) = (sym_const_m1*sym_const_m2)*matmul(coeff(c_slice(1):c_slice(2)),wig_mat)
-    end if
-
-    !! branch for sgn(m1)!=sgn(m2)                                   !!
-    !! uses the symmetries:                                          !!
-    !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{m2,m1}^l(\beta)          !!
-    !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{-m1,-m2}^l(\beta)        !!
-    !! d_{m1,m2}^l(\beta) = (-1)^(l+m1)*d_{m1,-m2}^l(\pi-\beta)      !!
-    !! They cause:                                                   !!
-    !!    a constant sign swap by (-1)^M , M=m1 or m2                !!
-    !!    a l dependent sign swap by (-1)^l                          !!
-    !!    an inversion of the \beta coordinate axis                  !!
-    if (m1==0 .or. m2==0) return       ! prevents sign swaps on 0 ids which are already covered
-    
-    !! m1,-m2 !!
-    s_ids=order_to_ids(m1,-m2,bw)
-    c_slice = coeff_slice2(m1,-m2,bw)
-    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m1*matmul(sym_array(m2+1:)*coeff(c_slice(1):c_slice(2)),wig_mat)
-    
-    !! -m1,m2 !!
-    s_ids=order_to_ids(-m1,m2,bw)
-    c_slice = coeff_slice2(-m1,m2,bw)
-    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m2*matmul(sym_array(m2+1:)*coeff(c_slice(1):c_slice(2)),wig_mat)
-    
-    if (m1 == m2) return               ! prevents duplicates due to swapping equal numbers
-    
-    !! m2,-m1 !!
-    s_ids=order_to_ids(m2,-m1,bw)
-    c_slice = coeff_slice2(m2,-m1,bw)
-    so3func(bw2:1:-1,s_ids(1),s_ids(2)) = sym_const_m1*matmul(sym_array(m2+1:)*coeff(c_slice(1):c_slice(2)),wig_mat)
-
-    !! -m2,m1 !!
-    s_ids=order_to_ids(-m2,m1,bw)
-    c_slice = coeff_slice2(-m2,m1,bw)
-    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m2*matmul(sym_array(m2+1:)*coeff(c_slice(1):c_slice(2)),wig_mat)
-  end subroutine inverse_wigner_loop_body_cmplx3
-  subroutine inverse_wigner_trf_cmplx3(coeff,so3func)
-    complex(kind = dp), intent(in) :: coeff(:)
-    complex(kind = dp), intent(inout) :: so3func(:,:,:)
-    integer(kind = dp) :: i,m1,m2,m,L,s_slice(2),c_slice(2)
-    real(kind=dp) :: sym_const_m1,sym_const_m2,sym_array(bw)
-    
-    ! initiallizing some constants
-    L = bw-1
-    do i=0,L
-       sym_array(i+1) = (-1.0)**i 
-    end do
-    
-    ! non-fft part of the SO(3) fourier transform        
-    do m1=0, L
-       sym_const_m1 = (-1.0)**m1
-       do m2=m1, L          
-          sym_const_m2 = (-1.0)**m2
-          call inverse_wigner_loop_body_cmplx3(coeff,so3func,m1,m2,sym_array,sym_const_m1,sym_const_m2)
-       end do
-    end do
-  end subroutine inverse_wigner_trf_cmplx3
   
   subroutine inverse_wigner_loop_body_cmplx(coeff,so3func,m1,m2,sym_array,sym_const_m1,sym_const_m2)
     complex(kind = dp), intent(in) :: coeff(:)
@@ -1107,7 +965,6 @@ contains
        end do
     end do
   end subroutine inverse_wigner_trf_cmplx
-
   subroutine forward_wigner_loop_body_cmplx(so3func,coeff,m1,m2,sym_array,sym_const_m1,sym_const_m2)
     complex(kind = dp), intent(inout) :: coeff(:)
     complex(kind = dp),contiguous, intent(in) :: so3func(:,:,:)
@@ -1211,12 +1068,11 @@ contains
        end do
     end do    
   end subroutine forward_wigner_trf_cmplx
-
-  subroutine forward_wigner_loop_body_real(coeff,so3func,m1,m2,sym_array,sym_const_m1,sym_const_m2)
+  subroutine forward_wigner_loop_body_real(so3func,coeff,m1,m2,sym_array,sym_const_m1,sym_const_m2)
     ! This subroutine assumes 0<=m1<=m2<=bw
     ! which also means m = max(abs(m1),abs(m2)) = m2
-    complex(kind = dp), intent(inout) :: coeff(:)
     complex(kind = dp), intent(in) :: so3func(:,:,:)
+    complex(kind = dp), intent(inout) :: coeff(:)
     integer(kind=dp), intent(in) :: m1,m2
     real(kind=dp),intent(in) :: sym_array(:),sym_const_m1,sym_const_m2
     real(kind = dp),pointer :: wig_mat(:,:)
@@ -1248,7 +1104,7 @@ contains
     !! Due to real input both transforms have already been computed  !!
     !! Use symmetry $$D^l_{m1,m2}(\alpha,\beta,\gamma) =(-1)^{m2-m1} (D^l_{-m1,-m2}(\alpha,\beta,\gamma))^*$$
     if (.NOT. m1==m2) then
-       !!  -m2,-m1  !!
+       !!  m2,m1  !!
        c_slice = coeff_slice(m2,m1,bw)
        coeff(c_slice(1):c_slice(2)) = (sym_const_m1*sym_const_m2)*CONJG(coeff(c_nm2nm1_slice(1):c_nm2nm1_slice(2)))
        
@@ -1307,10 +1163,82 @@ contains
        sym_const_m1 = (-1.0)**m1
        do m2=m1, L
           sym_const_m2 = (-1.0)**m2          
-          call forward_wigner_loop_body_real(coeff,so3func,m1,m2,sym_array,sym_const_m1,sym_const_m2)
+          call forward_wigner_loop_body_real(so3func,coeff,m1,m2,sym_array,sym_const_m1,sym_const_m2)
        end do
     end do    
   end subroutine forward_wigner_trf_real
+  subroutine inverse_wigner_loop_body_real(coeff,so3func,m1,m2,sym_array,sym_const_m1,sym_const_m2)
+    ! This subroutine assumes 0<=m1<=m2<=bw
+    ! which also means m = max(abs(m1),abs(m2)) = m2
+    complex(kind = dp), intent(in) :: coeff(:)
+    complex(kind = dp), intent(inout) :: so3func(:,:,:)
+    integer(kind=dp), intent(in) :: m1,m2
+    real(kind=dp),intent(in) :: sym_array(:),sym_const_m1,sym_const_m2
+    real(kind = dp),pointer :: wig_mat(:,:)
+    real(kind = dp),target :: wig_mat_arr(bw-m2,2*bw)
+    complex(kind = dp) :: so3func_part(2*bw)
+    integer(kind=dp) :: s_ids(2),c_slice(2),c_pm1pm2_slice(2),c_nm2nm1_slice(2),c_pm1nm2_slice(2),c_pm2nm1_slice(2),bw2
+
+    bw2 = 2_dp*bw
+  
+    call get_wigner_matrix_trsp(m1,m2,wig_mat,wig_mat_arr)
+    
+    !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
+    !! m1,m2 !!
+    c_pm1pm2_slice = coeff_slice(m1,m2,bw)
+    so3func(:,m1+1,m2+1) = matmul(coeff(c_pm1pm2_slice(1):c_pm1pm2_slice(2)),wig_mat)
+    
+    if (m1 ==0 .AND. m2 ==0) return    ! prevents m1=m2=0 from beeing evaluated twice
+
+    !! -m2,-m1 !!
+    s_ids = order_to_ids(m2,m1,bw)
+    c_nm2nm1_slice = coeff_slice(-m2,-m1,bw)
+    so3func(:,s_ids(1),s_ids(2))=CONJG(matmul(coeff(c_nm2nm1_slice(1):c_nm2nm1_slice(2)),wig_mat))
+
+    !! branch for sgn(m1)!=sgn(m2)                                   !!
+    !! uses the symmetries:                                          !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(l+m1)*d_{m1,-m2}^l(\pi-\beta)      !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{m2,m1}^l(\beta)          !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{-m1,-m2}^l(\beta)        !!
+    !! They cause:                                                   !!
+    !!    a constant sign swap by (-1)^M , M=m1 or m2                !!
+    !!    a l dependent sign swap by (-1)^l                          !!
+    !!    an inversion of the \beta coordinate axis                  !!
+    if (m1==0 .or. m2==0) return       ! prevents sign swaps on 0 ids which are already covered
+    
+    !! m1,-m2 !!
+    s_ids = order_to_ids(m1,-m2,bw)
+    c_pm1nm2_slice = coeff_slice(m1,-m2,bw)
+    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m1*matmul(sym_array(m2+1:)*coeff(c_pm1nm2_slice(1):c_pm1nm2_slice(2)),wig_mat)
+    
+    if (m1 == m2) return               ! prevents duplicates due to swapping equal numbers
+
+    !! m2,-m1 !!
+    s_ids = order_to_ids(m2,-m1,bw)
+    c_pm2nm1_slice = coeff_slice(m2,-m1,bw)
+    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m1*matmul(sym_array(m2+1:)*coeff(c_pm2nm1_slice(1):c_pm2nm1_slice(2)),wig_mat)    
+  end subroutine inverse_wigner_loop_body_real
+  subroutine inverse_wigner_trf_real(coeff,so3func)
+    complex(kind = dp), intent(inout) :: so3func(:,:,:)
+    complex(kind = dp), intent(in) :: coeff(:)
+    integer(kind = dp) :: i,m1,m2,m,L,s_slice(2),c_slice(2)
+    real(kind=dp) :: sym_const_m1,sym_const_m2,sym_array(bw)
+    
+    ! initiallizing some constants
+    L = bw-1
+    do i=0,L
+       sym_array(i+1) = (-1)**i 
+    end do
+    
+    ! non-fft part of the SO(3) fourier transform        
+    do m1=0, L
+       sym_const_m1 = (-1.0)**m1
+       do m2=m1, L
+          sym_const_m2 = (-1.0)**m2
+          call inverse_wigner_loop_body_real(coeff,so3func,m1,m2,sym_array,sym_const_m1,sym_const_m2)
+       end do
+    end do    
+  end subroutine inverse_wigner_trf_real
   
   subroutine isoft(coeff,so3func)
     complex(kind = dp), intent(in) :: coeff(:)
@@ -1340,7 +1268,6 @@ contains
     !print *,'fft done'
     call forward_wigner_trf_cmplx(fft_c2c_out,coeff)    
   end subroutine soft
-
   subroutine irsoft(coeff,so3func)
     complex(kind = dp), intent(in) :: coeff(:)
     real(kind = dp), intent(inout) :: so3func(:,:,:)
@@ -1348,7 +1275,7 @@ contains
     if (.NOT. plans_allocated_r) then
        call init_fft(.TRUE.)
     end if
-    
+    fft_c2r_in=0.0_dp
     call inverse_wigner_trf_cmplx(coeff,fft_c2r_in)
     fft_c2r_in = CONJG(fft_c2r_in) ! to correct for the fact that we have to compute the forward not the backward fft.
     call dfftw_execute_dft_c2r(plan_c2r_backward,fft_c2r_in,so3func)
@@ -1382,7 +1309,6 @@ contains
     call dfftw_execute_dft(plan_c2c_backward,f1,f2)
     f2 = f2 * (1/(2.0_dp*real(bw,kind=dp))) !* 1/(2*bw) * (2*bw)/(2*pi)
   end subroutine ifft
-
   subroutine rfft(f1,f2)
     real(kind = dp), intent(in) :: f1(:,:,:)
     complex(kind = dp), intent(inout) :: f2(:,:,:)    
@@ -1482,24 +1408,24 @@ contains
             sym_const_m2 = (-1.0)**m2
             sum_tot = sum_tot + sum
             sum = 0
-            c_slice = coeff_slice2(m1,m2,bw)           
+            c_slice = coeff_slice(m1,m2,bw)           
             print * ,c_slice
             sum = sum+1
             
             if (m1 ==0 .AND. m2 ==0) cycle    ! prevents m1=m2=0 from beeing evaluated twice
             
-            c_slice = coeff_slice2(-m2,-m1,bw)
+            c_slice = coeff_slice(-m2,-m1,bw)
             print * ,c_slice
             sum = sum+1
             
             if (.NOT. m1==m2) then
                !!  m2,m1  !!       
-               c_slice = coeff_slice2(m2,m1,bw)
+               c_slice = coeff_slice(m2,m1,bw)
                print * ,c_slice
                sum = sum+1
                
                !! -m1,-m2 !!
-               c_slice = coeff_slice2(-m1,-m2,bw)
+               c_slice = coeff_slice(-m1,-m2,bw)
                print * ,c_slice
                sum = sum+1
             end if
@@ -1507,22 +1433,22 @@ contains
             if (m1==0 .or. m2==0) cycle       ! prevents sign swaps on 0 ids which are already covered
             
             !! m1,-m2 !!
-            c_slice = coeff_slice2(m1,-m2,bw)
+            c_slice = coeff_slice(m1,-m2,bw)
             print * ,c_slice
             sum = sum+1
             !! -m1,m2 !!
-            c_slice = coeff_slice2(-m1,m2,bw)
+            c_slice = coeff_slice(-m1,m2,bw)
             print * ,c_slice
             sum = sum+1
             
             if (m1 == m2) cycle               ! prevents duplicates due to swapping equal numbers
             
             !! m2,-m1 !!
-            c_slice = coeff_slice2(m2,-m1,bw)
+            c_slice = coeff_slice(m2,-m1,bw)
             print * ,c_slice
             sum = sum+1
             !! -m2,m1 !!
-            c_slice = coeff_slice2(-m2,m1,bw)
+            c_slice = coeff_slice(-m2,m1,bw)
             print * ,c_slice
             sum = sum+1
             
@@ -1534,7 +1460,7 @@ contains
     end subroutine print_coeff_ids
 end module debug
 
-module soft_debug
+module so3ft_debug
   use precision
   use make_wigner
   use so3ft_utils
@@ -1591,7 +1517,8 @@ contains
   !  end if
   !  call print_2d_real_pointer(wig_mat)    
   !end subroutine plot_wig_matrix_pointer
-    subroutine inverse_wigner_loop_body_cmplx2(so3func,coeff,m1,m2,sym_array,sym_const_m1,sym_const_m2)
+  
+  subroutine inverse_wigner_loop_body_cmplx2(so3func,coeff,m1,m2,sym_array,sym_const_m1,sym_const_m2)
       complex(kind = dp), intent(inout) :: so3func(:,:,:)
       complex(kind = dp), intent(in) :: coeff(:)
       integer(kind=dp), intent(in) :: m1,m2
@@ -1671,7 +1598,7 @@ contains
       c_slice = coeff_slice(-m2,m1,bw)
       so3func(s_ids(1),s_ids(2),bw2:1:-1) = sym_const_m2*matmul(sym_array(m2+1:)*coeff(c_slice(1):c_slice(2)),wig_mat)
     end subroutine inverse_wigner_loop_body_cmplx2
-    subroutine inverse_wigner_trf_cmplx2(coeff,so3func)
+  subroutine inverse_wigner_trf_cmplx2(coeff,so3func)
       complex(kind = dp), intent(in) :: coeff(:)
       complex(kind = dp),contiguous,intent(inout) :: so3func(:,:,:)
       real(kind = dp), pointer :: wig_mat(:,:)
@@ -1693,4 +1620,106 @@ contains
          end do
       end do
     end subroutine inverse_wigner_trf_cmplx2
-end module soft_debug
+
+  subroutine inverse_wigner_loop_body_cmplx3(coeff,so3func,m1,m2,sym_array,sym_const_m1,sym_const_m2)
+    complex(kind = dp), intent(in) :: coeff(:)
+    complex(kind = dp), intent(inout) :: so3func(:,:,:)
+    integer(kind=dp), intent(in) :: m1,m2
+    real(kind=dp),intent(in) :: sym_array(:),sym_const_m1,sym_const_m2
+    real(kind = dp),pointer :: wig_mat(:,:)
+    real(kind = dp),target :: wig_mat_arr(bw-m2,2*bw)
+    integer(kind=dp) :: s_ids(2),c_slice(2),m,bw2
+
+    bw2 = 2_dp*bw
+    
+    ! This method assiumes 0<=m1<=m2<=bw
+    ! which also means m = max(abs(m1),abs(m2)) = m2
+    
+    call get_wigner_matrix_trsp(m1,m2,wig_mat,wig_mat_arr)
+    
+    !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
+    !! use of symmetries does not cause a change in d_{m1,m2}^l(beta) !!
+    !! m1,m2 !!
+    !s_slice = sample_slice(m1,m2,bw)
+    c_slice = coeff_slice_legacy(m1,m2,bw)
+    so3func(:,m1+1,m2+1) = matmul(coeff(c_slice(1):c_slice(2)),wig_mat)
+    
+    if (m1 ==0 .AND. m2 ==0) return    ! prevents m1=m2=0 from beeing evaluated twice
+    
+    !! -m2,-m1 !!
+    !s_slice = sample_slice(-m2,-m1,bw)
+    s_ids=order_to_ids(-m2,-m1,bw)
+    c_slice = coeff_slice_legacy(-m2,-m1,bw)
+    so3func(:,s_ids(1),s_ids(2)) = matmul(coeff(c_slice(1):c_slice(2)),wig_mat)
+
+    !! branch for m1>m2 and sgn(m1)==sgn(m2)                         !!
+    !! uses the symmetries:                                          !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{m2,m1}^l(\beta)          !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{-m1,-m2}^l(\beta)        !!
+    !! They cause a constant sign swap by (-1)^(m1-m2)               !!
+    if (.NOT. m1==m2) then
+       !!  m2,m1  !!
+       s_ids=order_to_ids(m2,m1,bw)
+       c_slice = coeff_slice_legacy(m2,m1,bw)
+       so3func(:,s_ids(1),s_ids(2)) = (sym_const_m1*sym_const_m2)*matmul(coeff(c_slice(1):c_slice(2)),wig_mat)       
+       !! -m1,-m2 !!
+       s_ids=order_to_ids(-m1,-m2,bw)
+       c_slice = coeff_slice_legacy(-m1,-m2,bw)
+       so3func(:,s_ids(1),s_ids(2)) = (sym_const_m1*sym_const_m2)*matmul(coeff(c_slice(1):c_slice(2)),wig_mat)
+    end if
+
+    !! branch for sgn(m1)!=sgn(m2)                                   !!
+    !! uses the symmetries:                                          !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{m2,m1}^l(\beta)          !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{-m1,-m2}^l(\beta)        !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(l+m1)*d_{m1,-m2}^l(\pi-\beta)      !!
+    !! They cause:                                                   !!
+    !!    a constant sign swap by (-1)^M , M=m1 or m2                !!
+    !!    a l dependent sign swap by (-1)^l                          !!
+    !!    an inversion of the \beta coordinate axis                  !!
+    if (m1==0 .or. m2==0) return       ! prevents sign swaps on 0 ids which are already covered
+    
+    !! m1,-m2 !!
+    s_ids=order_to_ids(m1,-m2,bw)
+    c_slice = coeff_slice_legacy(m1,-m2,bw)
+    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m1*matmul(sym_array(m2+1:)*coeff(c_slice(1):c_slice(2)),wig_mat)
+    
+    !! -m1,m2 !!
+    s_ids=order_to_ids(-m1,m2,bw)
+    c_slice = coeff_slice_legacy(-m1,m2,bw)
+    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m2*matmul(sym_array(m2+1:)*coeff(c_slice(1):c_slice(2)),wig_mat)
+    
+    if (m1 == m2) return               ! prevents duplicates due to swapping equal numbers
+    
+    !! m2,-m1 !!
+    s_ids=order_to_ids(m2,-m1,bw)
+    c_slice = coeff_slice_legacy(m2,-m1,bw)
+    so3func(bw2:1:-1,s_ids(1),s_ids(2)) = sym_const_m1*matmul(sym_array(m2+1:)*coeff(c_slice(1):c_slice(2)),wig_mat)
+
+    !! -m2,m1 !!
+    s_ids=order_to_ids(-m2,m1,bw)
+    c_slice = coeff_slice_legacy(-m2,m1,bw)
+    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m2*matmul(sym_array(m2+1:)*coeff(c_slice(1):c_slice(2)),wig_mat)
+  end subroutine inverse_wigner_loop_body_cmplx3
+  subroutine inverse_wigner_trf_cmplx3(coeff,so3func)
+    complex(kind = dp), intent(in) :: coeff(:)
+    complex(kind = dp), intent(inout) :: so3func(:,:,:)
+    integer(kind = dp) :: i,m1,m2,m,L,s_slice(2),c_slice(2)
+    real(kind=dp) :: sym_const_m1,sym_const_m2,sym_array(bw)
+    
+    ! initiallizing some constants
+    L = bw-1
+    do i=0,L
+       sym_array(i+1) = (-1.0)**i 
+    end do
+    
+    ! non-fft part of the SO(3) fourier transform        
+    do m1=0, L
+       sym_const_m1 = (-1.0)**m1
+       do m2=m1, L          
+          sym_const_m2 = (-1.0)**m2
+          call inverse_wigner_loop_body_cmplx3(coeff,so3func,m1,m2,sym_array,sym_const_m1,sym_const_m2)
+       end do
+    end do
+  end subroutine inverse_wigner_trf_cmplx3
+end module so3ft_debug
