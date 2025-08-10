@@ -367,7 +367,7 @@ contains
     integer(kind=8) bw,num_coeff
     num_coeff = (4_dp*(bw*bw*bw)-bw)/3_dp
   end function total_num_coeffs
-  
+
   function order_to_ids(m1,m2,bw) result(ids)
     ! For order m1, m2 and bandwidth bw, returns the slice in the 3-D,
     ! fft'd array of the data necessary for the Wigner-(m1,m2)
@@ -559,6 +559,25 @@ contains
     real(kind = dp) :: so3func(2*bw,2*bw,2*bw)
     so3func = 0.0
   end function get_empty_so3func_real
+
+  subroutine enforce_real_sym(coeff,bw)
+    complex(kind=dp) ,intent(inout) :: coeff(:)
+    integer(kind=dp) ,intent(in) :: bw
+    real(kind=dp) :: sym_const_m1,sym_const_m2
+    integer(kind=dp) :: m1,m2,c_slice(2),c_slice_sym(2)
+
+    c_slice = coeff_slice(0_dp,0_dp,bw)
+    coeff(c_slice(1):c_slice(2)) = coeff(c_slice(1):c_slice(2))%re
+    do m1=-bw+1,bw-1
+       sym_const_m1 = (-1.0)**m1
+       do m2=-bw+1,bw-1
+          sym_const_m2 = (-1.0)**m2
+          c_slice = coeff_slice(m1,m2,bw)
+          c_slice_sym = coeff_slice(-m1,-m2,bw)
+          coeff(c_slice(1):c_slice(2)) = sym_const_m1*sym_const_m2*CONJG(coeff(c_slice_sym(1):c_slice_sym(2)))       
+       end do
+    end do
+  end subroutine enforce_real_sym
 end module so3ft_utils
 
 module so3ft
@@ -1088,6 +1107,7 @@ contains
     !! m1,m2 !!
     c_pm1pm2_slice = coeff_slice(m1,m2,bw)
     coeff(c_pm1pm2_slice(1):c_pm1pm2_slice(2)) = matmul(legendre_weights*so3func(:,m1+1,m2+1),wig_mat)
+
     
     if (m1 ==0 .AND. m2 ==0) return    ! prevents m1=m2=0 from beeing evaluated twice
 
@@ -1186,7 +1206,7 @@ contains
     !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
     !! m1,m2 !!
     c_pm1pm2_slice = coeff_slice(m1,m2,bw)
-    so3func(:,m1+1,m2+1) = matmul(coeff(c_pm1pm2_slice(1):c_pm1pm2_slice(2)),wig_mat)
+    so3func(:,m1+1,m2+1) = matmul(coeff(c_pm1pm2_slice(1):c_pm1pm2_slice(2)),wig_mat)    
     
     if (m1 ==0 .AND. m2 ==0) return    ! prevents m1=m2=0 from beeing evaluated twice
 
@@ -1221,7 +1241,7 @@ contains
   subroutine inverse_wigner_trf_real(coeff,so3func)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
     complex(kind = dp), intent(in) :: coeff(:)
-    integer(kind = dp) :: i,m1,m2,m,L,s_slice(2),c_slice(2)
+    integer(kind = dp) :: i,m1,m2,m,L,s_ids(2),s_ids_sym(2),c_slice(2)
     real(kind=dp) :: sym_const_m1,sym_const_m2,sym_array(bw)
     
     ! initiallizing some constants
@@ -1237,7 +1257,14 @@ contains
           sym_const_m2 = (-1.0)**m2
           call inverse_wigner_loop_body_real(coeff,so3func,m1,m2,sym_array,sym_const_m1,sym_const_m2)
        end do
-    end do    
+    end do
+
+    ! fill remaining 2d real fft symmetry values using f_{0,m1}=f_{0,-m1}^*
+    do m2=1,L
+       s_ids = order_to_ids(0_dp,m2,bw)
+       s_ids_sym = order_to_ids(0_dp,-m2,bw)
+       so3func(:,s_ids_sym(1),s_ids_sym(2)) = CONJG(so3func(:,s_ids(1),s_ids(2)))
+    end do
   end subroutine inverse_wigner_trf_real
   
   subroutine isoft(coeff,so3func)
@@ -1272,11 +1299,13 @@ contains
     complex(kind = dp), intent(in) :: coeff(:)
     real(kind = dp), intent(inout) :: so3func(:,:,:)
 
+    
     if (.NOT. plans_allocated_r) then
        call init_fft(.TRUE.)
     end if
     fft_c2r_in=0.0_dp
-    call inverse_wigner_trf_cmplx(coeff,fft_c2r_in)
+    call inverse_wigner_trf_real(coeff,fft_c2r_in)
+
     fft_c2r_in = CONJG(fft_c2r_in) ! to correct for the fact that we have to compute the forward not the backward fft.
     call dfftw_execute_dft_c2r(plan_c2r_backward,fft_c2r_in,so3func)
     so3func = so3func * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)
@@ -1288,12 +1317,13 @@ contains
     if (.NOT. plans_allocated_r) then
        call init_fft(.TRUE.)
     end if
+    fft_c2r_in=0.0_dp
     
     call dfftw_execute_dft_r2c(plan_r2c_forward,so3func,fft_c2r_in)
-    fft_c2r_in = CONJG(fft_c2r_in) ! to correct for the fact that we have to compute the backward not the forward fft.
     fft_c2r_in = fft_c2r_in * (2.0_dp*pi/real(2_dp*bw,kind=dp)**2) ! * 1/(2*bw) * 2*pi/(2*bw)
-    write(*,'(F16.5, F16.5)', advance='yes') reshape(fft_c2r_in,[(2*bw)**2*(bw+1)])
-    print * , 'rfft done'
+    fft_c2r_in = CONJG(fft_c2r_in) ! to correct for the fact that we have to compute the backward not the forward fft.
+    !write(*,'(F16.5, F16.5)', advance='yes') reshape(fft_c2r_in,[(2*bw)**2*(bw+1)])
+    !print * , 'rfft done'
     call forward_wigner_trf_real(fft_c2r_in,coeff)    
   end subroutine rsoft
   
