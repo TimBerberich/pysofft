@@ -739,6 +739,37 @@ contains
        ! odist (int) = distance betwene start of each of the howmany outputs (here prod(n))
     end if
   end subroutine init_fft
+  subroutine alloc_fft_arrays(use_real_fft)
+    logical, intent(in) :: use_real_fft
+    integer(kind = dp) :: bw2
+    bw2=2_dp*bw
+    if (use_real_fft) then
+       allocate(fft_r2c_out(bw2,bw2,bw2))       
+       allocate(fft_c2r_in(bw2,bw2/2+1,bw2))
+    else
+       allocate(fft_c2c_in(bw2,bw2,bw2))
+       allocate(fft_c2c_out(bw2,bw2,bw2))       
+    end if
+  end subroutine alloc_fft_arrays
+  subroutine dealloc_fft_arrays(use_real_fft)
+    logical, intent(in) :: use_real_fft
+    if (use_real_fft) then
+       if (allocated(fft_c2r_in))then
+          deallocate(fft_c2r_in)
+       end if
+       if (allocated(fft_r2c_out))then
+          deallocate(fft_r2c_out)
+       end if
+    else
+       if (allocated(fft_c2c_in))then
+          deallocate(fft_c2c_in)
+       end if
+       if (allocated(fft_c2c_out))then
+          deallocate(fft_c2c_out)
+       end if
+        
+    end if       
+  end subroutine dealloc_fft_arrays
   subroutine init(bandwidth,precompute_wigners,init_ffts,fftw_flags_)
     integer(kind = dp), intent(in) :: bandwidth
     logical, intent(in) :: init_ffts,precompute_wigners
@@ -1288,12 +1319,15 @@ contains
     if (.NOT. plans_allocated_c) then
        call init_fft(.FALSE.)
     end if
-    
+
+
     call dfftw_execute_dft(plan_c2c_backward,so3func,fft_c2c_out)
+
     fft_c2c_out = fft_c2c_out * (2.0_dp*pi/real(2_dp*bw,kind=dp)**2) ! * 1/(2*bw) * 2*pi/(2*bw)
     !write(*,'(F16.5, F16.5)', advance='yes') reshape(fft_c2c_out,[(2*bw)**3])
     !print *,'fft done'
-    call forward_wigner_trf_cmplx(fft_c2c_out,coeff)    
+    call forward_wigner_trf_cmplx(fft_c2c_out,coeff)
+
   end subroutine soft
   subroutine irsoft(coeff,so3func)
     complex(kind = dp), intent(in) :: coeff(:)
@@ -1326,6 +1360,103 @@ contains
     !print * , 'rfft done'
     call forward_wigner_trf_real(fft_c2r_in,coeff)    
   end subroutine rsoft
+
+  subroutine soft_many(so3funcs,coeffs,nthreads)
+    !f2py threadsafe
+    complex(kind=dp),intent(in) :: so3funcs(:,:,:,:)
+    complex(kind=dp),intent(inout) :: coeffs(:,:)
+    integer(kind = dp), intent(in) :: nthreads
+    integer(kind=dp) :: n,i
+    !f2py integer(kind = dp) :: nthreads = 1_dp
+    n = size(so3funcs,1)
+
+    !set number of used threads
+    call OMP_set_num_threads(nthreads)
+
+    if (nthreads>1) call dealloc_fft_arrays(.False.)
+    !$OMP PARALLEL PRIVATE(i) SHARED(so3funcs,coeffs,n)
+    if (nthreads>1) call alloc_fft_arrays(.False.)
+    !$OMP DO
+    do i=1,n
+       call soft(so3funcs(:,:,:,i),coeffs(:,i))       
+    end do
+    !$OMP END DO
+    if (nthreads>1) call dealloc_fft_arrays(.False.)
+    !$OMP END PARALLEL
+    if (nthreads>1) call alloc_fft_arrays(.False.)
+  end subroutine soft_many
+  subroutine isoft_many(coeffs,so3funcs,nthreads)
+    !f2py threadsafe
+    complex(kind=dp),intent(inout) :: so3funcs(:,:,:,:)
+    complex(kind=dp),intent(in) :: coeffs(:,:)
+    integer(kind = dp), intent(in) :: nthreads
+    integer(kind=dp) :: n,i
+    !f2py integer(kind = dp) :: nthreads = 1_dp
+    n = size(so3funcs,1)
+
+    !set number of used threads
+    call OMP_set_num_threads(nthreads)
+
+    if (nthreads>1) call dealloc_fft_arrays(.False.)
+    !$OMP PARALLEL PRIVATE(i) SHARED(so3funcs,coeffs,n)
+    if (nthreads>1) call alloc_fft_arrays(.False.)
+    !$OMP DO
+    do i=1,n
+       call isoft(coeffs(:,i),so3funcs(:,:,:,i))       
+    end do
+    !$OMP END DO
+    if (nthreads>1) call dealloc_fft_arrays(.False.)
+    !$OMP END PARALLEL
+    if (nthreads>1) call alloc_fft_arrays(.False.)
+  end subroutine isoft_many
+  subroutine rsoft_many(so3funcs,coeffs,nthreads)
+    !f2py threadsafe
+    real(kind=dp),intent(in) :: so3funcs(:,:,:,:)
+    complex(kind=dp),intent(inout) :: coeffs(:,:)
+    integer(kind = dp), intent(in) :: nthreads
+    integer(kind=dp) :: n,i
+    !f2py integer(kind = dp) :: nthreads = 1_dp
+    n = size(so3funcs,1)
+
+    !set number of used threads
+    call OMP_set_num_threads(nthreads)
+
+    if (nthreads>1) call dealloc_fft_arrays(.False.)
+    !$OMP PARALLEL PRIVATE(i) SHARED(so3funcs,coeffs,n)
+    if (nthreads>1) call alloc_fft_arrays(.False.)
+    !$OMP DO
+    do i=1,n
+       call rsoft(so3funcs(:,:,:,i),coeffs(:,i))       
+    end do
+    !$OMP END DO
+    if (nthreads>1) call dealloc_fft_arrays(.False.)
+    !$OMP END PARALLEL
+    if (nthreads>1) call alloc_fft_arrays(.False.)
+  end subroutine rsoft_many
+  subroutine irsoft_many(coeffs,so3funcs,nthreads)
+    !f2py threadsafe
+    real(kind=dp),intent(inout) :: so3funcs(:,:,:,:)
+    complex(kind=dp),intent(in) :: coeffs(:,:)
+    integer(kind = dp), intent(in) :: nthreads
+    integer(kind=dp) :: n,i
+    !f2py integer(kind = dp) :: nthreads = 1_dp
+    n = size(so3funcs,1)
+
+    !set number of used threads
+    call OMP_set_num_threads(nthreads)
+
+    if (nthreads>1) call dealloc_fft_arrays(.False.)
+    !$OMP PARALLEL PRIVATE(i) SHARED(so3funcs,coeffs,n)
+    if (nthreads>1) call alloc_fft_arrays(.False.)
+    !$OMP DO
+    do i=1,n
+       call irsoft(coeffs(:,i),so3funcs(:,:,:,i))       
+    end do
+    !$OMP END DO
+    if (nthreads>1) call dealloc_fft_arrays(.False.)
+    !$OMP END PARALLEL
+    if (nthreads>1) call alloc_fft_arrays(.False.)
+  end subroutine irsoft_many
   
   subroutine fft(f1,f2)
     complex(kind = dp), intent(in) :: f1(:,:,:)
