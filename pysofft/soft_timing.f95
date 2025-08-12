@@ -10,7 +10,7 @@ program test
   complex(kind=dp) :: so3fft2(2*bandw,bandw+1,2*bandw)
   complex(kind = dp), allocatable :: coeff_out(:),coeff_in(:)
 
-  call init(bandw,.False.,.True.,64)
+  call init(bandw,.False.,.True.,64,.FALSE.,"")
 
   allocate(coeff_in(total_num_coeffs(bw)))
   coeff_in = 0

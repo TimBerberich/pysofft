@@ -1,14 +1,15 @@
 ! Define constants
 module precision
 implicit none
-integer(kind=8), parameter :: dp = 8
-integer(kind=8), parameter :: sp = 4
+integer, parameter :: sp = selected_real_kind(6, 37)
+integer, parameter :: dp = selected_real_kind(15, 307)
+integer, parameter :: qp = selected_real_kind(33, 4931)
 end module precision
 
 module math_constants
   use precision
   implicit none
-  real(kind=dp), parameter :: pi = 4._dp*atan(1._dp)
+  real(kind=dp), parameter :: pi = 4.0_dp*atan2(1.0_dp,1.0_dp)
 end module math_constants
 
 ! Start of routine code
@@ -94,8 +95,7 @@ contains
             &* sin_samples(i)**sin_power * cos_samples(i)**cos_power
     end do
     
-  end function wigSpec_L2
-  
+  end function wigSpec_L2  
   function L2_aN_so3(l,m1,m2) result(out)
     integer(kind = dp) :: l,m1,m2
     real(kind = dp) :: rl,rm1,rm2
@@ -111,8 +111,7 @@ contains
        out =0
     end if
     !print*,l,m1,m2,out
-  end function L2_aN_so3
-  
+  end function L2_aN_so3  
   function L2_bN_so3(l,m1,m2) result(out)
     integer(kind = dp) :: l,m1,m2
     real(kind = dp) :: rl,rm1,rm2
@@ -122,8 +121,7 @@ contains
     rm2= real(m2)
     out = sqrt((2_dp*rl + 3_dp)/(2_dp*rl+1_dp)) *&
          &(rl+1_dp)*(2_dp*rl+1_dp)/sqrt(((rl+1_dp)**2-rm1**2)*((rl+1_dp)**2-m2**2))
-  end function L2_bN_so3
-  
+  end function L2_bN_so3  
   function L2_cN_so3(l,m1,m2) result(out)
     integer(kind = dp) :: l,m1,m2
     real(kind = dp) :: rl,rm1,rm2
@@ -136,8 +134,7 @@ contains
     else
        out = 0
     end if
-  end function L2_cN_so3
-  
+  end function L2_cN_so3  
   function genWig_L2(m1,m2,bw,trig_samples) result(wigners_m1m2)
     !  Given orders m1, m2, and a bandwidth bw, this function will
     !  generate all the Wigner little d functions whose orders
@@ -235,7 +232,6 @@ contains
     slice(2) = slice(2) - bw*(m1-m2-1_dp)*(2_dp*bw-m1-m2)
     slice(1)=slice(2)-size+1_dp
   end function wigner_slice
-  
   function genWigAll(bw) result(wigners)
     ! Computes all independent small wigner d-matrix elements
     ! upto a n order of l=bw-1.
@@ -279,7 +275,6 @@ contains
        end do
     end do
   end function genWigAll
-  
   subroutine genWigAll_preallocated(bw,wigners)
     ! Same as genWigAll but writes the wigner d matricies into the provided wigners array
     ! instead of creating a new array
@@ -318,7 +313,6 @@ contains
        end do
     end do
   end subroutine genWigAll_preallocated
-
   subroutine trsp_wigAll(bw,wigners,wigners_trsp)
     integer(kind=dp), intent(in) :: bw
     real(kind = dp), intent(in) :: wigners(:)
@@ -335,11 +329,28 @@ contains
        end do
     end do
   end subroutine trsp_wigAll
+
+  !needs work
+  function wigner_d_recurrence(L,d_l,trigs,sqrts) result(d_lplus1)
+    ! Takes a small wigner d Matrix d_l(\beta) and returns d_{l+1}(beta)
+    integer(kind = dp),intent(in) :: L
+    real(kind = dp),intent(in) :: d_l(:),trigs(:),sqrts(:)
+    real(kind = dp) :: d_lplus1(2)
+  end function wigner_d_recurrence
+  function ylm_rotation_wigners(bw,euler_angles) result(Ds)
+    ! Computes all wigner D matrices needed for rotating all
+    ! spherical harmonic coefficients f^l_m with l<bw
+    ! Euler angles follow the Z-Y-Z convention for \alpha,\beta,\gamma
+    integer(kind = dp),intent(in) :: bw
+    real(kind = dp),intent(in) :: euler_angles(3)
+    complex(kind = dp) :: Ds(2)
+  end function ylm_rotation_wigners
 end module make_wigner
 
 module so3ft_utils
   use precision
   use math_constants
+  use make_wigner
   implicit none
 contains 
   function num_coeffs(m1,m2,bw) result(num_coeff)
@@ -559,7 +570,6 @@ contains
     real(kind = dp) :: so3func(2*bw,2*bw,2*bw)
     so3func = 0.0
   end function get_empty_so3func_real
-
   subroutine enforce_real_sym(coeff,bw)
     complex(kind=dp) ,intent(inout) :: coeff(:)
     integer(kind=dp) ,intent(in) :: bw
@@ -578,6 +588,20 @@ contains
        end do
     end do
   end subroutine enforce_real_sym
+
+  !needs work
+  function rotate_flm(bw,flm,split_ids,euler_angles) result(R_flm)
+    integer(kind = dp),intent(in) :: bw,split_ids(:)
+    complex(kind = dp),intent(in) :: flm(:)
+    real(kind = dp),intent(in) :: euler_angles(:)
+    complex(kind = dp):: R_flm(size(flm,1))
+  end function rotate_flm
+  function rotate_all_flm(bw,flms,split_ids,euler_angles) result(R_flms)
+    integer(kind = dp),intent(in) :: bw,split_ids(:)
+    complex(kind = dp),intent(in) :: flms(:)
+    real(kind = dp),intent(in) :: euler_angles(:)
+    complex(kind = dp):: R_flms(size(flms,1))
+  end function rotate_all_flm
 end module so3ft_utils
 
 module so3ft
@@ -587,7 +611,7 @@ module so3ft
   use, intrinsic :: iso_c_binding
   implicit none
   include 'fftw3.f03'
-
+  
   integer(kind = dp) :: wigner_size
   integer(kind = dp) :: bw
   real(kind = dp), allocatable, target :: wigner_d(:)
@@ -601,6 +625,7 @@ module so3ft
   integer(kind=dp) :: plan_c2c_forward,plan_c2c_backward,plan_r2c_forward,plan_c2r_backward
   integer(kind = sp) :: fftw_flags   ! FFTW_ESTIMATE=64, FFTW_MEASURE=0
   logical :: plans_allocated_c,plans_allocated_r = .FALSE.
+
   !$OMP THREADPRIVATE(fft_r2c_out)
   !$OMP THREADPRIVATE(fft_c2c_in)
   !$OMP THREADPRIVATE(fft_c2r_in)
@@ -608,18 +633,8 @@ module so3ft
 
 contains
   subroutine destroy_fft()
-    if (allocated(fft_r2c_out)) then
-       deallocate(fft_r2c_out)
-    end if
-    if (allocated(fft_c2c_in)) then
-       deallocate(fft_c2c_in)
-    end if
-    if (allocated(fft_c2r_in)) then
-       deallocate(fft_c2r_in)
-    end if
-    if (allocated(fft_c2c_out)) then
-       deallocate(fft_c2c_out)
-    end if
+    call dealloc_fft_arrays(.TRUE.)
+    call dealloc_fft_arrays(.FALSE.)
     
     if (plans_allocated_c) then
        call dfftw_destroy_plan(plan_c2c_forward)
@@ -639,13 +654,39 @@ contains
     call genWigAll_preallocated(bw,wigner_d)
     call trsp_wigAll(bw,wigner_d,wigner_d_trsp)
   end subroutine init_wigners
+  function import_fftw_wisdom(file_path) result(error_code)
+    ! error_code == 0 means something went wrong in fftw
+    character(len=*),intent(in) :: file_path
+    integer(kind = dp) :: i
+    integer(C_INT) :: error_code
+    character(kind=c_char), dimension(LEN(file_path)+1) :: c_path
+    ! convert fortran to C string.
+    do i = 1, LEN(file_path)
+       c_path(i) = file_path(i:i)
+    end do
+    c_path(LEN(file_path)+1) = C_NULL_CHAR
+    error_code = fftw_import_wisdom_from_filename(c_path)
+  end function import_fftw_wisdom
+  function export_fftw_wisdom(file_path) result(error_code)
+    ! error_code == 0 means something went wrong in fftw
+    character(len=*),intent(in) :: file_path
+    integer(kind = dp) :: i
+    integer(C_INT) :: error_code
+    character(kind=c_char), dimension(LEN(file_path)+1) :: c_path
+    ! convert fortran to C string.
+    do i = 1, LEN(file_path)
+       c_path(i) = file_path(i:i)
+    end do
+    c_path(LEN(file_path)+1) = C_NULL_CHAR
+    error_code = fftw_export_wisdom_to_filename(c_path)
+  end function export_fftw_wisdom
+  
   subroutine init_fft(use_real_fft)
     logical, intent(in) :: use_real_fft
     integer(kind = sp) :: fft_rank,fft_n(2),fft_howmany,fft_inembed(2),fft_istride,fft_idist,fft_onembed(2),fft_ostride,fft_odist,bw2
     integer(kind = dp) :: elshape(3),output_shape_real(3)
-
+    
     elshape = euler_shape(bw)
-
     bw2 = int(2_dp*bw,kind = sp)
     fft_rank = 2
 
@@ -674,20 +715,13 @@ contains
        fft_onembed = [bw2/2+1,bw2]
        !fft_odist = product(fft_onembed)
 
-       allocate(fft_r2c_out(bw2,bw2,bw2))       
-       allocate(fft_c2r_in(bw2,bw2/2+1,bw2))
-       !wrong result but fast
-       !allocate(fft_c2r_in(bw2/2+1,bw2,bw2))
-
-       !wrong result but fast
-       !fft_odist = product(fft_onembed)
+       call alloc_fft_arrays(.TRUE.)
        
        call dfftw_plan_many_dft_r2c(plan_r2c_forward,&
             & fft_rank,fft_n,fft_howmany,&
             & fft_r2c_out,fft_inembed,fft_istride,fft_idist,&
             & fft_c2r_in,fft_onembed,fft_ostride,fft_odist,&
-            & fftw_flags)
-       
+            & fftw_flags)       
        
        call dfftw_plan_many_dft_c2r(plan_c2r_backward,&
             & fft_rank,fft_n,fft_howmany,&
@@ -710,8 +744,7 @@ contains
        ! odist (int) = distance betwene start of each of the howmany outputs (here prod(n))
        
     else
-       allocate(fft_c2c_in(elshape(1),elshape(2),elshape(2)))
-       allocate(fft_c2c_out(elshape(1),elshape(2),elshape(2)))       
+       call alloc_fft_arrays(.FALSE.)
 
        call dfftw_plan_many_dft(plan_c2c_forward,&
             & fft_rank,fft_n,fft_howmany,&
@@ -773,7 +806,7 @@ contains
   subroutine init(bandwidth,precompute_wigners,init_ffts,fftw_flags_)
     integer(kind = dp), intent(in) :: bandwidth
     logical, intent(in) :: init_ffts,precompute_wigners
-    !f2py logical :: init_ffts = False
+    !f2py logical :: init_ffts = FALSE
     integer(kind = sp), intent(in) :: fftw_flags_
     !f2py integer :: fftw_flags_ = 64
     ! FFTW_ESTIMATE=64, FFTW_MEASURE=0
@@ -1319,7 +1352,7 @@ contains
     if (.NOT. plans_allocated_c) then
        call init_fft(.FALSE.)
     end if
-
+    fft_c2c_out=0.0_dp
 
     call dfftw_execute_dft(plan_c2c_backward,so3func,fft_c2c_out)
 
@@ -1483,6 +1516,64 @@ contains
     f2 = f2 * (1/(2.0_dp*real(bw,kind=dp))) !* 1/(2*bw) * (2*bw)/(2*pi)
   end subroutine irfft
 
+  function integrate_over_so3_cmplx(f) result(integral)
+    ! Integrates f(\alpha,\gamma,\beta) over SO(3)
+    ! If f = 1 then the result sould be 8*pi**2
+    ! In this case SUM(SUM(f,1),1) = (2*bw)**2 and SUM(legendre_weights)=2
+    ! => The normalization constant has to be (pi/bw)**2
+    ! Maybe the legendre weights should be divided by 2, it is strange for their sum to be 2
+    complex(kind = dp),intent(in) :: f(:,:,:)
+    complex(kind = dp) :: integral
+    integral = SUM(SUM(SUM(f,1),1)*legendre_weights)
+    integral = integral*(pi/real(bw,kind=dp))**2
+  end function integrate_over_so3_cmplx
+  function integrate_over_so3_real(f) result(integral)
+    ! Integrates f(\alpha,\gamma,\beta) over SO(3)
+    ! If f = 1 then the result sould be 8*pi**2
+    ! In this case SUM(SUM(f,1),1) = (2*bw)**2 and SUM(legendre_weights)=2
+    ! => The normalization constant has to be (pi/bw)**2
+    ! Maybe the legendre weights should be divided by 2, it is strange for their sum to be 2
+    real(kind = dp),intent(in) :: f(:,:,:)
+    real(kind = dp) :: integral
+    integral = SUM(SUM(SUM(f,1),1)*legendre_weights)
+    integral = integral*(pi/real(bw,kind=dp))**2
+  end function integrate_over_so3_real
+
+  function cross_correlation_ylm(f_lm,g_lm,split_ids,is_real) result(cc)
+    ! let f,g be two square integrable functions on the 2 sphere 
+    ! Define C: SO(3) ---> \mathbb{R},   R |---> <f,g \circ R> = \int_{S^2} dx f(x)*\overline{g(Rx)}
+    ! This function calculates C(R) for all R defined in make_SO3_grid
+    !
+    ! arguments :
+    !   f_coeff: f_{l,m} spherical harmonic coefficients of f 
+    !   g_coeff: g_{l,m} spherical harmonic coefficients of g 
+    !            f_coeff, g_coeff are complex numpy arrays of shape bw*(bw+1)+bw+1
+    !   Assumes that the 2l+1 coefficients for fixed l are stored at the positions l**2 to (l+1)**2
+    !
+    ! output :
+    !   C_values: array of shape (2*bw,2*bw,2*bw)
+    !   The maximum in C corresponds to the Rotation that best maps f to g
+    !
+    !   The Idis of the maximum in C i_max,j_max,k_max correspond to the euler anglees beta,alpha,gamma in this order.
+    !   Somehow there is still a bug. The resulting euler angles need to be modified as follows to yield correct results
+    !   alpha,beta,gamma -----> 2*pi - alpha, beta , 2*pi-gamma
+    complex(kind = dp),target,intent(in) :: f_lm(:),g_lm(:)
+    logical, intent(in) :: is_real
+    integer(kind = dp), intent(in) :: split_ids
+    complex(kind = dp ), allocatable :: CC_lmn(:)
+    complex(kind = dp ) :: cc(2)
+    complex(kind = dp),pointer :: f_l(:),g_l(:)
+    real(kind=dp) :: wig_norm
+    integer(kind=dp) :: l
+
+    allocate(CC_lmn(total_num_coeffs(bw)))
+    CC_lmn=0
+    do l=0,bw-1
+       wig_norm = 2._dp*pi*SQRT(2._dp/real(2_dp*l+1_dp,kind = dp))
+       f_l => f_lm(l**2+1_dp:(l+1)**2)
+       g_l => g_lm(l**2+1_dp:(l+1)**2)
+    end do
+  end function cross_correlation_ylm
 end module so3ft
 
 ! Debug tools
