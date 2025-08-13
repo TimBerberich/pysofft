@@ -614,10 +614,10 @@ contains
     integer(kind = dp),intent(in) :: l,m,bw
     integer(kind = dp) :: index
     index = (m*(2_dp*bw-1_dp-m))/2_dp + l + 1_dp
-  end function ML
+  end function MLr
   pure function MLr_slice(m,bw) result(slice)
     integer(kind = dp), intent(in) :: m,bw
-    integer(kond = dp) :: slice(2)
+    integer(kind = dp) :: slice(2)
 
     slice(1) = MLr(m,0_dp,bw)
     slice(2) = slice(1) + bw-m-1_dp
@@ -647,6 +647,7 @@ contains
     slice(1) = MLc(m,0_dp,bw)+abs(m)
     slice(2) = slice(1) + bw-abs(m)-1_dp
   end function MLc_slice
+  
   !needs work
   function rotate_flm(bw,flm,split_ids,euler_angles) result(R_flm)
     integer(kind = dp),intent(in) :: bw,split_ids(:)
@@ -654,12 +655,12 @@ contains
     real(kind = dp),intent(in) :: euler_angles(:)
     complex(kind = dp):: R_flm(size(flm,1))
   end function rotate_flm
-  function rotate_all_flm(bw,flms,split_ids,euler_angles) result(R_flms)
+  function rotate_flm_many(bw,flms,split_ids,euler_angles) result(R_flms)
     integer(kind = dp),intent(in) :: bw,split_ids(:)
     complex(kind = dp),intent(in) :: flms(:)
     real(kind = dp),intent(in) :: euler_angles(:)
     complex(kind = dp):: R_flms(size(flms,1))
-  end function rotate_all_flm
+  end function rotate_flm_many
 end module so3ft_utils
 
 module so3ft
@@ -1814,15 +1815,16 @@ contains
     
     !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
     !! m1,m2 !!
-    c_pm1pm2_slice = coeff_slice(m1,m2,bw)
-    so3func(:,m1+1,m2+1) = matmul(coeff(c_pm1pm2_slice(1):c_pm1pm2_slice(2)),wig_mat)    
+    cc_lmn = wig_norm(l_start:) * f_ml(pm1_slice(1):pm1_slice(2)) * g_ml(pm2_slice(1):pm2_slice(2)) * sym_const_m1m2
+    so3func(:,m1+1,m2+1) = matmul(cc_lmn,wig_mat)    
     
     if (m1 ==0 .AND. m2 ==0) return    ! prevents m1=m2=0 from beeing evaluated twice
 
     !! -m2,-m1 !!
     s_ids = order_to_ids(m2,m1,bw)
-    c_nm2nm1_slice = coeff_slice(-m2,-m1,bw)
-    so3func(:,s_ids(1),s_ids(2))=CONJG(matmul(coeff(c_nm2nm1_slice(1):c_nm2nm1_slice(2)),wig_mat))
+    ! conjugation to go from m2,m1 to -m2,-m1 => this also multiplies another sym_const_m1m2 thus cancelling the already present sym_const_m1m2
+    cc_lmn = wig_norm(l_start:) * CONJG(f_ml(pm2_slice(1):pm2_slice(2)) * g_ml(pm1_slice(1):pm1_slice(2)))
+    so3func(:,s_ids(1),s_ids(2))=CONJG(matmul(cc_lmn,wig_mat))
 
     !! branch for sgn(m1)!=sgn(m2)                                   !!
     !! uses the symmetries:                                          !!
@@ -1837,17 +1839,19 @@ contains
     
     !! m1,-m2 !!
     s_ids = order_to_ids(m1,-m2,bw)
-    c_pm1nm2_slice = coeff_slice(m1,-m2,bw)
-    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m1*matmul(sym_array(m2+1:)*coeff(c_pm1nm2_slice(1):c_pm1nm2_slice(2)),wig_mat)
+    cc_lmn = wig_norm(l_start:) * f_ml(pm1_slice(1):pm1_slice(2)) * CONJG(g_ml(pm2_slice(1):pm2_slice(2))) * sym_const_m1 &
+         & * sym_array(l_start:)
+    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m1*matmul(cc_lmn,wig_mat)
     
     if (m1 == m2) return               ! prevents duplicates due to swapping equal numbers
 
     !! m2,-m1 !!
     s_ids = order_to_ids(m2,-m1,bw)
-    c_pm2nm1_slice = coeff_slice(m2,-m1,bw)
-    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m1*matmul(sym_array(m2+1:)*coeff(c_pm2nm1_slice(1):c_pm2nm1_slice(2)),wig_mat)    
+    cc_lmn = wig_norm(l_start:) * f_ml(pm2_slice(1):pm2_slice(2)) * CONJG(g_ml(pm1_slice(1):pm1_slice(2))) * sym_const_m2 &
+         & * sym_array(l_start:)
+    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m1*matmul(cc_lmn,wig_mat)    
   end subroutine inverse_wigner_loop_body_corr_real
-  subroutine cross_correlation_ylm_real(f_lm,g_lm,cc)
+  subroutine cross_correlation_ylm_real(f_ml,g_ml,cc)
     ! let f,g be two square integrable functions on the 2 sphere 
     ! Define CC: SO(3) ---> \mathbb{R},   R |---> <f,g \circ R> = \int_{S^2} dx f(x)*\overline{g(Rx)}
     ! This function calculates CC(R) for all R defined in make_SO3_grid
@@ -1868,24 +1872,15 @@ contains
     !   Somehow there is still a bug. The resulting euler angles need to be modified as follows to yield correct results
     !   alpha,beta,gamma -----> 2*pi - alpha, beta , 2*pi-gamma
 
-    complex(kind = dp),target,intent(in) :: f_lm(:),g_lm(:)
+    complex(kind = dp),target,intent(in) :: f_ml(:),g_ml(:)
     real(kind = dp), intent(inout) :: cc(:,:,:)
-    complex(kind = dp) ::  f_ml(size(f_lm)),g_ml(size(f_lm))
-    integer(kind = dp) :: i,m1,m2,m,L,s_slice(2),c_slice(2),pm1_slice(2),nm1_slice(2)
+    integer(kind = dp) :: i,m1,m2,m,L,c_slice(2),pm1_slice(2),s_ids(2),s_ids_sym(2)
     real(kind=dp) :: sym_const_m1,sym_const_m2,sym_array(bw),wig_norm(bw)
 
     ! Make sure fft plans and matrices are allocated
     if (.NOT. plans_allocated_c) then
        call init_fft(.FALSE.)
     end if
-
-    ! "Transpose" input coefficient layout to be adapted to the wigner memory layout (l contiguous)
-    do l=0,bw-1
-       do m=-l,l
-          f_ml(MLc(m,l,bw)) = f_lm(LMc(l,m))
-          g_ml(MLc(m,l,bw)) = g_lm(LMc(l,m))
-       end do
-    end do
     
     ! initiallizing some constants
     L = bw-1
@@ -1902,15 +1897,21 @@ contains
     do m1=0, L
        sym_const_m1 = (-1.0)**m1
        pm1_slice= MLc_slice(m1,bw)
-       nm1_slice= MLc_slice(-m1,bw)
        do m2=m1, L          
-          call inverse_wigner_loop_body_corr_real(f_ml,g_ml,fft_c2r_in,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_slice,nm1_slice)
+          call inverse_wigner_loop_body_corr_real(f_ml,g_ml,fft_c2r_in,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_slice)
        end do
+    end do
+
+    ! fill remaining 2d real fft symmetry values using f_{0,m1}=f_{0,-m1}^*
+    do m2=1,L
+       s_ids = order_to_ids(0_dp,m2,bw)
+       s_ids_sym = order_to_ids(0_dp,-m2,bw)
+       fft_c2r_in(:,s_ids_sym(1),s_ids_sym(2)) = CONJG(fft_c2r_in(:,s_ids(1),s_ids(2)))
     end do
 
     ! Compute inverse fft
     fft_c2r_in = CONJG(fft_c2r_in)
-    call dfftw_execute_dft(plan_c2r_backward,fft_c2r_in,cc)
+    call dfftw_execute_dft_c2r(plan_c2r_backward,fft_c2r_in,cc)
     cc = cc * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)   
   end subroutine cross_correlation_ylm_real
   subroutine corss_correlation_ylm_3D_real(f_lms,g_lms,cc,radial_sampling_points,radial_limits,nthreads)
