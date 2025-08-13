@@ -589,6 +589,64 @@ contains
     end do
   end subroutine enforce_real_sym
 
+
+  pure function LMc(l,m) result(index)
+    ! Index for the spherical harmonic coefficient Y_lm for complex data.
+    ! This is the same convention used by the software SHTNS
+    ! https://nschaeff.bitbucket.io/shtns/index.html
+    ! Complex data => Coefficients are ordered by l and m contiguous
+    ! Loops of the following kind are contiguous in memory with this indexing
+    ! do l in [0,1,..., bw-1]
+    !   do m in [-(bw-1),...,bw-1]
+    integer(kind = dp),intent(in) :: l,m
+    integer(kind = dp) :: index
+    index = l*(l+1)+m+1_dp
+  end function LMc
+
+  pure function MLr(m,l,bw) result(index)
+    ! Index for the spherical harmonic coefficient Y_lm for real data.
+    ! This is the same convention used by the software SHTNS
+    ! https://nschaeff.bitbucket.io/shtns/index.html
+    ! Real data => Coefficients are ordered by m and l contiguous
+    ! Loops of the following kind are contiguous in memory with this indexing
+    ! do m in [0,1,..., bw-1]
+    !   do l in [m,...,bw-1]
+    integer(kind = dp),intent(in) :: l,m,bw
+    integer(kind = dp) :: index
+    index = (m*(2_dp*bw-1_dp-m))/2_dp + l + 1_dp
+  end function ML
+  pure function MLr_slice(m,bw) result(slice)
+    integer(kind = dp), intent(in) :: m,bw
+    integer(kond = dp) :: slice(2)
+
+    slice(1) = MLr(m,0_dp,bw)
+    slice(2) = slice(1) + bw-m-1_dp
+  end function MLr_slice
+
+  pure function MLc(m,l,bw) result(index)
+    ! Index for the spherical harmonic coefficient Y_lm for complex data.
+    ! Custom vesion that is ordered by m and l contiguous,
+    ! while positive and negative m are interleaved.
+    ! Loops of the following kind are contiguous in memory with this indexing
+    ! do m in [0,1,-1,2,-2,..., bw-1,-(bw-1)]
+    !   do l in [|m|,...,bw-1]
+    integer(kind = dp),intent(in) :: l,m,bw
+    integer(kind = dp) :: index
+    index = MAX(0, ABS(m)*(2_dp*bw - ABS(m)) - bw) + MERGE(0_dp,bw-abs(m),m>=0) + l + 1_dp
+  end function MLc
+  pure function MLc_slice(m,bw) result(slice)
+    ! Index for the spherical harmonic coefficient Y_lm for complex data.
+    ! Custom vesion that is ordered by m and l contiguous,
+    ! while positive and negative m are interleaved.
+    ! Loops of the following kind are contiguous in memory with this indexing
+    ! do m in [0,1,-1,2,-2,..., bw-1,-(bw-1)]
+    !   do l in [|m|,...,bw-1]
+    integer(kind = dp),intent(in) :: m,bw
+    integer(kind = dp) :: slice(2)
+    
+    slice(1) = MLc(m,0_dp,bw)+abs(m)
+    slice(2) = slice(1) + bw-abs(m)-1_dp
+  end function MLc_slice
   !needs work
   function rotate_flm(bw,flm,split_ids,euler_angles) result(R_flm)
     integer(kind = dp),intent(in) :: bw,split_ids(:)
@@ -801,7 +859,7 @@ contains
           deallocate(fft_c2c_out)
        end if
         
-    end if       
+    end if
   end subroutine dealloc_fft_arrays
   subroutine init(bandwidth,precompute_wigners,init_ffts,fftw_flags_)
     integer(kind = dp), intent(in) :: bandwidth
@@ -1149,7 +1207,7 @@ contains
           sym_const_m2 = (-1.0)**m2
           call forward_wigner_loop_body_cmplx(so3func,coeff,m1,m2,sym_array,sym_const_m1,sym_const_m2)
        end do
-    end do    
+    end do
   end subroutine forward_wigner_trf_cmplx
   subroutine forward_wigner_loop_body_real(so3func,coeff,m1,m2,sym_array,sym_const_m1,sym_const_m2)
     ! This subroutine assumes 0<=m1<=m2<=bw
@@ -1249,7 +1307,7 @@ contains
           sym_const_m2 = (-1.0)**m2          
           call forward_wigner_loop_body_real(so3func,coeff,m1,m2,sym_array,sym_const_m1,sym_const_m2)
        end do
-    end do    
+    end do
   end subroutine forward_wigner_trf_real
   subroutine inverse_wigner_loop_body_real(coeff,so3func,m1,m2,sym_array,sym_const_m1,sym_const_m2)
     ! This subroutine assumes 0<=m1<=m2<=bw
@@ -1399,8 +1457,8 @@ contains
     complex(kind=dp),intent(in) :: so3funcs(:,:,:,:)
     complex(kind=dp),intent(inout) :: coeffs(:,:)
     integer(kind = dp), intent(in) :: nthreads
+    !f2py integer(kind = dp) :: nthreads = 1_dP
     integer(kind=dp) :: n,i
-    !f2py integer(kind = dp) :: nthreads = 1_dp
     n = size(so3funcs,1)
 
     !set number of used threads
@@ -1490,6 +1548,432 @@ contains
     !$OMP END PARALLEL
     if (nthreads>1) call alloc_fft_arrays(.False.)
   end subroutine irsoft_many
+
+  function integrate_over_so3_cmplx(f) result(integral)
+    ! Integrates f(\alpha,\gamma,\beta) over SO(3)
+    ! If f = 1 then the result sould be 8*pi**2
+    ! In this case SUM(SUM(f,1),1) = (2*bw)**2 and SUM(legendre_weights)=2
+    ! => The normalization constant has to be (pi/bw)**2
+    ! Maybe the legendre weights should be divided by 2, it is strange for their sum to be 2
+    complex(kind = dp),intent(in) :: f(:,:,:)
+    complex(kind = dp) :: integral
+    integral = SUM(SUM(SUM(f,1),1)*legendre_weights)
+    integral = integral*(pi/real(bw,kind=dp))**2
+  end function integrate_over_so3_cmplx
+  function integrate_over_so3_real(f) result(integral)
+    ! Integrates f(\alpha,\gamma,\beta) over SO(3)
+    ! If f = 1 then the result sould be 8*pi**2
+    ! In this case SUM(SUM(f,1),1) = (2*bw)**2 and SUM(legendre_weights)=2
+    ! => The normalization constant has to be (pi/bw)**2
+    ! Maybe the legendre weights should be divided by 2, it is strange for their sum to be 2
+    real(kind = dp),intent(in) :: f(:,:,:)
+    real(kind = dp) :: integral
+    integral = SUM(SUM(SUM(f,1),1)*legendre_weights)
+    integral = integral*(pi/real(bw,kind=dp))**2
+  end function integrate_over_so3_real
+
+  subroutine inverse_wigner_loop_body_corr_cmplx(f_ml,g_ml,so3func,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_slice,nm1_slice)
+    complex(kind = dp), intent(in) :: f_ml(:),g_ml(:)
+    complex(kind = dp), intent(inout) :: so3func(:,:,:)
+    integer(kind=dp), intent(in) :: m1,m2,pm1_slice(:),nm1_slice(:)
+    real(kind=dp),intent(in) :: sym_array(:),wig_norm(:),sym_const_m1
+    real(kind = dp),pointer :: wig_mat(:,:)
+    real(kind = dp),target :: wig_mat_arr(bw-m2,2*bw)
+    real(kind = dp) :: sym_const_m2,sym_const_m1m2
+    complex(kind = dp) :: cc_lmn(bw-m2)
+    integer(kind=dp) :: s_ids(2),bw2,nm2_slice(2),pm2_slice(2),l_start
+
+    sym_const_m2 = (-1.0_dp)**m2
+    sym_const_m1m2 = sym_const_m1*sym_const_m2
+    l_start = m2+1_dp
+    bw2 = 2_dp*bw
+    pm2_slice = MLc_slice(m2,bw)
+    nm2_slice = MLc_slice(-m2,bw) 
+    
+    
+    ! This method assiumes 0<=m1<=m2<=bw
+    ! which also means m = max(abs(m1),abs(m2)) = m2
+    
+    call get_wigner_matrix_trsp(m1,m2,wig_mat,wig_mat_arr)
+    
+    !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
+    !! use of symmetries does not cause a change in d_{m1,m2}^l(beta) !!
+    !! m1,m2 !!
+    !s_slice = sample_slice(m1,m2,bw)
+    cc_lmn = wig_norm(l_start:) * f_ml(pm1_slice(1):pm1_slice(2)) * g_ml(pm2_slice(1):pm2_slice(2)) * sym_const_m1m2
+    so3func(:,m1+1,m2+1) = matmul(cc_lmn,wig_mat)
+    
+    if (m1 ==0 .AND. m2 ==0) return    ! prevents m1=m2=0 from beeing evaluated twice
+    
+    !! -m2,-m1 !!
+    !s_slice = sample_slice(-m2,-m1,bw)
+    s_ids=order_to_ids(-m2,-m1,bw)
+    cc_lmn = wig_norm(l_start:) * f_ml(nm2_slice(1):nm2_slice(2)) * g_ml(nm1_slice(1):nm1_slice(2)) * sym_const_m1m2
+    so3func(:,s_ids(1),s_ids(2)) = matmul(cc_lmn,wig_mat)
+
+    !! branch for m1>m2 and sgn(m1)==sgn(m2)                         !!
+    !! uses the symmetries:                                          !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{m2,m1}^l(\beta)          !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{-m1,-m2}^l(\beta)        !!
+    !! They cause a constant sign swap by (-1)^(m1-m2)               !!
+    if (.NOT. m1==m2) then
+       !!  m2,m1  !!
+       s_ids=order_to_ids(m2,m1,bw)
+       cc_lmn = wig_norm(l_start:) * f_ml(pm2_slice(1):pm2_slice(2)) * g_ml(pm1_slice(1):pm1_slice(2)) * sym_const_m1m2
+       so3func(:,s_ids(1),s_ids(2)) = matmul(cc_lmn,wig_mat)*sym_const_m1m2       
+       !! -m1,-m2 !!
+       s_ids=order_to_ids(-m1,-m2,bw)
+       cc_lmn = wig_norm(l_start:) * f_ml(nm1_slice(1):nm1_slice(2)) * g_ml(nm2_slice(1):nm2_slice(2)) * sym_const_m1m2
+       so3func(:,s_ids(1),s_ids(2)) = matmul(cc_lmn,wig_mat) * sym_const_m1m2
+    end if
+
+    !! branch for sgn(m1)!=sgn(m2)                                   !!
+    !! uses the symmetries:                                          !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{m2,m1}^l(\beta)          !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{-m1,-m2}^l(\beta)        !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(l+m1)*d_{m1,-m2}^l(\pi-\beta)      !!
+    !! They cause:                                                   !!
+    !!    a constant sign swap by (-1)^M , M=m1 or m2                !!
+    !!    a l dependent sign swap by (-1)^l                          !!
+    !!    an inversion of the \beta coordinate axis                  !!
+    if (m1==0 .or. m2==0) return       ! prevents sign swaps on 0 ids which are already covered
+    
+    !! m1,-m2 !!
+    s_ids=order_to_ids(m1,-m2,bw)
+    cc_lmn = wig_norm(l_start:) * f_ml(pm1_slice(1):pm1_slice(2)) * g_ml(nm2_slice(1):nm2_slice(2)) * sym_const_m1m2 &
+         & * sym_array(l_start:)
+    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m1*matmul(cc_lmn,wig_mat)
+    
+    !! -m1,m2 !!
+    s_ids=order_to_ids(-m1,m2,bw)
+    cc_lmn = wig_norm(l_start:) * f_ml(nm1_slice(1):nm1_slice(2)) * g_ml(pm2_slice(1):pm2_slice(2)) * sym_const_m1m2 &
+         & * sym_array(l_start:)
+    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m2*matmul(cc_lmn,wig_mat)
+    
+    if (m1 == m2) return               ! prevents duplicates due to swapping equal numbers
+    
+    !! m2,-m1 !!
+    s_ids=order_to_ids(m2,-m1,bw)
+    cc_lmn = wig_norm(l_start:) * f_ml(pm2_slice(1):pm2_slice(2)) * g_ml(nm1_slice(1):nm1_slice(2)) * sym_const_m1m2 &
+         & * sym_array(l_start:)
+    so3func(bw2:1:-1,s_ids(1),s_ids(2)) = sym_const_m1*matmul(cc_lmn,wig_mat)
+
+    !! -m2,m1 !!
+    s_ids=order_to_ids(-m2,m1,bw)
+    cc_lmn = wig_norm(l_start:) * f_ml(nm2_slice(1):nm2_slice(2)) * g_ml(pm1_slice(1):pm1_slice(2)) * sym_const_m1m2 &
+         & * sym_array(l_start:)
+    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m2*matmul(cc_lmn,wig_mat)
+  end subroutine inverse_wigner_loop_body_corr_cmplx
+  subroutine cross_correlation_ylm_cmplx(f_lm,g_lm,cc)
+    ! let f,g be two square integrable functions on the 2 sphere 
+    ! Define CC: SO(3) ---> \mathbb{R},   R |---> <f,g \circ R> = \int_{S^2} dx f(x)*\overline{g(Rx)}
+    ! This function calculates CC(R) for all R defined in make_SO3_grid
+    ! Spherical harmonic coefficient arrays , g_lm,f_lm, are assumed to follow the indexing conventions of the SHTNS package,
+    ! i.e. those given by the pure functions LMc LMr from above.
+    !
+    ! arguments :
+    !   f_lm: f_{l,m} spherical harmonic coefficients of f 
+    !   g_lm: g_{l,m} spherical harmonic coefficients of g 
+    !            f_coeff, g_coeff are complex numpy arrays of shape bw*(bw+1)+bw+1
+    !
+    !
+    ! output :
+    !   C_values: array of shape (2*bw,2*bw,2*bw)
+    !   The maximum in C corresponds to the Rotation that best maps f to g
+    !
+    !   The Idis of the maximum in C i_max,j_max,k_max correspond to the euler anglees beta,alpha,gamma in this order.
+    !   Somehow there is still a bug. The resulting euler angles need to be modified as follows to yield correct results
+    !   alpha,beta,gamma -----> 2*pi - alpha, beta , 2*pi-gamma
+
+    complex(kind = dp),target,intent(in) :: f_lm(:),g_lm(:)
+    complex(kind = dp), intent(inout) :: cc(:,:,:)
+    complex(kind = dp) ::  f_ml(size(f_lm)),g_ml(size(f_lm))
+    integer(kind = dp) :: i,m1,m2,m,L,s_slice(2),c_slice(2),pm1_slice(2),nm1_slice(2)
+    real(kind=dp) :: sym_const_m1,sym_const_m2,sym_array(bw),wig_norm(bw)
+
+    ! Make sure fft plans and matrices are allocated
+    if (.NOT. plans_allocated_c) then
+       call init_fft(.FALSE.)
+    end if
+
+    ! "Transpose" input coefficient layout to be adapted to the wigner memory layout (l contiguous)
+    do l=0,bw-1
+       do m=-l,l
+          f_ml(MLc(m,l,bw)) = f_lm(LMc(l,m))
+          g_ml(MLc(m,l,bw)) = g_lm(LMc(l,m))
+       end do
+    end do
+    
+    ! initiallizing some constants
+    L = bw-1
+    do i=0,L
+       sym_array(i+1) = (-1.0)**i
+       wig_norm = 2._dp*pi*SQRT(2._dp/real(2_dp*i+1_dp,kind = dp))
+    end do
+
+    ! zero fft array
+    ! Important since not all elements will be written to before doing the fft
+    fft_c2c_in = 0._dp
+    
+    ! non-fft part of the SO(3) fourier transform + assembly of cc_lmn = wig_norm * f_ml_part * g_ml_part * sym_const_m1 * sym_const_m2       
+    do m1=0, L
+       sym_const_m1 = (-1.0)**m1
+       pm1_slice= MLc_slice(m1,bw)
+       nm1_slice= MLc_slice(-m1,bw)
+       do m2=m1, L          
+          call inverse_wigner_loop_body_corr_cmplx(f_ml,g_ml,fft_c2c_in,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_slice,nm1_slice)
+       end do
+    end do
+
+    ! Compute inverse fft
+    call dfftw_execute_dft(plan_c2c_forward,fft_c2c_in,cc)
+    cc = cc * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)   
+  end subroutine cross_correlation_ylm_cmplx
+  subroutine corss_correlation_ylm_3D_cmplx(f_lms,g_lms,cc,radial_sampling_points,radial_limits,nthreads)
+    ! let f,g be two square integrable functions on the $\mathbb{R}^3$ in spherical coordinates 
+    ! Define CC: SO(3) ---> \mathbb{R},   R |---> <f,g \circ R> = \int_R dr r^2 \int_{S^2} dw f(r,w)*\overline{g(r,Rw)}
+    ! This function calculates CC(R) for all R defined in make_SO3_grid
+    ! Spherical harmonic coefficient arrays , g_lm,f_lm, are assumed to follow the indexing conventions of the SHTNS package,
+    ! i.e. those given by the pure functions LMc LMr from above.
+    !
+    ! arguments :
+    !   f_lm: f_{l,m} spherical harmonic coefficients of f 
+    !   g_lm: g_{l,m} spherical harmonic coefficients of g 
+    !            f_coeff, g_coeff are complex numpy arrays of shape bw*(bw+1)+bw+1
+    !
+    !
+    ! output :
+    !   C_values: array of shape (2*bw,2*bw,2*bw)
+    !   The maximum in C corresponds to the Rotation that best maps f to g
+    !
+    !   The Idis of the maximum in C i_max,j_max,k_max correspond to the euler anglees beta,alpha,gamma in this order.
+    !   Somehow there is still a bug. The resulting euler angles need to be modified as follows to yield correct results
+    !   alpha,beta,gamma -----> 2*pi - alpha, beta , 2*pi-gamma
+
+    !f2py threadsafe
+    complex(kind = dp),target,intent(in) :: f_lms(:,:),g_lms(:,:)
+    complex(kind = dp), intent(inout) :: cc(:,:,:)
+    real(kind = dp), intent(in) :: radial_sampling_points(:)
+    integer(kind = dp), intent(in) :: radial_limits(:)
+    integer(kind = dp), intent(in) :: nthreads
+    !f2py integer(kind = dp) :: nthreads = 1_dp
+    real(kind = dp) :: inv_radial_range,radial_step
+    integer(kind=dp) :: rid
+
+    ! Make sure fft plans and matrices are allocated
+    if (.NOT. plans_allocated_c) then
+       call init_fft(.FALSE.)
+    end if
+    
+    cc = 0._dp
+    radial_step = radial_sampling_points(2)-radial_sampling_points(1)
+    inv_radial_range = 1._dp/(radial_sampling_points(radial_limits(2))-radial_sampling_points(radial_limits(1)) + radial_step)
+    if (nthreads==1_dp) then
+       do rid=radial_limits(1),radial_limits(2)
+          call cross_correlation_ylm_cmplx(f_lms(:,rid),g_lms(:,rid),fft_c2c_out)
+          cc = cc+fft_c2c_out*radial_sampling_points(rid)**2
+       end do
+    else
+       call dealloc_fft_arrays(.False.)
+       !$OMP PARALLEL PRIVATE(rid) SHARED(f_lms,g_lms,radial_step,radial_sampling_points)
+       call alloc_fft_arrays(.False.)
+       !$omp DO reduction(+:cc)
+       do rid=radial_limits(1),radial_limits(2)
+          call cross_correlation_ylm_cmplx(f_lms(:,rid),g_lms(:,rid),fft_c2c_out)
+          cc = cc + fft_c2c_out*radial_sampling_points(rid)**2
+       end do
+       !$OMP END DO
+       call dealloc_fft_arrays(.False.)
+       !$OMP END PARALLEL
+       call alloc_fft_arrays(.False.)       
+    end if
+    cc = cc*inv_radial_range
+  end subroutine corss_correlation_ylm_3D_cmplx
+
+  subroutine inverse_wigner_loop_body_corr_real(f_ml,g_ml,so3func,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_slice)
+    ! This subroutine assumes 0<=m1<=m2<=bw
+    ! which also means m = max(abs(m1),abs(m2)) = m2
+    complex(kind = dp), intent(in) :: f_ml(:),g_ml(:)
+    complex(kind = dp), intent(inout) :: so3func(:,:,:)
+    integer(kind=dp), intent(in) :: m1,m2,pm1_slice(:)
+    real(kind=dp),intent(in) :: sym_array(:),wig_norm(:),sym_const_m1
+    real(kind = dp),pointer :: wig_mat(:,:)
+    real(kind = dp),target :: wig_mat_arr(bw-m2,2*bw)
+    real(kind = dp) :: sym_const_m2,sym_const_m1m2
+    complex(kind = dp) :: cc_lmn(bw-m2)
+    integer(kind=dp) :: s_ids(2),bw2,pm2_slice(2),l_start
+
+    sym_const_m2 = (-1.0_dp)**m2
+    sym_const_m1m2 = sym_const_m1*sym_const_m2
+    l_start = m2+1_dp
+    bw2 = 2_dp*bw
+    pm2_slice = MLr_slice(m2,bw)
+
+  
+    call get_wigner_matrix_trsp(m1,m2,wig_mat,wig_mat_arr)
+    
+    !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
+    !! m1,m2 !!
+    c_pm1pm2_slice = coeff_slice(m1,m2,bw)
+    so3func(:,m1+1,m2+1) = matmul(coeff(c_pm1pm2_slice(1):c_pm1pm2_slice(2)),wig_mat)    
+    
+    if (m1 ==0 .AND. m2 ==0) return    ! prevents m1=m2=0 from beeing evaluated twice
+
+    !! -m2,-m1 !!
+    s_ids = order_to_ids(m2,m1,bw)
+    c_nm2nm1_slice = coeff_slice(-m2,-m1,bw)
+    so3func(:,s_ids(1),s_ids(2))=CONJG(matmul(coeff(c_nm2nm1_slice(1):c_nm2nm1_slice(2)),wig_mat))
+
+    !! branch for sgn(m1)!=sgn(m2)                                   !!
+    !! uses the symmetries:                                          !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(l+m1)*d_{m1,-m2}^l(\pi-\beta)      !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{m2,m1}^l(\beta)          !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{-m1,-m2}^l(\beta)        !!
+    !! They cause:                                                   !!
+    !!    a constant sign swap by (-1)^M , M=m1 or m2                !!
+    !!    a l dependent sign swap by (-1)^l                          !!
+    !!    an inversion of the \beta coordinate axis                  !!
+    if (m1==0 .or. m2==0) return       ! prevents sign swaps on 0 ids which are already covered
+    
+    !! m1,-m2 !!
+    s_ids = order_to_ids(m1,-m2,bw)
+    c_pm1nm2_slice = coeff_slice(m1,-m2,bw)
+    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m1*matmul(sym_array(m2+1:)*coeff(c_pm1nm2_slice(1):c_pm1nm2_slice(2)),wig_mat)
+    
+    if (m1 == m2) return               ! prevents duplicates due to swapping equal numbers
+
+    !! m2,-m1 !!
+    s_ids = order_to_ids(m2,-m1,bw)
+    c_pm2nm1_slice = coeff_slice(m2,-m1,bw)
+    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m1*matmul(sym_array(m2+1:)*coeff(c_pm2nm1_slice(1):c_pm2nm1_slice(2)),wig_mat)    
+  end subroutine inverse_wigner_loop_body_corr_real
+  subroutine cross_correlation_ylm_real(f_lm,g_lm,cc)
+    ! let f,g be two square integrable functions on the 2 sphere 
+    ! Define CC: SO(3) ---> \mathbb{R},   R |---> <f,g \circ R> = \int_{S^2} dx f(x)*\overline{g(Rx)}
+    ! This function calculates CC(R) for all R defined in make_SO3_grid
+    ! Spherical harmonic coefficient arrays , g_lm,f_lm, are assumed to follow the indexing conventions of the SHTNS package,
+    ! i.e. those given by the pure functions LMc LMr from above.
+    !
+    ! arguments :
+    !   f_lm: f_{l,m} spherical harmonic coefficients of f 
+    !   g_lm: g_{l,m} spherical harmonic coefficients of g 
+    !            f_coeff, g_coeff are complex numpy arrays of shape bw*(bw+1)+bw+1
+    !
+    !
+    ! output :
+    !   C_values: array of shape (2*bw,2*bw,2*bw)
+    !   The maximum in C corresponds to the Rotation that best maps f to g
+    !
+    !   The Idis of the maximum in C i_max,j_max,k_max correspond to the euler anglees beta,alpha,gamma in this order.
+    !   Somehow there is still a bug. The resulting euler angles need to be modified as follows to yield correct results
+    !   alpha,beta,gamma -----> 2*pi - alpha, beta , 2*pi-gamma
+
+    complex(kind = dp),target,intent(in) :: f_lm(:),g_lm(:)
+    real(kind = dp), intent(inout) :: cc(:,:,:)
+    complex(kind = dp) ::  f_ml(size(f_lm)),g_ml(size(f_lm))
+    integer(kind = dp) :: i,m1,m2,m,L,s_slice(2),c_slice(2),pm1_slice(2),nm1_slice(2)
+    real(kind=dp) :: sym_const_m1,sym_const_m2,sym_array(bw),wig_norm(bw)
+
+    ! Make sure fft plans and matrices are allocated
+    if (.NOT. plans_allocated_c) then
+       call init_fft(.FALSE.)
+    end if
+
+    ! "Transpose" input coefficient layout to be adapted to the wigner memory layout (l contiguous)
+    do l=0,bw-1
+       do m=-l,l
+          f_ml(MLc(m,l,bw)) = f_lm(LMc(l,m))
+          g_ml(MLc(m,l,bw)) = g_lm(LMc(l,m))
+       end do
+    end do
+    
+    ! initiallizing some constants
+    L = bw-1
+    do i=0,L
+       sym_array(i+1) = (-1.0)**i
+       wig_norm = 2._dp*pi*SQRT(2._dp/real(2_dp*i+1_dp,kind = dp))
+    end do
+
+    ! zero fft array
+    ! Important since not all elements will be written to before doing the fft
+    fft_c2r_in = 0._dp
+    
+    ! non-fft part of the SO(3) fourier transform + assembly of cc_lmn = wig_norm * f_ml_part * g_ml_part * sym_const_m1 * sym_const_m2       
+    do m1=0, L
+       sym_const_m1 = (-1.0)**m1
+       pm1_slice= MLc_slice(m1,bw)
+       nm1_slice= MLc_slice(-m1,bw)
+       do m2=m1, L          
+          call inverse_wigner_loop_body_corr_real(f_ml,g_ml,fft_c2r_in,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_slice,nm1_slice)
+       end do
+    end do
+
+    ! Compute inverse fft
+    fft_c2r_in = CONJG(fft_c2r_in)
+    call dfftw_execute_dft(plan_c2r_backward,fft_c2r_in,cc)
+    cc = cc * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)   
+  end subroutine cross_correlation_ylm_real
+  subroutine corss_correlation_ylm_3D_real(f_lms,g_lms,cc,radial_sampling_points,radial_limits,nthreads)
+    ! let f,g be two square integrable functions on the $\mathbb{R}^3$ in spherical coordinates 
+    ! Define CC: SO(3) ---> \mathbb{R},   R |---> <f,g \circ R> = \int_R dr r^2 \int_{S^2} dw f(r,w)*\overline{g(r,Rw)}
+    ! This function calculates CC(R) for all R defined in make_SO3_grid
+    ! Spherical harmonic coefficient arrays , g_lm,f_lm, are assumed to follow the indexing conventions of the SHTNS package,
+    ! i.e. those given by the pure functions LMc LMr from above.
+    !
+    ! arguments :
+    !   f_lm: f_{l,m} spherical harmonic coefficients of f 
+    !   g_lm: g_{l,m} spherical harmonic coefficients of g 
+    !            f_coeff, g_coeff are complex numpy arrays of shape bw*(bw+1)+bw+1
+    !
+    !
+    ! output :
+    !   C_values: array of shape (2*bw,2*bw,2*bw)
+    !   The maximum in C corresponds to the Rotation that best maps f to g
+    !
+    !   The Idis of the maximum in C i_max,j_max,k_max correspond to the euler anglees beta,alpha,gamma in this order.
+    !   Somehow there is still a bug. The resulting euler angles need to be modified as follows to yield correct results
+    !   alpha,beta,gamma -----> 2*pi - alpha, beta , 2*pi-gamma
+
+    !f2py threadsafe
+    complex(kind = dp),target,intent(in) :: f_lms(:,:),g_lms(:,:)
+    real(kind = dp), intent(inout) :: cc(:,:,:)
+    real(kind = dp), intent(in) :: radial_sampling_points(:)
+    integer(kind = dp), intent(in) :: radial_limits(:)
+    integer(kind = dp), intent(in) :: nthreads
+    !f2py integer(kind = dp) :: nthreads = 1_dp
+    real(kind = dp) :: inv_radial_range,radial_step
+    integer(kind=dp) :: rid
+
+    ! Make sure fft plans and matrices are allocated
+    if (.NOT. plans_allocated_c) then
+       call init_fft(.FALSE.)
+    end if
+    
+    cc = 0._dp
+    radial_step = radial_sampling_points(2)-radial_sampling_points(1)
+    inv_radial_range = 1._dp/(radial_sampling_points(radial_limits(2))-radial_sampling_points(radial_limits(1)) + radial_step)
+    if (nthreads==1_dp) then
+       do rid=radial_limits(1),radial_limits(2)
+          call cross_correlation_ylm_real(f_lms(:,rid),g_lms(:,rid),fft_r2c_out)
+          cc = cc+fft_r2c_out*radial_sampling_points(rid)**2
+       end do
+    else
+       call dealloc_fft_arrays(.False.)
+       !$OMP PARALLEL PRIVATE(rid) SHARED(f_lms,g_lms,radial_step,radial_sampling_points)
+       call alloc_fft_arrays(.False.)
+       !$omp DO reduction(+:cc)
+       do rid=radial_limits(1),radial_limits(2)
+          call cross_correlation_ylm_real(f_lms(:,rid),g_lms(:,rid),fft_r2c_out)
+          cc = cc + fft_r2c_out*radial_sampling_points(rid)**2
+       end do
+       !$OMP END DO
+       call dealloc_fft_arrays(.False.)
+       !$OMP END PARALLEL
+       call alloc_fft_arrays(.False.)       
+    end if
+    cc = cc*inv_radial_range
+  end subroutine corss_correlation_ylm_3D_real
+
   
   subroutine fft(f1,f2)
     complex(kind = dp), intent(in) :: f1(:,:,:)
@@ -1515,65 +1999,6 @@ contains
     call dfftw_execute_dft_c2r(plan_c2r_backward,f1,f2)
     f2 = f2 * (1/(2.0_dp*real(bw,kind=dp))) !* 1/(2*bw) * (2*bw)/(2*pi)
   end subroutine irfft
-
-  function integrate_over_so3_cmplx(f) result(integral)
-    ! Integrates f(\alpha,\gamma,\beta) over SO(3)
-    ! If f = 1 then the result sould be 8*pi**2
-    ! In this case SUM(SUM(f,1),1) = (2*bw)**2 and SUM(legendre_weights)=2
-    ! => The normalization constant has to be (pi/bw)**2
-    ! Maybe the legendre weights should be divided by 2, it is strange for their sum to be 2
-    complex(kind = dp),intent(in) :: f(:,:,:)
-    complex(kind = dp) :: integral
-    integral = SUM(SUM(SUM(f,1),1)*legendre_weights)
-    integral = integral*(pi/real(bw,kind=dp))**2
-  end function integrate_over_so3_cmplx
-  function integrate_over_so3_real(f) result(integral)
-    ! Integrates f(\alpha,\gamma,\beta) over SO(3)
-    ! If f = 1 then the result sould be 8*pi**2
-    ! In this case SUM(SUM(f,1),1) = (2*bw)**2 and SUM(legendre_weights)=2
-    ! => The normalization constant has to be (pi/bw)**2
-    ! Maybe the legendre weights should be divided by 2, it is strange for their sum to be 2
-    real(kind = dp),intent(in) :: f(:,:,:)
-    real(kind = dp) :: integral
-    integral = SUM(SUM(SUM(f,1),1)*legendre_weights)
-    integral = integral*(pi/real(bw,kind=dp))**2
-  end function integrate_over_so3_real
-
-  function cross_correlation_ylm(f_lm,g_lm,split_ids,is_real) result(cc)
-    ! let f,g be two square integrable functions on the 2 sphere 
-    ! Define C: SO(3) ---> \mathbb{R},   R |---> <f,g \circ R> = \int_{S^2} dx f(x)*\overline{g(Rx)}
-    ! This function calculates C(R) for all R defined in make_SO3_grid
-    !
-    ! arguments :
-    !   f_coeff: f_{l,m} spherical harmonic coefficients of f 
-    !   g_coeff: g_{l,m} spherical harmonic coefficients of g 
-    !            f_coeff, g_coeff are complex numpy arrays of shape bw*(bw+1)+bw+1
-    !   Assumes that the 2l+1 coefficients for fixed l are stored at the positions l**2 to (l+1)**2
-    !
-    ! output :
-    !   C_values: array of shape (2*bw,2*bw,2*bw)
-    !   The maximum in C corresponds to the Rotation that best maps f to g
-    !
-    !   The Idis of the maximum in C i_max,j_max,k_max correspond to the euler anglees beta,alpha,gamma in this order.
-    !   Somehow there is still a bug. The resulting euler angles need to be modified as follows to yield correct results
-    !   alpha,beta,gamma -----> 2*pi - alpha, beta , 2*pi-gamma
-    complex(kind = dp),target,intent(in) :: f_lm(:),g_lm(:)
-    logical, intent(in) :: is_real
-    integer(kind = dp), intent(in) :: split_ids
-    complex(kind = dp ), allocatable :: CC_lmn(:)
-    complex(kind = dp ) :: cc(2)
-    complex(kind = dp),pointer :: f_l(:),g_l(:)
-    real(kind=dp) :: wig_norm
-    integer(kind=dp) :: l
-
-    allocate(CC_lmn(total_num_coeffs(bw)))
-    CC_lmn=0
-    do l=0,bw-1
-       wig_norm = 2._dp*pi*SQRT(2._dp/real(2_dp*l+1_dp,kind = dp))
-       f_l => f_lm(l**2+1_dp:(l+1)**2)
-       g_l => g_lm(l**2+1_dp:(l+1)**2)
-    end do
-  end function cross_correlation_ylm
 end module so3ft
 
 ! Debug tools
