@@ -5,7 +5,6 @@ integer, parameter :: sp = selected_real_kind(6, 37)
 integer, parameter :: dp = selected_real_kind(15, 307)
 integer, parameter :: qp = selected_real_kind(33, 4931)
 end module precision
-
 module math_constants
   use precision
   implicit none
@@ -95,7 +94,7 @@ contains
             &* sin_samples(i)**sin_power * cos_samples(i)**cos_power
     end do
     
-  end function wigSpec_L2  
+  end function wigSpec_L2
   function L2_aN_so3(l,m1,m2) result(out)
     integer(kind = dp) :: l,m1,m2
     real(kind = dp) :: rl,rm1,rm2
@@ -111,7 +110,7 @@ contains
        out =0
     end if
     !print*,l,m1,m2,out
-  end function L2_aN_so3  
+  end function L2_aN_so3
   function L2_bN_so3(l,m1,m2) result(out)
     integer(kind = dp) :: l,m1,m2
     real(kind = dp) :: rl,rm1,rm2
@@ -121,7 +120,7 @@ contains
     rm2= real(m2)
     out = sqrt((2_dp*rl + 3_dp)/(2_dp*rl+1_dp)) *&
          &(rl+1_dp)*(2_dp*rl+1_dp)/sqrt(((rl+1_dp)**2-rm1**2)*((rl+1_dp)**2-m2**2))
-  end function L2_bN_so3  
+  end function L2_bN_so3
   function L2_cN_so3(l,m1,m2) result(out)
     integer(kind = dp) :: l,m1,m2
     real(kind = dp) :: rl,rm1,rm2
@@ -134,7 +133,7 @@ contains
     else
        out = 0
     end if
-  end function L2_cN_so3  
+  end function L2_cN_so3
   function genWig_L2(m1,m2,bw,trig_samples) result(wigners_m1m2)
     !  Given orders m1, m2, and a bandwidth bw, this function will
     !  generate all the Wigner little d functions whose orders
@@ -172,7 +171,7 @@ contains
     !  
     !  The routine won't be efficient, but it'll work.
     !  NOTE: compared to the python/c version the arrays are transposed:
-    !        As mentioned before here we compute the small wigner d matrices as
+    !        As mentioned before, here we compute the small wigner d matrices as
     !        (n,bw-m) where as in the C/python version they have the shape (bw-m,n)
     integer(kind = dp) :: m1,m2,bw
     real(kind = dp) :: trig_samples(:,:)
@@ -330,21 +329,60 @@ contains
     end do
   end subroutine trsp_wigAll
 
-  !needs work
-  function wigner_d_recurrence(L,d_l,trigs,sqrts) result(d_lplus1)
-    ! Takes a small wigner d Matrix d_l(\beta) and returns d_{l+1}(beta)
-    integer(kind = dp),intent(in) :: L
-    real(kind = dp),intent(in) :: d_l(:),trigs(:),sqrts(:)
-    real(kind = dp) :: d_lplus1(2)
+  function wigner_d_recurrence(d_l_1,l,trig_vals,sqrts) result(d_l)
+    ! given a wigner little-d matrix of degree L-1 evaluated
+    ! at some angle beta, construct the wigner little-d
+    ! matrix of degree L, EVALUATED AT THAT SAME BETA.
+    
+    real(kind = dp), intent(in) :: trig_vals(:),sqrts(:),d_l_1(:)
+    integer(kind = dp), intent(in)  :: l
+    real(kind = dp) :: d_l((2*l+1)*(2*l+1)),temp((2*l)*(2*l)),cos_beta,sin_beta,inv_deg
+    integer(kind = dp) :: deg,tmpdim,i,j
+    
+    cos_beta = trig_vals(1)
+    sin_beta = trig_vals(2)
+
+    if (l==0) then
+       d_l = 1
+    else if (l==1) then
+       d_l(1) = cos_beta * sin_beta
+       d_l(2) = sqrts(3) * cos_beta * sin_beta
+       d_l(3) = sin_beta**2
+
+       d_l(4) = -d_l(2)
+       d_l(5) = d_l(1)-d_l(3)
+       d_l(6) = d_l(2)
+
+       d_l(7) = d_l(3)
+       d_l(8) = -d_l(2)
+       d_l(9) = d_l(1)
+      
+    else
+       d_l = 0
+       temp(:(2*l-1)**2) = d_l_1
+       temp((2*l-1)**2+1:) = 0
+       do deg=(2*l-1), 2*l
+          inv_deg = (1._dp/real(deg,kind=dp))
+          tmpdim = deg + 1_dp
+          d_l(:tmpdim**2) = 0
+          do i=1,deg
+             do j=1,deg
+                d_l((i*tmpdim)+j) = d_l((i*tmpdim)+j) &
+                     & + inv_deg*sqrts(deg-i)*sqrts(deg-j)   * temp((i*deg)+j)*cos_beta
+                d_l((i*tmpdim)+j+1_dp) = d_l((i*tmpdim)+j+1_dp) &
+                     & + inv_deg*sqrts(deg-i)*sqrts(j+1_dp)  * temp((i*deg)+j)*sin_beta
+                d_l(((i+1_dp)*tmpdim)+j) = d_l(((i+1_dp)*tmpdim)+j) &
+                     & - inv_deg*sqrts(i+1_dp)*sqrts(deg-j)  * temp((i*deg)+j)*sin_beta
+                d_l(((i+1_dp)*tmpdim)+j+1_dp) = d_l((i*tmpdim)+j) &
+                     & + inv_deg*sqrts(i+1_dp)*sqrts(j+1_dp) * temp((i*deg)+j)*cos_beta
+             end do
+          end do
+          if (deg == 2*l-1) then
+             temp = d_l(:tmpdim**2)
+          end if
+       end do
+    end if
   end function wigner_d_recurrence
-  function ylm_rotation_wigners(bw,euler_angles) result(Ds)
-    ! Computes all wigner D matrices needed for rotating all
-    ! spherical harmonic coefficients f^l_m with l<bw
-    ! Euler angles follow the Z-Y-Z convention for \alpha,\beta,\gamma
-    integer(kind = dp),intent(in) :: bw
-    real(kind = dp),intent(in) :: euler_angles(3)
-    complex(kind = dp) :: Ds(2)
-  end function ylm_rotation_wigners
 end module make_wigner
 
 module so3ft_utils
@@ -398,7 +436,6 @@ contains
     ids(1) = (1_dp-sign(1_dp,m1))/2_dp*bw2 + m1+1_dp
     ids(2) = (1_dp-sign(1_dp,m2))/2_dp*bw2 + m2+1_dp
   end function order_to_ids
-  
   function coeff_slice_legacy(m1,m2,bw) result(slice)
     ! So sample_slice tells me the location of the samples 
     ! needed to do the order (m1,m2)-Wigner-transform on the
@@ -441,7 +478,6 @@ contains
     slice(1) = start
     slice(2) = start + (size-1)
   end function coeff_slice_legacy
-
   function coeff_location(m1,m2,l,bw) result(id)
     ! This function returns the index of the coefficient array corresponding to f_{m1,m2}^l.
     ! Note that this index has to lie within the slice given by coefLoc_so3.
@@ -454,7 +490,6 @@ contains
     end if
     id = slice(1)+l-m
   end function coeff_location
-
   function coeff_slice(n1,n2,bw) result(slice)
     ! Returns the slice of coefficients f_(n1,n2)^l for all possible l valaues.
     ! It is chosen such that in loops of the follwing type memory acces for
@@ -519,7 +554,6 @@ contains
     end if
     wigLen = (bw-m)*2*bw 
   end function wigLen_so3
-
   function euler_shape(bw) result(eshape)
     integer(kind=dp), intent(in) :: bw
     integer(kind=dp) :: eshape(3)
@@ -647,20 +681,89 @@ contains
     slice(1) = MLc(m,0_dp,bw)+abs(m)
     slice(2) = slice(1) + bw-abs(m)-1_dp
   end function MLc_slice
-  
-  !needs work
-  function rotate_flm(bw,flm,split_ids,euler_angles) result(R_flm)
-    integer(kind = dp),intent(in) :: bw,split_ids(:)
-    complex(kind = dp),intent(in) :: flm(:)
+
+  subroutine ylm_rotation_cmplx_(f_lm,rot_f_lm,bw,trigs,sqrts,exp_a,exp_g)
+    ! Computes all wigner D matrices needed for rotating all
+    ! spherical harmonic coefficients f^l_m with l<bw
+    ! Euler angles follow the Z-Y-Z convention for \alpha,\beta,\gamma
+    integer(kind = dp),intent(in) :: bw
+    complex(kind = dp),intent(in) :: f_lm(:)
+    complex(kind = dp),intent(inout) :: rot_f_lm(:)
+    real(kind = dp),intent(in) :: trigs(:),sqrts(:)
+    complex(kind = dp),intent(in) :: exp_a(:),exp_g(:)
+    real(kind = dp) :: d_l_1((2*bw-1)**2)
+    complex(kind = dp),target :: D((2*bw+1)**2)
+    complex(kind = dp),pointer :: Dl(:,:)
+    integer(kind = dp) :: i,bw2,m,n,l,nm,m_start,lm_slice(2)
+
+    ! rotate coeff while computing wigners on the fly.
+    rot_f_lm(1) = f_lm(1)
+    do l=1,bw-1
+       ! Compute Wigner d by recurrence
+       nm = 2_dp*l+1_dp
+       m_start = bw-l
+       d_l_1 = wigner_d_recurrence(d_l_1,l,trigs,sqrts)
+       do m=1,nm
+          do n=1,nm
+             D(m*nm+n) = exp_a(m_start+m)*d_l_1(m*nm+n)*exp_g(m_start+n)
+          end do
+       end do
+       Dl(1:2*l+1,1:2*l+1) => D(:(2*l+1)**2)
+
+       ! Do the rotation
+       lm_slice = LMc(l,m)
+       rot_f_lm(lm_slice(1):lm_slice(2)) = MATMUL(Dl,f_lm(lm_slice(1):lm_slice(2)))
+    end do    
+  end subroutine ylm_rotation_cmplx_
+  function ylm_rotation_cmplx(f_lm,bw,euler_angles) result(rot_f_lm)
+    integer(kind = dp),intent(in) :: bw
+    complex(kind = dp),intent(in) :: f_lm(:)
     real(kind = dp),intent(in) :: euler_angles(:)
-    complex(kind = dp):: R_flm(size(flm,1))
-  end function rotate_flm
-  function rotate_flm_many(bw,flms,split_ids,euler_angles) result(R_flms)
-    integer(kind = dp),intent(in) :: bw,split_ids(:)
-    complex(kind = dp),intent(in) :: flms(:)
+    complex(kind = dp) :: rot_f_lm(size(f_lm))
+    real(kind = dp) :: trigs(2),sqrts(2*bw)
+    complex(kind = dp) :: exp_a(2*bw),exp_g(2*bw),za,zg
+    integer(kind = dp) :: i,bw2
+
+    ! prepare variables
+    bw2 = 2_dp*bw
+    trigs(1) = COS(euler_angles(2))
+    trigs(2) = SIN(euler_angles(2))
+    za = (0._dp,-1._dp)*euler_angles(1)
+    zg = (0._dp,-1._dp)*euler_angles(3)
+    do i=1,bw2
+       sqrts(i) = SQRT(real(i,kind = dp))
+       exp_a(i) = EXP(za*real(-bw+i,kind = dp))
+       exp_g(i) = EXP(zg*real(-bw+i,kind = dp))
+    end do
+
+    call ylm_rotation_cmplx_(f_lm, rot_f_lm, bw, trigs, sqrts, exp_a, exp_g)
+    
+  end function ylm_rotation_cmplx
+  function ylm_rotation_many_cmplx(f_lms,bw,euler_angles) result(rot_f_lms)
+    integer(kind = dp),intent(in) :: bw
+    complex(kind = dp),intent(in) :: f_lms(:,:)
     real(kind = dp),intent(in) :: euler_angles(:)
-    complex(kind = dp):: R_flms(size(flms,1))
-  end function rotate_flm_many
+    complex(kind = dp) :: rot_f_lms(size(f_lms,1),size(f_lms,2))
+    real(kind = dp) :: trigs(2),sqrts(2*bw)
+    complex(kind = dp) :: exp_a(2*bw),exp_g(2*bw),za,zg
+    integer(kind = dp) :: i,bw2
+
+    ! prepare variables
+    bw2 = 2_dp*bw
+    trigs(1) = COS(euler_angles(2))
+    trigs(2) = SIN(euler_angles(2))
+    za = (0._dp,-1._dp)*euler_angles(1)
+    zg = (0._dp,-1._dp)*euler_angles(3)
+    do i=1,bw2
+       sqrts(i) = SQRT(real(i,kind = dp))
+       exp_a(i) = EXP(za*real(-bw+i,kind = dp))
+       exp_g(i) = EXP(zg*real(-bw+i,kind = dp))
+    end do
+
+    do i=1,size(f_lms,2)
+       call ylm_rotation_cmplx_(f_lms(:,i), rot_f_lms(:,i), bw, trigs, sqrts, exp_a, exp_g)
+    end do
+  end function ylm_rotation_many_cmplx
 end module so3ft_utils
 
 module so3ft
