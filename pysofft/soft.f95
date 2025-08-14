@@ -623,7 +623,35 @@ contains
     end do
   end subroutine enforce_real_sym
 
-
+  subroutine flat_to_pyramide_index(i,j,k)
+    ! Converts a running index k=0 to bw*(bw+1)/2-1 into
+    ! a triangular double index i,j with  0<=i<kw and i<=j<=bw
+    ! This allows to reformulate Triangular loops as simple loops via
+    ! do k=1, (N+1)**2
+    !    call flat_to_pyramid_index(i,j,k)
+    ! is the same as
+    ! do i=0,N
+    !   do j=-i,i
+    integer(kind = dp), intent(inout) :: i,j
+    integer(kind = dp), intent(in) :: k
+    i = int(SQRT(real(k-1,dp)),kind = dp)
+    j = -i+(k-1)-i**2 
+  end subroutine flat_to_pyramide_index
+  subroutine flat_to_triangular_index(i,j,k,N)
+    ! Converts a running index k=0 to bw*(bw+1)/2-1 into
+    ! a triangular double index i,j with  0<=i<kw and i<=j<=bw
+    ! This allows to reformulate Triangular loops as simple loops via
+    ! do k=1, (N+1)*(N+2)/2
+    !    call flat_to_triangular_index(i,j,k,bw)
+    ! is the same as
+    ! do i=0,N
+    !   do j=i,N
+    integer(kind = dp), intent(inout) :: i,j
+    integer(kind = dp), intent(in) :: k,N
+    i = (-int(SQRT(real((2_dp*N+3_dp)**2-8_dp*(k-1_dp),kind = dp)),kind = dp)+2_dp*N+3_dp)/2_dp
+    j =  (k-1_dp)-i*(2_dp*N+1_dp-i)/2_dp
+  end subroutine flat_to_triangular_index
+  
   pure function LMc(l,m) result(index)
     ! Index for the spherical harmonic coefficient Y_lm for complex data.
     ! This is the same convention used by the software SHTNS
@@ -775,7 +803,7 @@ module so3ft
   include 'fftw3.f03'
   
   integer(kind = dp) :: wigner_size
-  integer(kind = dp) :: bw
+  integer(kind = dp) :: bw,Lmax,nthreads
   real(kind = dp), allocatable, target :: wigner_d(:)
   real(kind = dp), allocatable, target :: wigner_d_trsp(:)
   real(kind = dp), allocatable, target :: trig_samples(:,:)
@@ -787,7 +815,8 @@ module so3ft
   integer(kind=dp) :: plan_c2c_forward,plan_c2c_backward,plan_r2c_forward,plan_c2r_backward
   integer(kind = sp) :: fftw_flags   ! FFTW_ESTIMATE=64, FFTW_MEASURE=0
   logical :: plans_allocated_c,plans_allocated_r = .FALSE.
-
+  
+  
   !$OMP THREADPRIVATE(fft_r2c_out)
   !$OMP THREADPRIVATE(fft_c2c_in)
   !$OMP THREADPRIVATE(fft_c2r_in)
@@ -965,8 +994,12 @@ contains
         
     end if
   end subroutine dealloc_fft_arrays
-  subroutine init(bandwidth,precompute_wigners,init_ffts,fftw_flags_)
+  subroutine init(bandwidth,lmax_,nthreads_,precompute_wigners,init_ffts,fftw_flags_)
     integer(kind = dp), intent(in) :: bandwidth
+    integer(kind = dp), intent(in) :: lmax_
+    !f2py logical :: lmax_ = bandwidth - 1
+    integer(kind = dp), intent(in) :: nthreads_
+    !f2py logical ::  nthreads_ = 1
     logical, intent(in) :: init_ffts,precompute_wigners
     !f2py logical :: init_ffts = FALSE
     integer(kind = sp), intent(in) :: fftw_flags_
@@ -992,6 +1025,8 @@ contains
        call destroy_fft()
     end if
     
+    lmax = lmax_
+    lmax = nthreads_    
     fftw_flags = fftw_flags_
     if (init_ffts) then
        call init_fft(.FALSE.)
@@ -1109,15 +1144,16 @@ contains
        
   end function get_so3func_part_halfcomplex
   
-  subroutine inverse_wigner_loop_body_cmplx(coeff,so3func,m1,m2,sym_array,sym_const_m1,sym_const_m2)
+  subroutine inverse_wigner_loop_body_cmplx(coeff,so3func,m1,m2,sym_array,sym_const_m1)
     complex(kind = dp), intent(in) :: coeff(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
     integer(kind=dp), intent(in) :: m1,m2
-    real(kind=dp),intent(in) :: sym_array(:),sym_const_m1,sym_const_m2
+    real(kind=dp),intent(in) :: sym_array(:),sym_const_m1
     real(kind = dp),pointer :: wig_mat(:,:)
     real(kind = dp),target :: wig_mat_arr(bw-m2,2*bw)
-    integer(kind=dp) :: s_ids(2),c_slice(2),m,bw2
+    integer(kind=dp) :: s_ids(2),c_slice(2),m,bw2,sym_const_m2
 
+    sym_const_m2 = (-1.0)**m2
     bw2 = 2_dp*bw
     
     ! This method assiumes 0<=m1<=m2<=bw
@@ -1189,36 +1225,51 @@ contains
     c_slice = coeff_slice(-m2,m1,bw)
     so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m2*matmul(sym_array(m2+1:)*coeff(c_slice(1):c_slice(2)),wig_mat)
   end subroutine inverse_wigner_loop_body_cmplx
-  subroutine inverse_wigner_trf_cmplx(coeff,so3func)
+  subroutine inverse_wigner_trf_cmplx(coeff,so3func,use_mp)
+    !f2py threadsafe
     complex(kind = dp), intent(in) :: coeff(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
+    logical,intent(in) :: use_mp
     integer(kind = dp) :: i,m1,m2,m,L,s_slice(2),c_slice(2)
     real(kind=dp) :: sym_const_m1,sym_const_m2,sym_array(bw)
     
     ! initiallizing some constants
-    L = bw-1
+    L = lmax
     do i=0,L
        sym_array(i+1) = (-1.0)**i 
     end do
     
-    ! non-fft part of the SO(3) fourier transform        
-    do m1=0, L
-       sym_const_m1 = (-1.0)**m1
-       do m2=m1, L          
-          sym_const_m2 = (-1.0)**m2
-          call inverse_wigner_loop_body_cmplx(coeff,so3func,m1,m2,sym_array,sym_const_m1,sym_const_m2)
+    ! non-fft part of the SO(3) fourier transform
+
+    if (use_mp) then
+       !$OMP PARALLEL PRIVATE(i,m1,m2,sym_const_m1) SHARED(so3func,coeff,sym_array)
+       !$OMP DO
+       do i=1,(L+1)*(L+2)/2
+          call flat_to_triangular_index(m1,m2,i,L)
+          sym_const_m1 = (-1.0)**m1
+          call inverse_wigner_loop_body_cmplx(coeff,so3func,m1,m2,sym_array,sym_const_m1)
        end do
-    end do
+       !$OMP END DO
+       !$OMP END PARALLEL 
+    else
+       do m1=0, L
+          sym_const_m1 = (-1.0)**m1
+          do m2=m1, L
+             call inverse_wigner_loop_body_cmplx(coeff,so3func,m1,m2,sym_array,sym_const_m1)
+          end do
+       end do
+    end if
   end subroutine inverse_wigner_trf_cmplx
-  subroutine forward_wigner_loop_body_cmplx(so3func,coeff,m1,m2,sym_array,sym_const_m1,sym_const_m2)
+  subroutine forward_wigner_loop_body_cmplx(so3func,coeff,m1,m2,sym_array,sym_const_m1)
     complex(kind = dp), intent(inout) :: coeff(:)
     complex(kind = dp),contiguous, intent(in) :: so3func(:,:,:)
     integer(kind=dp), intent(in) :: m1,m2
-    real(kind=dp),intent(in) :: sym_array(:),sym_const_m1,sym_const_m2
-    real(kind = dp),pointer :: wig_mat(:,:)
+    real(kind=dp),intent(in) :: sym_array(:),sym_const_m1
+    real(kind = dp),pointer :: wig_mat(:,:),sym_const_m2 
     real(kind = dp),target :: wig_mat_arr(2*bw,bw-m2) ! possible source of optimization can make it allocatable 
     integer(kind=dp) :: s_ids(2),c_slice(2),bw2
-    
+
+    sym_const_m2 = (-1.0)**m2
     bw2 = 2_dp*bw
     
     ! This method assiumes 0<=m1<=m2<=bw
@@ -1292,39 +1343,52 @@ contains
     c_slice = coeff_slice(-m2,m1,bw)
     coeff(c_slice(1):c_slice(2)) = matmul(legendre_weights*so3func(bw2:1:-1,s_ids(1),s_ids(2)),wig_mat)*(sym_const_m2*sym_array(m2+1:))
   end subroutine forward_wigner_loop_body_cmplx
-  subroutine forward_wigner_trf_cmplx(so3func,coeff)
+  subroutine forward_wigner_trf_cmplx(so3func,coeff,use_mp)
     complex(kind = dp), intent(inout) :: coeff(:)
     complex(kind = dp),contiguous, intent(in) :: so3func(:,:,:)
+    logical, intent(in) :: use_mp
     integer(kind = dp) :: i,m1,m2,m,L,s_slice(2),c_slice(2)
     real(kind=dp) :: sym_const_m1,sym_const_m2,sym_array(bw)
 
     ! initiallizing some constants
-    L = bw-1
+    L = lmax
     do i=0,L
        sym_array(i+1) = (-1)**i 
     end do
     
-    ! non-fft part of the SO(3) fourier transform        
-    do m1=0, L
-       sym_const_m1 = (-1.0)**m1
-       do m2=m1, L
-          sym_const_m2 = (-1.0)**m2
-          call forward_wigner_loop_body_cmplx(so3func,coeff,m1,m2,sym_array,sym_const_m1,sym_const_m2)
+    ! non-fft part of the SO(3) fourier transform
+    if (use_mp) then
+       !$OMP PARALLEL PRIVATE(i,m1,m2,sym_const_m1) SHARED(so3func,coeff,sym_array)
+       !$OMP DO
+       do i=1,(L+1)*(L+2)/2
+          call flat_to_triangular_index(m1,m2,i,L)
+          sym_const_m1 = (-1.0)**m1
+          call forward_wigner_loop_body_cmplx(so3func,coeff,m1,m2,sym_array,sym_const_m1)
        end do
-    end do
+       !$OMP END DO
+       !$OMP END PARALLEL 
+    else
+       do m1=0, L
+          sym_const_m1 = (-1.0)**m1
+          do m2=m1, L
+             call forward_wigner_loop_body_cmplx(so3func,coeff,m1,m2,sym_array,sym_const_m1)
+          end do
+       end do
+    end if
   end subroutine forward_wigner_trf_cmplx
-  subroutine forward_wigner_loop_body_real(so3func,coeff,m1,m2,sym_array,sym_const_m1,sym_const_m2)
+  subroutine forward_wigner_loop_body_real(so3func,coeff,m1,m2,sym_array,sym_const_m1)
     ! This subroutine assumes 0<=m1<=m2<=bw
     ! which also means m = max(abs(m1),abs(m2)) = m2
     complex(kind = dp), intent(in) :: so3func(:,:,:)
     complex(kind = dp), intent(inout) :: coeff(:)
     integer(kind=dp), intent(in) :: m1,m2
-    real(kind=dp),intent(in) :: sym_array(:),sym_const_m1,sym_const_m2
-    real(kind = dp),pointer :: wig_mat(:,:)
+    real(kind=dp),intent(in) :: sym_array(:),sym_const_m1
+    real(kind = dp),pointer :: wig_mat(:,:),sym_const_m2
     real(kind = dp),target :: wig_mat_arr(2*bw,bw-m2)
     complex(kind = dp) :: so3func_part(2*bw)
     integer(kind=dp) :: s_ids(2),c_slice(2),c_pm1pm2_slice(2),c_nm2nm1_slice(2),c_pm1nm2_slice(2),c_pm2nm1_slice(2),bw2
 
+    sym_const_m2 = (-1.0)**m2          
     bw2 = 2_dp*bw
   
     call get_wigner_matrix(m1,m2,wig_mat,wig_mat_arr)
@@ -1392,39 +1456,52 @@ contains
     c_slice = coeff_slice(-m2,m1,bw)
     coeff(c_slice(1):c_slice(2)) = (sym_const_m1*sym_const_m2)*CONJG(coeff(c_pm2nm1_slice(1):c_pm2nm1_slice(2)))
   end subroutine forward_wigner_loop_body_real
-  subroutine forward_wigner_trf_real(so3func,coeff)
+  subroutine forward_wigner_trf_real(so3func,coeff,use_mp)
     complex(kind = dp), intent(inout) :: coeff(:)
     complex(kind = dp), intent(in) :: so3func(:,:,:)
+    logical, intent(in) :: use_mp
     integer(kind = dp) :: i,m1,m2,m,L,s_slice(2),c_slice(2)
     real(kind=dp) :: sym_const_m1,sym_const_m2,sym_array(bw)
     
     ! initiallizing some constants
-    L = bw-1
+    L = lmax
     do i=0,L
        sym_array(i+1) = (-1)**i 
     end do
     
-    ! non-fft part of the SO(3) fourier transform        
-    do m1=0, L
-       sym_const_m1 = (-1.0)**m1
-       do m2=m1, L
-          sym_const_m2 = (-1.0)**m2          
-          call forward_wigner_loop_body_real(so3func,coeff,m1,m2,sym_array,sym_const_m1,sym_const_m2)
+    ! non-fft part of the SO(3) fourier transform
+    if (use_mp) then
+       !$OMP PARALLEL PRIVATE(i,m1,m2,sym_const_m1) SHARED(so3func,coeff,sym_array)
+       !$OMP DO
+       do i=1,(L+1)*(L+2)/2
+          call flat_to_triangular_index(m1,m2,i,L)
+          sym_const_m1 = (-1.0)**m1             
+          call forward_wigner_loop_body_real(so3func,coeff,m1,m2,sym_array,sym_const_m1)
        end do
-    end do
+       !$OMP END DO
+       !$OMP END PARALLEL 
+    else
+       do m1=0, L
+          sym_const_m1 = (-1.0)**m1
+          do m2=m1, L
+             call forward_wigner_loop_body_real(so3func,coeff,m1,m2,sym_array,sym_const_m1)
+          end do
+       end do
+    end if
   end subroutine forward_wigner_trf_real
-  subroutine inverse_wigner_loop_body_real(coeff,so3func,m1,m2,sym_array,sym_const_m1,sym_const_m2)
+  subroutine inverse_wigner_loop_body_real(coeff,so3func,m1,m2,sym_array,sym_const_m1)
     ! This subroutine assumes 0<=m1<=m2<=bw
     ! which also means m = max(abs(m1),abs(m2)) = m2
     complex(kind = dp), intent(in) :: coeff(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
     integer(kind=dp), intent(in) :: m1,m2
-    real(kind=dp),intent(in) :: sym_array(:),sym_const_m1,sym_const_m2
-    real(kind = dp),pointer :: wig_mat(:,:)
+    real(kind=dp),intent(in) :: sym_array(:),sym_const_m1
+    real(kind = dp),pointer :: wig_mat(:,:),sym_const_m2
     real(kind = dp),target :: wig_mat_arr(bw-m2,2*bw)
     complex(kind = dp) :: so3func_part(2*bw)
     integer(kind=dp) :: s_ids(2),c_slice(2),c_pm1pm2_slice(2),c_nm2nm1_slice(2),c_pm1nm2_slice(2),c_pm2nm1_slice(2),bw2
 
+    sym_const_m2 = (-1.0)**m2             
     bw2 = 2_dp*bw
   
     call get_wigner_matrix_trsp(m1,m2,wig_mat,wig_mat_arr)
@@ -1464,52 +1541,79 @@ contains
     c_pm2nm1_slice = coeff_slice(m2,-m1,bw)
     so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m1*matmul(sym_array(m2+1:)*coeff(c_pm2nm1_slice(1):c_pm2nm1_slice(2)),wig_mat)    
   end subroutine inverse_wigner_loop_body_real
-  subroutine inverse_wigner_trf_real(coeff,so3func)
+  subroutine inverse_wigner_trf_real(coeff,so3func,use_mp)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
     complex(kind = dp), intent(in) :: coeff(:)
+    logical, intent(in) :: use_mp
     integer(kind = dp) :: i,m1,m2,m,L,s_ids(2),s_ids_sym(2),c_slice(2)
     real(kind=dp) :: sym_const_m1,sym_const_m2,sym_array(bw)
     
     ! initiallizing some constants
-    L = bw-1
+    L = lmax
     do i=0,L
        sym_array(i+1) = (-1)**i 
     end do
-    
-    ! non-fft part of the SO(3) fourier transform        
-    do m1=0, L
-       sym_const_m1 = (-1.0)**m1
-       do m2=m1, L
-          sym_const_m2 = (-1.0)**m2
-          call inverse_wigner_loop_body_real(coeff,so3func,m1,m2,sym_array,sym_const_m1,sym_const_m2)
-       end do
-    end do
 
-    ! fill remaining 2d real fft symmetry values using f_{0,m1}=f_{0,-m1}^*
-    do m2=1,L
-       s_ids = order_to_ids(0_dp,m2,bw)
-       s_ids_sym = order_to_ids(0_dp,-m2,bw)
-       so3func(:,s_ids_sym(1),s_ids_sym(2)) = CONJG(so3func(:,s_ids(1),s_ids(2)))
-    end do
+    if (use_mp) then
+       ! non-fft part of the SO(3) fourier transform
+
+       !$OMP PARALLEL PRIVATE(i,m1,m2,sym_const_m1,s_ids,s_ids_sym) SHARED(so3func,coeff,sym_array)
+       !$OMP DO
+       do i=1,(L+1)*(L+2)/2
+          call flat_to_triangular_index(m1,m2,i,L)
+          sym_const_m1 = (-1.0)**m1
+          call inverse_wigner_loop_body_real(coeff,so3func,m1,m2,sym_array,sym_const_m1)
+       end do
+       !$OMP END DO
+
+       ! fill remaining 2d real fft symmetry values using f_{0,m1}=f_{0,-m1}^*       
+       !$OMP DO
+       do m2=1,L
+          s_ids = order_to_ids(0_dp,m2,bw)
+          s_ids_sym = order_to_ids(0_dp,-m2,bw)
+          so3func(:,s_ids_sym(1),s_ids_sym(2)) = CONJG(so3func(:,s_ids(1),s_ids(2)))
+       end do
+       !$OMP END DO
+       !$OMP END PARALLEL 
+     else
+        ! non-fft part of the SO(3) fourier transform        
+       do m1=0, L
+          sym_const_m1 = (-1.0)**m1
+          do m2=m1, L
+             call inverse_wigner_loop_body_real(coeff,so3func,m1,m2,sym_array,sym_const_m1)
+          end do
+       end do
+
+       ! fill remaining 2d real fft symmetry values using f_{0,m1}=f_{0,-m1}^*
+       do m2=1,L
+          s_ids = order_to_ids(0_dp,m2,bw)
+          s_ids_sym = order_to_ids(0_dp,-m2,bw)
+          so3func(:,s_ids_sym(1),s_ids_sym(2)) = CONJG(so3func(:,s_ids(1),s_ids(2)))
+       end do
+    end if
   end subroutine inverse_wigner_trf_real
   
-  subroutine isoft(coeff,so3func)
+  subroutine isoft(coeff,so3func,use_mp)
     complex(kind = dp), intent(in) :: coeff(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
-
+    logical,intent(in) :: use_mp
+    !f2py logical :: use_mp = FALSE
+    
     if (.NOT. plans_allocated_c) then
        call init_fft(.FALSE.)
     end if
     fft_c2c_in=0.0_dp
     !print * , fft_c2c_in
-    call inverse_wigner_trf_cmplx(coeff,fft_c2c_in)
+    call inverse_wigner_trf_cmplx(coeff,fft_c2c_in,use_mp)
     !print * , fft_c2c_in
     call dfftw_execute_dft(plan_c2c_forward,fft_c2c_in,so3func)
     so3func = so3func * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)
   end subroutine isoft
-  subroutine soft(so3func,coeff)
+  subroutine soft(so3func,coeff,use_mp)
     complex(kind = dp), intent(inout) :: coeff(:)
     complex(kind = dp), intent(in) :: so3func(:,:,:)
+    logical,intent(in) :: use_mp
+    !f2py logical :: use_mp = FALSE
 
     if (.NOT. plans_allocated_c) then
        call init_fft(.FALSE.)
@@ -1521,28 +1625,31 @@ contains
     fft_c2c_out = fft_c2c_out * (2.0_dp*pi/real(2_dp*bw,kind=dp)**2) ! * 1/(2*bw) * 2*pi/(2*bw)
     !write(*,'(F16.5, F16.5)', advance='yes') reshape(fft_c2c_out,[(2*bw)**3])
     !print *,'fft done'
-    call forward_wigner_trf_cmplx(fft_c2c_out,coeff)
+    call forward_wigner_trf_cmplx(fft_c2c_out,coeff,use_mp)
 
   end subroutine soft
-  subroutine irsoft(coeff,so3func)
+  subroutine irsoft(coeff,so3func,use_mp)
     complex(kind = dp), intent(in) :: coeff(:)
     real(kind = dp), intent(inout) :: so3func(:,:,:)
-
+    logical,intent(in) :: use_mp
+    !f2py logical :: use_mp = FALSE
     
     if (.NOT. plans_allocated_r) then
        call init_fft(.TRUE.)
     end if
     fft_c2r_in=0.0_dp
-    call inverse_wigner_trf_real(coeff,fft_c2r_in)
+    call inverse_wigner_trf_real(coeff,fft_c2r_in,use_mp)
 
     fft_c2r_in = CONJG(fft_c2r_in) ! to correct for the fact that we have to compute the forward not the backward fft.
     call dfftw_execute_dft_c2r(plan_c2r_backward,fft_c2r_in,so3func)
     so3func = so3func * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)
   end subroutine irsoft
-  subroutine rsoft(so3func,coeff)
+  subroutine rsoft(so3func,coeff,use_mp)
     complex(kind = dp), intent(inout) :: coeff(:)
     real(kind = dp), intent(in) :: so3func(:,:,:)
-
+    logical,intent(in) :: use_mp
+    !f2py logical :: use_mp = FALSE
+    
     if (.NOT. plans_allocated_r) then
        call init_fft(.TRUE.)
     end if
@@ -1553,7 +1660,7 @@ contains
     fft_c2r_in = CONJG(fft_c2r_in) ! to correct for the fact that we have to compute the backward not the forward fft.
     !write(*,'(F16.5, F16.5)', advance='yes') reshape(fft_c2r_in,[(2*bw)**2*(bw+1)])
     !print * , 'rfft done'
-    call forward_wigner_trf_real(fft_c2r_in,coeff)    
+    call forward_wigner_trf_real(fft_c2r_in,coeff,use_mp)    
   end subroutine rsoft
 
   subroutine soft_many(so3funcs,coeffs,nthreads)
@@ -1573,7 +1680,7 @@ contains
     if (nthreads>1) call alloc_fft_arrays(.False.)
     !$OMP DO
     do i=1,n
-       call soft(so3funcs(:,:,:,i),coeffs(:,i))       
+       call soft(so3funcs(:,:,:,i),coeffs(:,i),.FALSE.)       
     end do
     !$OMP END DO
     if (nthreads>1) call dealloc_fft_arrays(.False.)
@@ -1597,7 +1704,7 @@ contains
     if (nthreads>1) call alloc_fft_arrays(.False.)
     !$OMP DO
     do i=1,n
-       call isoft(coeffs(:,i),so3funcs(:,:,:,i))       
+       call isoft(coeffs(:,i),so3funcs(:,:,:,i),.FALSE.)       
     end do
     !$OMP END DO
     if (nthreads>1) call dealloc_fft_arrays(.False.)
@@ -1621,7 +1728,7 @@ contains
     if (nthreads>1) call alloc_fft_arrays(.False.)
     !$OMP DO
     do i=1,n
-       call rsoft(so3funcs(:,:,:,i),coeffs(:,i))       
+       call rsoft(so3funcs(:,:,:,i),coeffs(:,i),.FALSE.)       
     end do
     !$OMP END DO
     if (nthreads>1) call dealloc_fft_arrays(.False.)
@@ -1645,7 +1752,7 @@ contains
     if (nthreads>1) call alloc_fft_arrays(.False.)
     !$OMP DO
     do i=1,n
-       call irsoft(coeffs(:,i),so3funcs(:,:,:,i))       
+       call irsoft(coeffs(:,i),so3funcs(:,:,:,i),.FALSE.)       
     end do
     !$OMP END DO
     if (nthreads>1) call dealloc_fft_arrays(.False.)
@@ -1768,7 +1875,7 @@ contains
          & * sym_array(l_start:)
     so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m2*matmul(cc_lmn,wig_mat)
   end subroutine inverse_wigner_loop_body_corr_cmplx
-  subroutine cross_correlation_ylm_cmplx(f_lm,g_lm,cc)
+  subroutine cross_correlation_ylm_cmplx(f_lm,g_lm,cc,use_mp)
     ! let f,g be two square integrable functions on the 2 sphere 
     ! Define CC: SO(3) ---> \mathbb{R},   R |---> <f,g \circ R> = \int_{S^2} dx f(x)*\overline{g(Rx)}
     ! This function calculates CC(R) for all R defined in make_SO3_grid
@@ -1791,6 +1898,7 @@ contains
 
     complex(kind = dp),target,intent(in) :: f_lm(:),g_lm(:)
     complex(kind = dp), intent(inout) :: cc(:,:,:)
+    logical, intent(in) :: use_mp
     complex(kind = dp) ::  f_ml(size(f_lm)),g_ml(size(f_lm))
     integer(kind = dp) :: i,m1,m2,m,L,s_slice(2),c_slice(2),pm1_slice(2),nm1_slice(2)
     real(kind=dp) :: sym_const_m1,sym_const_m2,sym_array(bw),wig_norm(bw)
@@ -1800,34 +1908,70 @@ contains
        call init_fft(.FALSE.)
     end if
 
-    ! "Transpose" input coefficient layout to be adapted to the wigner memory layout (l contiguous)
-    do l=0,bw-1
-       do m=-l,l
+    if (use_mp) then
+       ! "Transpose" input coefficient layout to be adapted to the wigner memory layout (l contiguous)
+
+       ! zero fft array
+       ! Important since not all elements will be written to before doing the fft
+       fft_c2c_in = 0._dp
+
+       ! initiallizing some constants
+       L = bw-1
+       do i=0,L
+          sym_array(i+1) = (-1.0)**i
+          wig_norm = 2._dp*pi*SQRT(2._dp/real(2_dp*i+1_dp,kind = dp))
+       end do
+       
+       !$OMP PARALLEL PRIVATE(i,l,m,m1,m2,sym_const_m1,pm1_slice,nm1_slice) SHARED(f_ml,f_lm,g_ml,g_lm,fft_c2c_in,sym_array,wig_norm)
+       !$OMP DO 
+       do i=1,bw**2
+          call flat_to_pyramide_index(l,m,i)
           f_ml(MLc(m,l,bw)) = f_lm(LMc(l,m))
           g_ml(MLc(m,l,bw)) = g_lm(LMc(l,m))
        end do
-    end do
-    
-    ! initiallizing some constants
-    L = bw-1
-    do i=0,L
-       sym_array(i+1) = (-1.0)**i
-       wig_norm = 2._dp*pi*SQRT(2._dp/real(2_dp*i+1_dp,kind = dp))
-    end do
-
-    ! zero fft array
-    ! Important since not all elements will be written to before doing the fft
-    fft_c2c_in = 0._dp
-    
-    ! non-fft part of the SO(3) fourier transform + assembly of cc_lmn = wig_norm * f_ml_part * g_ml_part * sym_const_m1 * sym_const_m2       
-    do m1=0, L
-       sym_const_m1 = (-1.0)**m1
-       pm1_slice= MLc_slice(m1,bw)
-       nm1_slice= MLc_slice(-m1,bw)
-       do m2=m1, L          
+       !$OMP END DO
+       
+       ! non-fft part of the SO(3) fourier transform + assembly of cc_lmn = wig_norm * f_ml_part * g_ml_part * sym_const_m1 * sym_const_m2
+       !$OMP DO
+       do i=1,(L+1)*(L+2)/2
+          call flat_to_triangular_index(m1,m2,i,L)
+          sym_const_m1 = (-1.0)**m1
+          pm1_slice= MLc_slice(m1,bw)
+          nm1_slice= MLc_slice(-m1,bw)
           call inverse_wigner_loop_body_corr_cmplx(f_ml,g_ml,fft_c2c_in,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_slice,nm1_slice)
        end do
-    end do
+       !$OMP END DO
+       !$OMP END PARALLEL
+    else
+       ! "Transpose" input coefficient layout to be adapted to the wigner memory layout (l contiguous)
+       do l=0,bw-1
+          do m=-l,l
+             f_ml(MLc(m,l,bw)) = f_lm(LMc(l,m))
+             g_ml(MLc(m,l,bw)) = g_lm(LMc(l,m))
+          end do
+       end do
+    
+       ! initiallizing some constants
+       L = bw-1
+       do i=0,L
+          sym_array(i+1) = (-1.0)**i
+          wig_norm = 2._dp*pi*SQRT(2._dp/real(2_dp*i+1_dp,kind = dp))
+       end do
+
+       ! zero fft array
+       ! Important since not all elements will be written to before doing the fft
+       fft_c2c_in = 0._dp
+    
+       ! non-fft part of the SO(3) fourier transform + assembly of cc_lmn = wig_norm * f_ml_part * g_ml_part * sym_const_m1 * sym_const_m2       
+       do m1=0, L
+          sym_const_m1 = (-1.0)**m1
+          pm1_slice= MLc_slice(m1,bw)
+          nm1_slice= MLc_slice(-m1,bw)
+          do m2=m1, L          
+             call inverse_wigner_loop_body_corr_cmplx(f_ml,g_ml,fft_c2c_in,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_slice,nm1_slice)
+          end do
+       end do       
+    end if
 
     ! Compute inverse fft
     call dfftw_execute_dft(plan_c2c_forward,fft_c2c_in,cc)
@@ -1874,7 +2018,7 @@ contains
     inv_radial_range = 1._dp/(radial_sampling_points(radial_limits(2))-radial_sampling_points(radial_limits(1)) + radial_step)
     if (nthreads==1_dp) then
        do rid=radial_limits(1),radial_limits(2)
-          call cross_correlation_ylm_cmplx(f_lms(:,rid),g_lms(:,rid),fft_c2c_out)
+          call cross_correlation_ylm_cmplx(f_lms(:,rid),g_lms(:,rid),fft_c2c_out,.FALSE.)
           cc = cc+fft_c2c_out*radial_sampling_points(rid)**2
        end do
     else
@@ -1883,7 +2027,7 @@ contains
        call alloc_fft_arrays(.False.)
        !$omp DO reduction(+:cc)
        do rid=radial_limits(1),radial_limits(2)
-          call cross_correlation_ylm_cmplx(f_lms(:,rid),g_lms(:,rid),fft_c2c_out)
+          call cross_correlation_ylm_cmplx(f_lms(:,rid),g_lms(:,rid),fft_c2c_out,.FALSE.)
           cc = cc + fft_c2c_out*radial_sampling_points(rid)**2
        end do
        !$OMP END DO
