@@ -25,7 +25,7 @@ contains
   
   function create_beta_samples(n) result(betas)
     ! returns n uniformly sampled angles in (0,pi)
-    ! Note: these are the angles used to create Chebyshev nodes.
+    ! Note: These are angles used in Chebyshev nodes of the first kind.
     integer(kind = dp) :: n,i
     real(kind = dp) :: betas(n),factor
     factor = pi / real(2_dp * n, dp)
@@ -55,7 +55,7 @@ contains
     !   
     !   
     !   Note that, by definition, since I am starting the recurrence with this
-    !   function, that the degree j of the function is equal to max(abs(m1), abs(m2) ).
+    !   function, that the degree j of the function is equal to max(abs(m1), abs(m2)).
     !   
     !   
     !   This has been tested and stably computes Pmm functions thru bw=512
@@ -109,7 +109,6 @@ contains
     else
        out =0
     end if
-    !print*,l,m1,m2,out
   end function L2_aN_so3
   function L2_bN_so3(l,m1,m2) result(out)
     integer(kind = dp) :: l,m1,m2
@@ -188,7 +187,6 @@ contains
     
     do i=1, bw-l_start-1
        l=l_start+(i-1_dp)
-       !print*, L2_aN_so3(l+i,m1,m2)
        workspace(:,3) = workspace(:,1) * L2_aN_so3(l,m1,m2)
        workspace(:,4) = workspace(:,2) * L2_bN_so3(l,m1,m2)
        workspace(:,5) = workspace(:,4) * trig_samples(:,1)
@@ -196,9 +194,7 @@ contains
        workspace(:,7) = workspace(:,3) + workspace(:,5) + workspace(:,6)
        ! workspace[:,7] now contains d_{m1,m2}^{l}
        ! storing its values to wigners_m1m2
-       !print*,workspace(:,7)
        wigners_m1m2(i*n_samples+1:(i+1)*n_samples) = workspace(:,7)
-       !print*,workspace(:,7)
        ! update workspace for the next iteration of the recurrence
        workspace(:,1) = workspace(:,2)
        workspace(:,2) = workspace(:,7)         
@@ -317,13 +313,11 @@ contains
     real(kind = dp), intent(in) :: wigners(:)
     real(kind=dp), intent(inout) :: wigners_trsp(:)
     integer(kind=dp) :: slice(2),wig_shape(2),m1,m2
-    !(bw-max(abs(m1),abs(m2)))*2*bw
+
     do m1=0,bw-1
        do m2=m1, bw-1
           slice = wigner_slice(m1,m2,bw)
           wig_shape = [2*bw,bw-max(abs(m1),abs(m2))]
-          !print*, m1,m2
-          !print*, genWig_L2(m1,m2,bw,trig_samples)
           wigners_trsp(slice(1):slice(2)) = reshape(transpose(reshape(wigners(slice(1):slice(2)),wig_shape)),[product(wig_shape)])
        end do
     end do
@@ -623,7 +617,7 @@ contains
     end do
   end subroutine enforce_real_sym
 
-  subroutine flat_to_pyramide_index(i,j,k)
+  subroutine flat_to_pyramid_index(i,j,k)
     ! Converts a running index k=0 to bw*(bw+1)/2-1 into
     ! a triangular double index i,j with  0<=i<kw and i<=j<=bw
     ! This allows to reformulate Triangular loops as simple loops via
@@ -636,7 +630,7 @@ contains
     integer(kind = dp), intent(in) :: k
     i = int(SQRT(real(k-1,dp)),kind = dp)
     j = -i+(k-1)-i**2 
-  end subroutine flat_to_pyramide_index
+  end subroutine flat_to_pyramid_index
   subroutine flat_to_triangular_index(i,j,k,N)
     ! Converts a running index k=0 to bw*(bw+1)/2-1 into
     ! a triangular double index i,j with  0<=i<kw and i<=j<=bw
@@ -648,8 +642,10 @@ contains
     !   do j=i,N
     integer(kind = dp), intent(inout) :: i,j
     integer(kind = dp), intent(in) :: k,N
-    i = (-int(SQRT(real((2_dp*N+3_dp)**2-8_dp*(k-1_dp),kind = dp)),kind = dp)+2_dp*N+3_dp)/2_dp
+    i = int(-SQRT(real((2_dp*N+3_dp)**2-8_dp*(k-1_dp),kind = dp))+real(2_dp*N+3_dp,kind=dp),kind=dp)/2_dp
     j =  (k-1_dp)-i*(2_dp*N+1_dp-i)/2_dp
+    !i = (-int(SQRT(real((2_dp*N+3_dp)**2-8_dp*(k-1_dp),kind = dp)),kind = dp)+2_dp*N+3_dp)/2_dp
+    !j =  (k-1_dp)-i*(2_dp*N+1_dp-i)/2_dp
   end subroutine flat_to_triangular_index
   
   pure function LMc(l,m) result(index)
@@ -994,16 +990,16 @@ contains
         
     end if
   end subroutine dealloc_fft_arrays
-  subroutine init(bandwidth,lmax_,nthreads_,precompute_wigners,init_ffts,fftw_flags_)
+  subroutine init(bandwidth,l_max,n_threads,precompute_wigners,init_ffts,fftw_flag)
     integer(kind = dp), intent(in) :: bandwidth
-    integer(kind = dp), intent(in) :: lmax_
-    !f2py logical :: lmax_ = bandwidth - 1
-    integer(kind = dp), intent(in) :: nthreads_
-    !f2py logical ::  nthreads_ = 1
+    integer(kind = dp), intent(in) :: l_max
+    !f2py logical :: l_max = bandwidth - 1
+    integer(kind = dp), intent(in) :: n_threads
+    !f2py logical ::  n_threads = 1
     logical, intent(in) :: init_ffts,precompute_wigners
     !f2py logical :: init_ffts = FALSE
-    integer(kind = sp), intent(in) :: fftw_flags_
-    !f2py integer :: fftw_flags_ = 64
+    integer(kind = sp), intent(in) :: fftw_flag
+    !f2py integer :: fftw_flag = 0
     ! FFTW_ESTIMATE=64, FFTW_MEASURE=0
     
     if ( (bandwidth/=bw) .OR. (.NOT. precompute_wigners)) then
@@ -1013,7 +1009,7 @@ contains
        legendre_weights = legendre_quadrature_weights(bw)
        allocate(trig_samples(2*bw,3))
        trig_samples = create_trig_samples(bw)
-       wigner_size = size_wigner_d(bandwidth)
+       wigner_size = size_wigner_d(bw)
        if (precompute_wigners) then
           call init_wigners()
        end if
@@ -1024,9 +1020,10 @@ contains
        call destroy_fft()
     end if
     
-    lmax = lmax_
-    lmax = nthreads_    
-    fftw_flags = fftw_flags_
+    lmax = l_max
+    nthreads = n_threads
+    call OMP_set_num_threads(nthreads)
+    fftw_flags = fftw_flag
     if (init_ffts) then
        call init_fft(.FALSE.)
        call init_fft(.TRUE.)
@@ -1047,8 +1044,15 @@ contains
        deallocate(trig_samples)
     end if
     call destroy_fft()
-    bw=0
+    bw=1
+    lmax=1
+    nthreads=1
   end subroutine destroy
+  subroutine set_nthreads(nthreads_)
+    integer(kind = dp), intent(in) :: nthreads_
+    nthreads = nthreads_
+    call OMP_set_num_threads(nthreads)
+  end subroutine set_nthreads
 
   subroutine get_wigner_matrix(m1,m2,wig_mat_p,wig_mat_arr)
     ! This function returns the part of the wigners array that corresponds
@@ -1150,9 +1154,10 @@ contains
     real(kind=dp),intent(in) :: sym_array(:),sym_const_m1
     real(kind = dp),pointer :: wig_mat(:,:)
     real(kind = dp),target :: wig_mat_arr(bw-m2,2*bw)
-    integer(kind=dp) :: s_ids(2),c_slice(2),bw2,sym_const_m2
+    real(kind = dp) :: sym_const_m2
+    integer(kind=dp) :: s_ids(2),c_slice(2),bw2
 
-    sym_const_m2 = (-1)**m2
+    sym_const_m2 = (-1.0)**m2
     bw2 = 2_dp*bw
     
     ! This method assiumes 0<=m1<=m2<=bw
@@ -1245,6 +1250,7 @@ contains
        !$OMP DO
        do i=1,(L+1)*(L+2)/2
           call flat_to_triangular_index(m1,m2,i,L)
+          !print *,i,m1,m2
           sym_const_m1 = (-1.0)**m1
           call inverse_wigner_loop_body_cmplx(coeff,so3func,m1,m2,sym_array,sym_const_m1)
        end do
@@ -1926,7 +1932,7 @@ contains
        !$OMP PARALLEL PRIVATE(i,l,m,m1,m2,sym_const_m1,pm1_slice,nm1_slice) SHARED(f_ml,f_lm,g_ml,g_lm,fft_c2c_in,sym_array,wig_norm)
        !$OMP DO 
        do i=1,bw**2
-          call flat_to_pyramide_index(l,m,i)
+          call flat_to_pyramid_index(l,m,i)
           f_ml(MLc(m,l,bw)) = f_lm(LMc(l,m))
           g_ml(MLc(m,l,bw)) = g_lm(LMc(l,m))
        end do
