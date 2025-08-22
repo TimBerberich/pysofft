@@ -34,11 +34,13 @@ class TestMakeWigner:
         # Normalization parameter for wigner small d matrices used in SOFT 
         wig_norm = np.sqrt((2*np.arange(Lmax+1)+1)/2)
         
-        P_l = np.array([np.polynomial.legendre.legval(trig_samples[:,0],[0]*l+[1]) for l in range(0,Lmax+1)])
-        P_l *= wig_norm[:,None]
+        P_l = np.array([np.polynomial.legendre.legval(trig_samples[:,0],[0]*l+[1]) for l in range(0,Lmax+1)]).T
+        P_l *= wig_norm
         
         trig = _soft.make_wigner.create_trig_samples(Lmax+1)
-        d_l00 = _soft.make_wigner.genwig_l2(0,0,Lmax+1,trig_samples).reshape(Lmax+1,-1)
+
+        dlml = _soft.make_wigner.compute_dlml(0,0,trig[:,1],trig[:,2])
+        d_l00 = _soft.make_wigner.genwig_l2(0,0,Lmax+1,trig[:,0],dlml)
         assert np.allclose(P_l,d_l00), 'Wigner small d differ from Legendre polynomial for m1=m2=0.'
         
         
