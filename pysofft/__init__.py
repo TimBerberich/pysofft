@@ -3,10 +3,9 @@
 #from pySOFT import wignerWeights as wignerWeights
 #from pySOFT import wignerTransform as wignerTransform
 
-from pysofft import make_wiegner,_soft
-from pysofft import wignerWeights
-from pysofft import wignerTransform
-from pysofft import soft 
+from pysofft import _soft2
+from pysofft.soft import Soft
+from pysofft import old
 
 
 #The following is a bit of a hack

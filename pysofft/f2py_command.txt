@@ -1,1 +1,1 @@
-FFLAGS="-fopenmp -lfftw3 -I/usr/include" CFLAGS="-fopenmp -lfftw3" f2py --opt="-O3 -fno-math-errno -fno-trapping-math" -m _soft -c soft.f95 skip: get_wigner_matrix get_wigner_matrix_trsp :
+FFLAGS="-fopenmp -lfftw3 -I/usr/include" CFLAGS="-fopenmp -lfftw3" f2py --opt="-O3 -fno-math-errno -fno-trapping-math" -m _soft -c soft.f95 skip: :

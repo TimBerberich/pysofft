@@ -10,7 +10,6 @@ module math_constants
   implicit none
   real(kind=dp), parameter :: pi = 4.0_dp*atan2(1.0_dp,1.0_dp)
 end module math_constants
-
 module utils
   use precision
   use math_constants
@@ -117,8 +116,8 @@ contains
   end function coeff_location
   function coeff_slice(n1,n2,bw) result(slice)
     ! Returns the slice of coefficients f_(n1,n2)^l for all possible l valaues.
-    ! It is chosen such that in loops of the follwing type memory acces for
-    ! for the coefficients happens continuousely without jumps.
+    ! It is chosen such that in loops of the follwing type memory access
+    ! for the coefficients is continuouse without jumps.
     !
     ! do m1=0,bw-1
     !    do m2=m1,bw-1
@@ -302,21 +301,59 @@ contains
     !! This function allows to store a triangular array in a j contiguous way
     !! Designed for the following loops
     !! do i=0,bw-1
-    !!    
+    !!    do j=i,bw-1
     integer(kind = dp), intent(in) :: i,j,bw
     integer(kind = dp) :: id
     id = (i*(2_dp*bw-i+1_dp))/2_dp + j-i + 1_dp
   end function triangular_to_flat_index
-  function triangular_to_flat_index_reversed(j,i,bw) result(id)
+  function triangular_to_flat_index_reversed(j,i) result(id)
     !! Consider the triangular index 0<=i<=j<bw 
     !! This function returns the slice of of a flattened array that corresponds
     !! to all valid i for a fixed j.
     !! This function allows to store a triangular array in a i contiguous way
-    integer(kind = dp), intent(in) :: j,i,bw
+    integer(kind = dp), intent(in) :: j,i
     integer(kind = dp) :: id
     id = (j*(j+1_dp))/2_dp + i +1_dp
   end function triangular_to_flat_index_reversed
-  
+
+  function lmn_to_flat_index(l,m,n) result(id)
+    !! Considers all possible indexes 0<=m<=n<=l
+    !! such that the following loop is cintiguous in memory
+    !! do i=0,l
+    !!    do j=0,m
+    !!       do k=j,n
+    integer(kind = dp),intent(in) :: l,m,n
+    integer(kind = dp) :: id
+    if (.NOT. (0<=m .AND. m<=n .AND. n<=l)) then
+       print *, "Invalid arguments: l,m,n have to satisfy 0<=m<=n<=l"
+    end if
+    id = (l*(l+1)*(l+2))/6 + (m*(2*l+3-m))/2 + n-m
+  end function lmn_to_flat_index
+  function mnl_to_flat_index(m,n,l,bw) result(id)
+    !! Considers all possible indexes 0<=m<=n<=l<=bw
+    !! such that the following loop is cintiguous in memory
+    !! do j=0,m
+    !!    do k=j,n
+    !!       do i=k,l
+    integer(kind = dp),intent(in) :: l,m,n,bw
+    integer(kind = dp) :: id
+    if (.NOT. (0<=m .AND. m<=n .AND. n<=l .AND. l<bw )) then
+       print *, "Invalid arguments: l,m,n have to satisfy 0<=m<=n<=l<bw"
+    end if
+    id = (m*(3*bw**2+m**2+2-3*bw*(m-2)-3*m))/6+((n-m)*(2*bw+1-m-n))/2 + l-n+1
+  end function mnl_to_flat_index
+  function mnl_to_flat_l_slice(m,n,bw) result(slice)
+    integer(kind = dp),intent(in) :: m,n,bw
+    integer(kind = dp) :: slice(2)
+    slice(1) = mnl_to_flat_index(m,n,n,bw)
+    slice(2) = slice(1) + bw - 1_dp - n 
+  end function mnl_to_flat_l_slice
+  function mnl_to_flat_l_slice_padded(m,n,bw,pad_size) result(slice)
+    integer(kind = dp),intent(in) :: m,n,bw,pad_size
+    integer(kind = dp) :: slice(2)
+    slice(1) = (mnl_to_flat_index(m,n,n,bw)-1_dp)*pad_size+1_dp
+    slice(2) = slice(1) + pad_size*(bw - n) - 1_dp 
+  end function mnl_to_flat_l_slice_padded
   
   pure function LMc(l,m) result(index)
     ! Index for the spherical harmonic coefficient Y_lm for complex data.
@@ -413,7 +450,7 @@ contains
     trig_samples(:,3) = cos(betas/2_dp)**2              ! <= needed for d^l_ml computation
   end function create_trig_samples
 
-  function compute_dlml(l,m,sincos,cos2) result(dlml)
+  function compute_dlml(l,m,sincos,cos2,normalized) result(dlml)
     !! Computes the Wigner little d_lmn(beta) for n=l
     !! using their exact expression
     !! $$d^l_{m,l}(\beta) = \Sqrt{\frac{2l+1}{2}} \sqrt{\frac{2l!}{(l+m)!(l-m)!}} \cos(\frac{\beta}{2})^{l+m} \sin(\frac{\beta}{2})^{l-m} $$
@@ -435,37 +472,48 @@ contains
     integer(kind = dp),intent(in) :: l,m
     !! Arrays containing $sin(\frac{\beta}{2})*cos(\frac{\beta}{2})$ and $cos(\frac{\beta}{2})**2$
     real(kind = dp),intent(in) :: sincos(:),cos2(:)
+    logical,intent(in) :: normalized
+    !f2py logical :: normalized = TRUE
     !! Array of output Wigner small d values 
     real(kind = dp) :: dlml(size(cos2,1))
-    integer(kind = dp) :: i,j,ll,mm
+    integer(kind = dp) :: i,j,ll,mm,nc1,nc2
 
-    dlml = SQRT(0.5_dp) ! In agreement with our normalization $\sqrt{\frac{2l+1}{2}}$ at l=0
+    dlml = MERGE(SQRT(0.5_dp),1._dp,normalized) ! In agreement with our normalization $\sqrt{\frac{2l+1}{2}}$ at l=0
+    !Normalization defining constants
+    nc1 = MERGE(2_dp,1_dp,normalized)
+    nc2 = nc1+1_dp
+    
     ll=0_dp
     mm=0_dp
     do i=0,l-1       
        if ((ll<l) .AND. (l-m+mm-ll>0)) then
           ! l -> l+1 at m=0 starting from l = 0
-          dlml = dlml * SQRT(real((2_dp*ll+2_dp)*(2_dp*ll+3_dp),kind=dp)/real((ll+mm+1_dp)*(ll-mm+1_dp),kind=dp))*sincos
+          dlml = dlml * SQRT(real((2_dp*ll+nc1)*(2_dp*ll+nc2),kind=dp)/real((ll+mm+1_dp)*(ll-mm+1_dp),kind=dp))*sincos
           ll = ll + 1_dp
        end if
        if ((mm<m) .AND. (ll<l)) then
           ! l,m -> l+1 m+1
-          dlml = dlml * SQRT(real((2_dp*ll+2_dp)*(2_dp*ll+3_dp),kind=dp)/real((ll+mm+1_dp)*(ll+mm+2_dp),kind=dp))*cos2
+          dlml = dlml * SQRT(real((2_dp*ll+nc1)*(2_dp*ll+nc2),kind=dp)/real((ll+mm+1_dp)*(ll+mm+2_dp),kind=dp))*cos2
           ll = ll + 1_dp
           mm = mm + 1_dp 
        end if
        if ((ll==l) .AND. (mm==m)) exit
     end do
   end function compute_dlml
-
-  subroutine dlml_recursion_l_contiguous(dlml,m,bw,sincos,cos2)
+  subroutine dlml_recursion_l_contiguous(dlml,m,bw,sincos,cos2,normalized)
     !! dlml for all l at fixed m. Has to be of size [Size(sincos,1),bw]
     real(kind = dp),intent(inout) :: dlml(:,:)
     !! bandwidth 0<=l<bw
     integer(kind=dp),intent(in) :: m,bw
     !! Arrays containing $sin(\frac{\beta}{2})*cos(\frac{\beta}{2})$ and $cos(\frac{\beta}{2})**2$
     real(kind = dp),intent(in) :: sincos(:),cos2(:)
-    integer(kind = dp) :: i,l,swap_id
+    logical,intent(in) :: normalized
+    !f2py logical :: normalized = TRUE
+    integer(kind = dp) :: i,l,swap_id,nc1,nc2
+
+    !Normalization defining constants
+    nc1 = MERGE(2_dp,1_dp,normalized)
+    nc2 = nc1+1_dp
     
     swap_id = m+1
     do i=1,min(bw-m,swap_id)
@@ -473,15 +521,15 @@ contains
        l=m+(i-1_dp)-1_dp
        ! Don't substitute the following by dlml(:,i)*1._dp for m==0 
        ! This will cause tiny rounding errors that can accumulate for very high iterative recursion calls.
-       dlml(:,i) = MERGE(dlml(:,i), dlml(:,i) * SQRT(real((2_dp*l+2_dp)*(2_dp*l+3_dp),kind=dp)/real((l+m)*(l+m+1_dp),kind=dp))*cos2,m==0)
+       dlml(:,i) = MERGE(dlml(:,i), dlml(:,i) * SQRT(real((2_dp*l+nc1)*(2_dp*l+nc2),kind=dp)/real((l+m)*(l+m+1_dp),kind=dp))*cos2,m==0)
     end do
     do i=swap_id,bw-m-1
        !(l-> l+1)
        l=m+(i-1_dp)
-       dlml(:,i+1) = dlml(:,i) * SQRT(real((2_dp*l+2_dp)*(2_dp*l+3_dp),kind=dp)/real((l+m+1_dp)*(l-m+1_dp),kind=dp))*sincos
+       dlml(:,i+1) = dlml(:,i) * SQRT(real((2_dp*l+nc1)*(2_dp*l+nc2),kind=dp)/real((l+m+1_dp)*(l-m+1_dp),kind=dp))*sincos
     end do
   end subroutine dlml_recursion_l_contiguous
-  function compute_all_dlml_l_contiguous(bw,sincos,cos2) result(dlml)
+  function compute_all_dlml_l_contiguous(bw,sincos,cos2,normalized) result(dlml)
     !! Computes all Wigner little d coefficients of the form d_lml(beta) with l<bw and stores the values in an l contiguous way.
     !! That is dlml is stored at triangular_to_flat_index(m,l,bw)
     !! 
@@ -500,44 +548,52 @@ contains
     integer(kind=dp),intent(in) :: bw
     !! Arrays containing $sin(\frac{\beta}{2})*cos(\frac{\beta}{2})$ and $cos(\frac{\beta}{2})**2$
     real(kind = dp),intent(in) :: sincos(:),cos2(:)
+    logical,intent(in) :: normalized
+    !f2py logical :: normalized = TRUE
     !! Array of output Wigner small d values 
     real(kind = dp) :: dlml(SIZE(cos2,1),(bw*(bw+1))/2_dp),dlml_tmp(Size(cos2,1),bw)
     integer(kind=dp) :: l,m,swap_id,lm_id,next_lm_id
     
     ! Compute dlml values for m=0
-    dlml(:,1) = SQRT(0.5_dp)     ! In agreement with our normalization $\sqrt{\frac{2l+1}{2}}$ at l=0
+    dlml(:,1) = MERGE(SQRT(0.5_dp),1._dp,normalized)     ! In agreement with our normalization $\sqrt{\frac{2l+1}{2}}$ at l=0
     ! Setup workspace
-    dlml_tmp(:,1) = SQRT(0.5_dp)
+    dlml_tmp(:,1) = dlml(:,1)
     
     ! Do stair recursion alternating between (l -> l+1) and (l,m -> l+1,m+1 ) steps.
     do m=0,bw-1
-       call dlml_recursion_l_contiguous(dlml_tmp, m, bw, sincos, cos2)
+       call dlml_recursion_l_contiguous(dlml_tmp, m, bw, sincos, cos2,normalized)
        lm_id = triangular_to_flat_index(m,m,bw)
        next_lm_id = triangular_to_flat_index(m,bw-1,bw)
        dlml(:,lm_id:next_lm_id) = dlml_tmp(:,:bw-m)
     end do
   end function compute_all_dlml_l_contiguous
-  subroutine dlml_recursion_m_contiguous(dlml,l,bw,sincos,cos2)
+  subroutine dlml_recursion_m_contiguous(dlml,l,bw,sincos,cos2,normalized)
     !! dlml for all l at fixed m. Has to be of size [Size(sincos,1),bw]
     real(kind = dp),intent(inout) :: dlml(:,:)
     !! bandwidth 0<=l<bw
     integer(kind=dp),intent(in) :: l,bw
     !! Arrays containing $sin(\frac{\beta}{2})*cos(\frac{\beta}{2})$ and $cos(\frac{\beta}{2})**2$
     real(kind = dp),intent(in) :: sincos(:),cos2(:)
-    integer(kind = dp) :: i,m,swap_id
+    logical,intent(in) :: normalized
+    !f2py logical :: normalized = TRUE
+    integer(kind = dp) :: i,m,swap_id,nc1,nc2
 
+    !Normalization defining constants
+    nc1 = MERGE(2_dp,1_dp,normalized)
+    nc2 = nc1+1_dp
+    
     swap_id = l/2
     do m=l,swap_id,-1
        !(l,m -> l+1,m+1 )
-       dlml(:,m+2) = dlml(:,m+1) * SQRT(real((2_dp*l+2_dp)*(2_dp*l+3_dp),kind=dp)/real((l+m+1_dp)*(l+m+2_dp),kind=dp))*cos2
+       dlml(:,m+2) = dlml(:,m+1) * SQRT(real((2_dp*l+nc1)*(2_dp*l+nc2),kind=dp)/real((l+m+1_dp)*(l+m+2_dp),kind=dp))*cos2
     end do
     do m=0,swap_id
        !(l-> l+1)
-       dlml(:,m+1) = dlml(:,m+1) * SQRT(real((2_dp*l+2_dp)*(2_dp*l+3_dp),kind=dp)/real((l+m+1_dp)*(l-m+1_dp),kind=dp))*sincos
+       dlml(:,m+1) = dlml(:,m+1) * SQRT(real((2_dp*l+nc1)*(2_dp*l+nc2),kind=dp)/real((l+m+1_dp)*(l-m+1_dp),kind=dp))*sincos
     end do
     
   end subroutine dlml_recursion_m_contiguous
-  function compute_all_dlml_m_contiguous(bw,sincos,cos2) result(dlml)
+  function compute_all_dlml_m_contiguous(bw,sincos,cos2,normalized) result(dlml)
     !! Computes all Wigner little d coefficients of the form d_lml(beta) with l<bw and stores the values in an m contiguous way.
     !! That is dlml is stored at triangular_to_flat_index_reversed(l,m,bw)
     !! 
@@ -556,61 +612,72 @@ contains
     integer(kind=dp),intent(in) :: bw
     !! Arrays containing $sin(\frac{\beta}{2})*cos(\frac{\beta}{2})$ and $cos(\frac{\beta}{2})**2$
     real(kind = dp),intent(in) :: sincos(:),cos2(:)
+    !! Whether to compute normalized or unnormalized d matrices 
+    logical, intent(in) :: normalized
+    !f2py logical :: normalized = TRUE
     !! Array of output Wigner small d values 
     real(kind = dp) :: dlml(SIZE(cos2,1),(bw*(bw+1))/2_dp),dlml_tmp(SIZE(cos2,1),bw)
     integer(kind=dp) :: l,m,swap_id,lm_id,next_lm_id
     
     ! Compute dlml values for m=0
-    dlml(:,1) = SQRT(0.5_dp) ! In agreement with our normalization $\sqrt{\frac{2l+1}{2}}$ at l=0
+    dlml(:,1) = MERGE(SQRT(0.5_dp),1._dp,normalized)     ! In agreement with our normalization $\sqrt{\frac{2l+1}{2}}$ at l=0
     ! Setup workspace
-    dlml_tmp(:,1) = SQRT(0.5_dp)
+    dlml_tmp(:,1) = dlml(:,1)
+    
     ! Do stair recursion alternating between (l -> l+1) and (l,m -> l+1,m+1 ) steps.
     do l=0,bw-2
-       call dlml_recursion_m_contiguous(dlml_tmp, l, bw, sincos, cos2)
-       lm_id = triangular_to_flat_index_reversed(l+1,0_dp,bw)
-       next_lm_id = triangular_to_flat_index_reversed(l+1,l+1,bw)
+       call dlml_recursion_m_contiguous(dlml_tmp, l, bw, sincos, cos2,normalized)
+       lm_id = triangular_to_flat_index_reversed(l+1,0_dp)
+       next_lm_id = triangular_to_flat_index_reversed(l+1,l+1)
        dlml(:,lm_id:next_lm_id) = dlml_tmp(:,:l+2)
     end do
   end function compute_all_dlml_m_contiguous
-  
-  function L2_aN_so3(l,m1,m2) result(out)
-    integer(kind = dp) :: l,m1,m2
-    real(kind = dp) :: rl,rm1,rm2
-    real(kind = dp) :: out
-    rl = real(l)
-    rm1= real(m1)
-    rm2= real(m2)
-    if (l>0) then
-       out = -sqrt( (2_dp*rl+3_dp) / (2_dp*rl-1_dp) ) *&
-            & (rl+1_dp) /sqrt( ((rl+1_dp)**2-rm1**2) * ((rl+1_dp)**2-rm2**2) )*&
-            & sqrt((rl**2-rm1**2)*(rl**2-rm2**2))/rl
+
+  subroutine wig_l_recurrence(workspace,cos,l,m1,m2,normalized)
+    !
+    integer(kind = dp), intent(in) :: l,m1,m2
+    real(kind = dp),intent(in) :: cos(:)
+    logical,intent(in) :: normalized
+    !f2py logical :: normalized = TRUE
+    real(kind = dp),intent(inout) :: workspace(:,:)
+    integer(kind = dp) :: dl_id,dl_1id,o,i,j
+    real(kind = dp) :: c_common,c_l,c_l_1
+
+    i = l-m2+1_dp
+    dl_1id = MODULO(i-1_dp,3)+1_dp
+    dl_id = MODULO(i,3)+1_dp
+    o = MODULO(i+1_dp,3)+1_dp
+    
+       
+    c_common = real(l+1_dp,kind = dp)*SQRT(1._dp/real( ((l+1_dp)**2-m1**2)*((l+1_dp)**2-m2**2),kind = dp))
+    c_common = MERGE(c_common*SQRT( real(2_dp*l+3_dp,kind=dp)),c_common,normalized)
+    
+    c_l = real(2_dp*l+1_dp,kind = dp)
+    c_l = MERGE(SQRT(c_l),c_l,normalized)
+
+    if (l==0) then
+       workspace(:,o) = c_common*c_l*cos*workspace(:,dl_id)
+    else if (l==m2) then
+       workspace(:,o) = c_common*c_l*( cos-(real(m1*m2,kind=dp)/real(l*(l+1_dp),kind = dp)) )*workspace(:,dl_id)
     else
-       out =0
+       workspace(:,o) = c_common*c_l*( cos-(real(m1*m2,kind=dp)/real(l*(l+1_dp),kind = dp)) )*workspace(:,dl_id)          
+       c_l_1 = SQRT(real((l**2-m1**2)*(l**2-m2**2),kind = dp))/real(l,kind = dp)
+       c_l_1 = MERGE(c_l_1/SQRT(real(2_dp*l-1_dp,kind = dp)),c_l_1,normalized)
+       workspace(:,o) = workspace(:,o) - c_common*c_l_1*workspace(:,dl_1id)
+       !do j=1,Size(workspace,1)
+       !   if (workspace(j,o)>1._dp) then
+       !      print *, 'l',l
+       !      print *, 'm1',m1
+       !      print *, 'm2',m2
+       !      print *, c_common*c_l,c_common*c_l_1
+       !      print *, workspace(j,o)
+       !      print *, 'beta',acos(cos(j))
+       !      print *
+       !   end if
+       !end do
     end if
-  end function L2_aN_so3
-  function L2_bN_so3(l,m1,m2) result(out)
-    integer(kind = dp) :: l,m1,m2
-    real(kind = dp) :: rl,rm1,rm2
-    real(kind = dp) :: out
-    rl = real(l)
-    rm1= real(m1)
-    rm2= real(m2)
-    out = sqrt((2_dp*rl + 3_dp)/(2_dp*rl+1_dp)) *&
-         &(rl+1_dp)*(2_dp*rl+1_dp)/sqrt(((rl+1_dp)**2-rm1**2)*((rl+1_dp)**2-m2**2))
-  end function L2_bN_so3
-  function L2_cN_so3(l,m1,m2) result(out)
-    integer(kind = dp) :: l,m1,m2
-    real(kind = dp) :: rl,rm1,rm2
-    real(kind = dp) :: out
-    rl = real(l)
-    rm1= real(m1)
-    rm2= real(m2)
-    if (l>0) then
-       out = -L2_bN_so3(l,m1,m2)*rm1*rm2/(rl*(rl+1_dp))
-    else
-       out = 0
-    end if
-  end function L2_cN_so3
+    
+  end subroutine wig_l_recurrence
   function genWig_L2(m1,m2,bw,cos,dlml) result(wigners_m1m2)
     !  Given orders 0<=m1<=m2<=bw, and a bandwidth bw, this function will
     !  generate all the Wigner little d functions whose orders
@@ -654,8 +721,8 @@ contains
     real(kind = dp) :: cos(:),dlml(:)
     real(kind = dp) :: wigners_m1m2(2*bw,(bw-max(abs(m1),abs(m2))))
     
-    real(kind = dp) :: workspace(2*bw,7)
-    integer(kind = dp) :: i,l_start,l,n_samples
+    real(kind = dp) :: workspace(2*bw,3)
+    integer(kind = dp) :: i,l_start,l,n_samples,o
 
     if (.NOT.(0<=m1 .AND. m1<=m2 .AND. m2<=bw )) then
        print *, 'Invalid arguments:  0<=m1<=m2<=bw is not sattisfied.'
@@ -664,86 +731,120 @@ contains
     l_start = m2 !max(abs(m1),abs(m2))
     n_samples = size(cos,1)
     workspace(:,1) = 0
-    workspace(:,2) = dlml !compute_dlml(l_start,m1,trig_samples(:,3),trig_samples(:,2))
+    workspace(:,2) = dlml
     wigners_m1m2(:,1) = workspace(:,2)
     
+    !print * , 'lstart', l_start,'m1m2',m1,m2
     do i=1, bw-l_start-1
        l=l_start+(i-1_dp)
-       workspace(:,3) = workspace(:,1) * L2_aN_so3(l,m1,m2)
-       workspace(:,4) = workspace(:,2) * L2_bN_so3(l,m1,m2)
-       workspace(:,5) = workspace(:,4) * cos !trig_samples(:,1)
-       workspace(:,6) = workspace(:,2) * L2_cN_so3(l,m1,m2)
-       workspace(:,7) = workspace(:,3) + workspace(:,5) + workspace(:,6)
-       ! workspace[:,7] now contains d_{m1,m2}^{l}
-       ! storing its values to wigners_m1m2
-       !wigners_m1m2(i*n_samples+1:(i+1)*n_samples) = workspace(:,7)
-       wigners_m1m2(:,i+1) = workspace(:,7)
-       ! update workspace for the next iteration of the recurrence
-       workspace(:,1) = workspace(:,2)
-       workspace(:,2) = workspace(:,7)         
+       call wig_l_recurrence(workspace,cos,l,m1,m2,.TRUE.)
+       o = MODULO(i+1_dp,3)+1_dp
+       wigners_m1m2(:,i+1) = workspace(:,o)
     end do
   end function genWig_L2
 
-  function wigner_loc(l,m1,m2,bw) result(dlmn_id)
-    !! For given l,m1,m2 computes the index i such that d(:,i)
-    !! are the values of $d^l_{m1,m2}(\beta)$ for fixed l,m1,m2.
-    integer(kind = dp) :: l,m1,m2,bw
-    integer(kind = dp) :: dlmn_id
-    if (.NOT. (0<=m1 .AND. m1<=m2 .AND. m2<=l .AND. l<bw)) then
-       print *, "Invalid arguments: m1,m2 have to satisfy 0<=m1<=m2<=l<bw"
-    end if
-    !start = 1
-    !do n1=0,m1-1
-    !    do n2=n1,bw-2
-    !        start=start+(bw-n2)
-    !    end do
-    !end do
-    !do n2=m1,m2-1
-    !    start=start+(bw-n2)
-    !end do
-    dlmn_id = (m1*(3*bw**2-3*m1*(bw+1_dp)+6_dp*bw+m1**2+2))/6_dp + ((m2-m1)*(2*bw-m1-m2+1_dp))/2 + l-m2 +1_dp
-  end function wigner_loc
-  function wigner_l_slice(m1,m2,bw) result(slice)
-    !! For given m1,m2 computes the slice such that dlmn(:,slice(1):slice(2))
-    !! are the values of $d^l_{m1,m2}(\beta)$ for fixed m1,m2.
-    integer(kind = dp):: m1,m2,bw
-    integer(kind = dp)::m,size,slice(2)
+  function compute_dmn(m1,m2,bw,betas,normalized) result(wigners_m1m2)
+    integer(kind = dp) :: m1,m2,bw
+    real(kind = dp) :: betas(:)
+    logical,intent(in) :: normalized
+    !f2py logical :: normalized = TRUE
+    real(kind = dp) :: wigners_m1m2(Size(betas,1),(bw-max(abs(m1),abs(m2)))),cos_vals(Size(betas,1)),sincos(Size(betas,1)),cos2(Size(betas,1)),dlml(Size(betas,1))
+    real(kind = dp) :: workspace(Size(betas,1),3)
+    integer(kind = dp) :: i,l_start,l,n_samples,o
 
-    if (.NOT. (0<=m1 .AND. m1<=m2 .AND. m2<bw)) then
-       print *, "Invalid arguments: m1,m2 have to satisfy 0<=m1<=m2<bw"
+    if (.NOT.(0<=m1 .AND. m1<=m2 .AND. m2<=bw )) then
+       print *, 'Invalid arguments:  0<=m1<=m2<=bw is not sattisfied.'
     end if
-    m = max(abs(m1),abs(m2))
-    size = bw - m
-    slice(1) = wigner_loc(m,m1,m2,bw)
-    slice(2) = slice(1)+size -1_dp
-  end function wigner_l_slice
-  function wigner_slice_trsp(m1,m2,bw) result(slice)
-    ! For given m1,m2 computes the start and stop indices
-    ! of the corresponging segment int he genWigAll output array.
-    ! starting points for different m1=M1+1 m2=M1+1 is given by:
-    integer(kind = dp) m1,m2,bw
-    integer(kind = dp) L,m,size,slice(2)
-    if (.NOT. (m1>=0 .AND. m1<=m2 .AND. m1<bw .AND. m2<bw )) then
-       print *, "Invalid arguments: m1,m2 have to satisfy 0<m1<=m2<bw"
-    end if
-    L  = bw-1_dp
-    m=max(abs(m1),abs(m2))
-    size  = 2_dp*bw*(bw-m)
-    !start = 1
-    !do n1=0,m1-1
-    !    do n2=n1,L
-    !        start=start+(bw-n2)*2*bw
-    !    end do
-    !end do
-    !do n2=m1,m2
-    !    start=start+(bw-n2)*2*bw
-    !end do
-    !slice(2) = start -1_dp
-    slice(2) = -(bw*m1*(bw*(-6_dp*L+3_dp*m1-9_dp)+3_dp*L*L+3_dp*L-m1*m1+3_dp*m1-2_dp))/3_dp
-    slice(2) = slice(2) - bw*(m1-m2-1_dp)*(2_dp*bw-m1-m2)
-    slice(1)=slice(2)-size+1_dp
-  end function wigner_slice_trsp
+
+    cos_vals = COS(betas)
+    sincos = SIN(betas/2._dp)*COS(betas/2._dp)
+    cos2 = COS(betas/2._dp)**2
     
+    l_start = m2 !max(abs(m1),abs(m2))
+    n_samples = size(betas,1)
+    workspace(:,1) = 0
+    workspace(:,2) = compute_dlml(l_start, m1, sincos, cos2, normalized)
+    do i=1,Size(workspace,1)
+       if (workspace(i,2)<1.0D-300) then
+          workspace(i,2)=0._dp
+       end if
+    end do
+    wigners_m1m2(:,1) = workspace(:,2)
+    !print * , 'lstart', l_start,'m1m2',m1,m2
+    do i=1, bw-l_start-1
+       l=l_start+(i-1_dp)
+       call wig_l_recurrence(workspace,cos_vals,l,m1,m2,normalized)
+       o = MODULO(i+1_dp,3)+1_dp
+       wigners_m1m2(:,i+1) = workspace(:,o)
+    end do
+  end function compute_dmn
+  function wigner_l(l,betas,normalized) result(dl)
+    !! compute the small wigner-d matrix $d^l_{m_1,m_2}(\beta)$ for fixed l
+    integer(kind = dp),intent(in) :: l
+    real(kind = dp),intent(in) :: betas(:)
+    logical,intent(in) :: normalized
+    !f2py logical :: normalized = TRUE
+    real(kind = dp) :: betas2(2*SIZE(betas,1))
+    real(kind = dp) :: dl(2*SIZE(betas,1),2*l+1,2*l+1)
+    real(kind = dp) :: trig(2*SIZE(betas,1),3)
+    real(kind = dp) :: workspace(2*SIZE(betas,1),3)
+    real(kind=dp) :: dlml_workspace(2*SIZE(betas,1),l+1),sym_const_m,sym_const_n,sym_const_l,norm
+    integer(kind = dp) :: m,n,i,l_start,mid,nid,neg_mid,neg_nid,o,bw,nbeta2
+
+    dl = 0
+    sym_const_l = (-1._dp)**l
+    betas2(:Size(betas,1)) = betas
+    betas2(Size(betas,1)+1:) = Pi-betas(Size(betas,1):1:-1)
+    nbeta2 = Size(betas2,1)
+    trig(:,1) = cos(betas2)                      
+    trig(:,2) = cos(betas2/2_dp)*sin(betas2/2_dp) 
+    trig(:,3) = cos(betas2/2_dp)**2
+    
+    bw = l+1_dp
+
+    dlml_workspace(:,1) = MERGE(SQRT(0.5_dp),1._dp,normalized)
+    do m=0,l
+       mid = l+1_dp+m
+       neg_mid = l+1_dp-m
+       sym_const_m = (-1._dp)**m
+       call dlml_recursion_l_contiguous(dlml_workspace, m, bw, trig(:,2), trig(:,3),normalized)
+       do n=m,l
+          nid = l+1_dp+n
+          neg_nid = l+1_dp-n
+          sym_const_n = (-1._dp)**n
+          !norm = SQRT(2._dp/real(2_dp*l+1_dp,kind=dp))
+          
+          workspace(:,1) = 0
+          workspace(:,2) = dlml_workspace(:,1+n-m)
+          workspace(:,3) = workspace(:,2)
+          
+          do i=n,l-1
+             call wig_l_recurrence(workspace,trig(:,1),i,m,n,normalized)
+          end do
+          
+          o = MODULO(l-n+1_dp,3)+1_dp
+          !remove norm from wigner d values
+          workspace(:,o) = workspace(:,o)!*norm
+
+          ! populate the small wigner d-matrix using all of the available symmetries
+          dl(:,nid,mid)=workspace(:,o)          
+          if ((m==0 .AND. n==0)) cycle
+          dl(:,neg_mid,neg_nid) = workspace(:,o)
+          if (.NOT. m==n) then
+             dl(:,mid,nid) = (sym_const_m*sym_const_n)*workspace(:,o)
+             dl(:,neg_nid,neg_mid) = (sym_const_m*sym_const_n)*workspace(:,o)
+          end if
+          if (m==0 .or. n==0) cycle
+          dl(:,neg_nid,mid)=workspace(nbeta2:1:-1,o)*(sym_const_l*sym_const_m)
+          dl(:,nid,neg_mid)=workspace(nbeta2:1:-1,o)*(sym_const_l*sym_const_n)
+          if (m==n) cycle
+          dl(:,neg_mid,nid)=workspace(nbeta2:1:-1,o)*(sym_const_l*sym_const_m)
+          dl(:,mid,neg_nid)=workspace(nbeta2:1:-1,o)*(sym_const_l*sym_const_n)
+          
+       end do
+    end do
+  end function wigner_l
+
   function genWigAll(bw) result(wigners)
     ! Computes all independent small wigner d-matrix elements
     ! upto a n order of l=bw-1.
@@ -775,9 +876,9 @@ contains
     dlml_workspace(:,1) = SQRT(0.5_dp)
     trig_samples = create_trig_samples(bw)
     do m1=0,bw-1
-       call dlml_recursion_l_contiguous(dlml_workspace, m1, bw, trig_samples(:,2), trig_samples(:,3))
+       call dlml_recursion_l_contiguous(dlml_workspace, m1, bw, trig_samples(:,2), trig_samples(:,3),.TRUE.)
        do m2=m1, bw-1
-          slize = wigner_l_slice(m1,m2,bw)
+          slize = mnl_to_flat_l_slice(m1,m2,bw)
           !print*, m1,m2
           !print*, genWig_L2(m1,m2,bw,trig_samples)
           wigners(:,slize(1):slize(2)) = genWig_L2(m1,m2,bw,trig_samples(:,1),dlml_workspace(:,1+m2-m1))
@@ -816,9 +917,9 @@ contains
     dlml_workspace(:,1) = SQRT(0.5_dp)
     trig_samples = create_trig_samples(bw)    
     do m1=0,bw-1
-       call dlml_recursion_l_contiguous(dlml_workspace, m1, bw, trig_samples(:,2), trig_samples(:,3))
+       call dlml_recursion_l_contiguous(dlml_workspace, m1, bw, trig_samples(:,2), trig_samples(:,3),.TRUE.)
        do m2=m1, bw-1
-          slize = wigner_l_slice(m1,m2,bw)
+          slize = mnl_to_flat_l_slice(m1,m2,bw)
           !print*, m1,m2
           !print*, genWig_L2(m1,m2,bw,trig_samples)
           wigners(:,slize(1):slize(2)) = genWig_L2(m1,m2,bw,trig_samples(:,1),dlml_workspace(:,m2-m1+1))
@@ -905,6 +1006,7 @@ module so3ft
   integer(kind = sp) :: fftw_flags   ! FFTW_ESTIMATE=64, FFTW_MEASURE=0
   logical :: plans_allocated_c,plans_allocated_r = .FALSE.
 
+  
   abstract interface
      subroutine inverse_wigner_interface(coeff,so3func,m1,m2,sym_array,sym_const_m1)
        import :: dp  ! Otherwise dp is undefined in _abstract interface blocks
@@ -936,6 +1038,7 @@ module so3ft
      end subroutine wigner_corr_real_interface
   end interface
 
+  
 contains
   subroutine destroy_fft()
     call dealloc_fft_arrays(.TRUE.)
@@ -963,8 +1066,8 @@ contains
     
     do m1=0,bw-1
        do m2=m1, bw-1
-          l_slice = wigner_l_slice(m1,m2,bw)
-          trsp_slice = wigner_slice_trsp(m1,m2,bw)
+          l_slice = mnl_to_flat_l_slice(m1,m2,bw)
+          trsp_slice = mnl_to_flat_l_slice_padded(m1,m2,bw,2*bw)
           wig_len = 2*bw*(bw-max(abs(m1),abs(m2)))          
           wigner_d_trsp(trsp_slice(1):trsp_slice(2)) = reshape(transpose(wigner_d(:,l_slice(1):l_slice(2))),[wig_len])
           ! multiply untransposed wigners with legendre weights
@@ -1000,7 +1103,6 @@ contains
     c_path(LEN(file_path)+1) = C_NULL_CHAR
     error_code = fftw_export_wisdom_to_filename(c_path)
   end function export_fftw_wisdom
-  
   subroutine init_fft(use_real_fft)
     logical, intent(in) :: use_real_fft
     integer(kind = sp) :: fft_rank,fft_n(2),fft_howmany,fft_inembed(2),fft_istride,fft_idist,fft_onembed(2),fft_ostride,fft_odist,bw2
@@ -1126,9 +1228,9 @@ contains
   subroutine init(bandwidth,l_max,n_threads,precompute_wigners,init_ffts,fftw_flag)
     integer(kind = dp), intent(in) :: bandwidth
     integer(kind = dp), intent(in) :: l_max
-    !f2py logical :: l_max = bandwidth - 1
+    !f2py integer :: l_max = bandwidth - 1
     integer(kind = dp), intent(in) :: n_threads
-    !f2py logical ::  n_threads = 1
+    !f2py integer ::  n_threads = 1
     logical, intent(in) :: init_ffts,precompute_wigners
     !f2py logical :: init_ffts = FALSE
     integer(kind = sp), intent(in) :: fftw_flag
@@ -1147,7 +1249,7 @@ contains
           call init_wigners()
        else
           allocate(wigner_dlml(2*bw,triangular_size(bw)))
-          wigner_dlml = compute_all_dlml_l_contiguous(bw, trig_samples(:,2), trig_samples(:,3))
+          wigner_dlml = compute_all_dlml_l_contiguous(bw, trig_samples(:,2), trig_samples(:,3),.TRUE.)
        end if
     else
        if (precompute_wigners .AND. (.NOT. allocated(wigner_d)) ) then
@@ -1207,13 +1309,13 @@ contains
 
     if (allocated(wigner_d)) then
        ! be carefull fortran ordering has to be used
-       slice = wigner_l_slice(m1,m2,bw)
+       slice = mnl_to_flat_l_slice(m1,m2,bw)
        wig_mat = wigner_d(:,slice(1):slice(2))
     else
        dlml_id = triangular_to_flat_index(m1,m2,bw)
        wig_mat = genWig_L2(m1,m2,bw,trig_samples(:,1),wigner_dlml(:,dlml_id))
     end if
-  end function get_wigner_matrix_copy  
+  end function get_wigner_matrix_copy
   function get_so3func_part_halfcomplex(m1,m2,so3func) result(so3func_part)
     complex(kind = dp),intent(in) :: so3func(:,:,:)
     integer(kind = dp),intent(in) :: m1,m2
@@ -1246,7 +1348,7 @@ contains
     bw2 = 2_dp*bw
     
     ! get wigner matrix
-    t_slice = wigner_slice_trsp(m1,m2,bw)
+    t_slice = mnl_to_flat_l_slice_padded(m1,m2,bw,2*bw)
     wig_mat(1:bw-m2,1:2*bw) => wigner_d_trsp(t_slice(1):t_slice(2))
 
     
@@ -1481,7 +1583,7 @@ contains
     ! This method assiumes 0<=m1<=m2<=bw
     ! which also means m = max(abs(m1),abs(m2)) = m2
 
-    l_slice = wigner_l_slice(m1, m2, bw)
+    l_slice = mnl_to_flat_l_slice(m1, m2, bw)
     wig_mat(1:bw2,1:bw-m2) => wigner_d(:,l_slice(1):l_slice(2))
     !call get_wigner_matrix(m1,m2,wig_mat,wig_mat_arr)
 
@@ -1697,7 +1799,7 @@ contains
     bw2 = 2_dp*bw
 
     ! get wigner matrix
-    t_slice = wigner_slice_trsp(m1,m2,bw)
+    t_slice = mnl_to_flat_l_slice_padded(m1,m2,bw,2*bw)
     wig_mat(1:bw-m2,1:2*bw) => wigner_d_trsp(t_slice(1):t_slice(2))
     
     !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
@@ -1867,7 +1969,7 @@ contains
     bw2 = 2_dp*bw
 
     ! load wigner d matrices
-    l_slice = wigner_l_slice(m1, m2, bw)
+    l_slice = mnl_to_flat_l_slice(m1, m2, bw)
     wig_mat(1:bw2,1:bw-m2) => wigner_d(:,l_slice(1):l_slice(2))
     
     !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
@@ -2132,7 +2234,6 @@ contains
     !print * , 'rfft done'
     call forward_wigner_trf_real(fft_c2r_in,coeff,use_mp)    
   end subroutine rsoft
-
   subroutine soft_many(so3funcs,coeffs,nthreads)
     !f2py threadsafe
     complex(kind=dp),intent(in) :: so3funcs(:,:,:,:)
@@ -2275,7 +2376,7 @@ contains
     ! which also means m = max(abs(m1),abs(m2)) = m2
 
     ! get wigner matrix
-    t_slice = wigner_slice_trsp(m1,m2,bw)
+    t_slice = mnl_to_flat_l_slice_padded(m1,m2,bw,2*bw)
     wig_mat(1:bw-m2,1:2*bw) => wigner_d_trsp(t_slice(1):t_slice(2))
     
     !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
@@ -2598,7 +2699,6 @@ contains
     end if
     cc = cc*inv_radial_range
   end subroutine corss_correlation_ylm_3D_cmplx
-
   subroutine inverse_wigner_loop_body_corr_real_alloc(f_ml,g_ml,so3func,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_slice)
     ! This subroutine assumes 0<=m1<=m2<=bw
     ! which also means m = max(abs(m1),abs(m2)) = m2
@@ -2618,7 +2718,7 @@ contains
     pm2_slice = MLr_slice(m2,bw)
 
     ! get wigner matrix
-    t_slice = wigner_slice_trsp(m1,m2,bw)
+    t_slice = mnl_to_flat_l_slice_padded(m1,m2,bw,2*bw)
     wig_mat(1:bw-m2,1:2*bw) => wigner_d_trsp(t_slice(1):t_slice(2))
     
     !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
@@ -2877,7 +2977,6 @@ contains
     cc = cc*inv_radial_range
   end subroutine corss_correlation_ylm_3D_real
 
-  
   subroutine fft(f1,f2)
     complex(kind = dp), intent(in) :: f1(:,:,:)
     complex(kind = dp), intent(inout) :: f2(:,:,:)    
@@ -2902,7 +3001,6 @@ contains
     call dfftw_execute_dft_c2r(plan_c2r_backward,f1,f2)
     f2 = f2 * (1/(2.0_dp*real(bw,kind=dp))) !* 1/(2*bw) * (2*bw)/(2*pi)
   end subroutine irfft
-
 
   subroutine ylm_rotation_cmplx_(f_lm,rot_f_lm,bw,trigs,sqrts,exp_a,exp_g)
     ! Computes all wigner D matrices needed for rotating all
@@ -2987,8 +3085,4 @@ contains
     end do
   end function ylm_rotation_many_cmplx
 end module so3ft
-
-
-
-
 
