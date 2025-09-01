@@ -5,8 +5,8 @@
 
 from pysofft import _soft2
 from pysofft.soft import Soft
-from pysofft import old
-
+from pysofft._soft2 import utils
+from pysofft._soft2 import make_wigner as wigner
 
 #The following is a bit of a hack
 #In calling numba functions they will get compiled when the package is loaded and not when they are called the first time.

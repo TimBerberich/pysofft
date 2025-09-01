@@ -1,2 +1,2 @@
-FFLAGS="-fopenmp -lfftw3 -I/usr/include" CFLAGS="-fopenmp -lfftw3" f2py --opt="-O3 -fno-math-errno -fno-trapping-math" -m _soft2 -c soft_class.f95 skip: softclass init init_soft int_to_soft_pointer get_so3func_part_halfcomplex :
+FFLAGS="-fopenmp -lfftw3 -I/usr/include" CFLAGS="-fopenmp -lfftw3" f2py --opt="-O3 -fno-math-errno -fno-trapping-math" -m _soft2 -c soft_class.f95 skip: softclass init init_soft int_to_soft_pointer get_so3func_part_halfcomplex inverse_wigner_loop_body_cmplx inverse_wigner_loop_body_cmplx_alloc inverse_wigner_trf_cmplx :
  

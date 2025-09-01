@@ -1,6 +1,7 @@
 import numpy as np
 from pysofft import _soft2
 from pysofft._soft2 import py
+from pysofft._soft2 import softclass
 import os
 
 #Temporary untill propper logging is implemented
@@ -9,7 +10,7 @@ def log(txt):
     
 class Soft:
     _fortran_pointer = None
-    _wisdom_path = os.path.expanduser('~/.config/.pysofft/fftw_wisdom.dat')
+    _wisdom_path = os.path.expanduser('~/.config/pysofft/fftw_wisdom.dat')
     enable_fftw_wisdom = False
     
     def __init__(self,
@@ -28,10 +29,10 @@ class Soft:
             wisdom_dir = os.path.dirname(self._wisdom_path)
             if not os.path.exists(wisdom_dir):
                 os.makedirs(wisdom_dir)
-            py.import_fftw_wisdom(self._wisdom_path)
+            softclass.import_fftw_wisdom(self._wisdom_path)
         self._fortran_pointer = py.py_init_soft(bw,lmax,precompute_wigners,init_ffts,fftw_flags)
         if enable_fftw_wisdom:
-            py.export_fftw_wisdom(self._wisdom_path)
+            softclass.export_fftw_wisdom(self._wisdom_path)
             
     def __del__(self):
         py.py_destroy(self._fortran_pointer)
@@ -62,13 +63,16 @@ class Soft:
               enable_fftw_wisdom=False):
         self.enable_fftw_wisdom = enable_fftw_wisdöm
         if enable_fftw_wisdom:
-            py.import_fftw_wisdom(self._wisdom_path)
+            softclass.import_fftw_wisdom(self._wisdom_path)
         py.py_reset(self._fortran_pointer,bw,lmax,precompute_wigners,init_ffts,fftw_flags)
         if enable_fftw_wisdom:
-            py.export_fftw_wisdom(self._wisdom_path)
+            softclass.export_fftw_wisdom(self._wisdom_path)
     def init_ffts(self,real_fft=False):
         py.py_init_fft(self._fortran_pointer,real_fft)
         
-        
+    # Transforms
+    def inverse_wigner_trf_cmplx(self,coeff,so3func,use_mp = False):
+        py.py_inverse_wigner_trf_cmplx(self._fortran_pointer,coeff,so3func,use_mp)
+    
 def set_OMP_nthreads(nthreads):
     _soft2.set_nthreads(nthreads)
