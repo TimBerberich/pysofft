@@ -71,8 +71,30 @@ class Soft:
         py.py_init_fft(self._fortran_pointer,real_fft)
         
     # Transforms
-    def inverse_wigner_trf_cmplx(self,coeff,so3func,use_mp = False):
+    def _inverse_wigner_trf_cmplx(self,coeff,so3func,use_mp = False):
         py.py_inverse_wigner_trf_cmplx(self._fortran_pointer,coeff,so3func,use_mp)
+    def _forward_wigner_trf_cmplx(self,so3func,coeff,use_mp = False):
+        py.py_forward_wigner_trf_cmplx(self._fortran_pointer,so3func,coeff,use_mp)
+    def _inverse_wigner_trf_real(self,coeff,so3func,use_mp = False):
+        py.py_inverse_wigner_trf_real(self._fortran_pointer,coeff,so3func,use_mp)
+    def _forward_wigner_trf_real(self,so3func,coeff,use_mp = False):
+        py.py_forward_wigner_trf_real(self._fortran_pointer,so3func,coeff,use_mp)
+    def soft(self,so3func,coeff,use_mp=False):
+        py.py_soft(self._fortran_pointer,so3func,coeff,use_mp)
+    def isoft(self,coeff,so3func,use_mp=False):
+        py.py_isoft(self._fortran_pointer,coeff,so3func,use_mp)
+    def rsoft(self,so3func,coeff,use_mp=False):
+        py.py_rsoft(self._fortran_pointer,so3func,coeff,use_mp)
+    def irsoft(self,coeff,so3func,use_mp=False):
+        py.py_irsoft(self._fortran_pointer,coeff,so3func,use_mp)
+    def soft_many(self,so3funcs,coeffs,use_mp=False):
+        py.py_soft_many(self._fortran_pointer,so3funcs,coeffs,use_mp)
+    def isoft_many(self,coeffs,so3funcs,use_mp=False):
+        py.py_isoft_many(self._fortran_pointer,coeffs,so3funcs,use_mp)
+    def rsoft_many(self,so3funcs,coeffs,use_mp=False):
+        py.py_rsoft_many(self._fortran_pointer,so3funcs,coeffs,use_mp)
+    def irsoft_many(self,coeffs,so3funcs,use_mp=False):
+        py.py_irsoft_many(self._fortran_pointer,coeffs,so3funcs,use_mp)
     
-def set_OMP_nthreads(nthreads):
-    _soft2.set_nthreads(nthreads)
+def OMP_set_num_threads(nthreads):
+    py.set_nthreads(nthreads)
