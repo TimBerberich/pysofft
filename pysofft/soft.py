@@ -95,6 +95,19 @@ class Soft:
         py.py_rsoft_many(self._fortran_pointer,so3funcs,coeffs,use_mp)
     def irsoft_many(self,coeffs,so3funcs,use_mp=False):
         py.py_irsoft_many(self._fortran_pointer,coeffs,so3funcs,use_mp)
-    
-def OMP_set_num_threads(nthreads):
-    py.set_nthreads(nthreads)
+    def cross_correlation_ylm_cmplx(self,f_lm,g_lm,cc,use_mp=False):
+        py.py_cross_correlation_ylm_cmplx(self._fortran_pointer,f_lm,g_lm,cc,use_mp)
+    def corss_correlation_ylm_cmplx_3d(self,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp=False):
+        py.py_cross_correlation_ylm_cmplx_3d(self._fortran_pointer,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+    def cross_correlation_ylm_real(self_int,f_lm,g_lm,cc,use_mp=False):
+        py.py_cross_correlation_ylm_real(self._fortran_pointer,f_lm,g_lm,cc,use_mp)
+    def corss_correlation_ylm_real_3d(self_int,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp=False):
+        py.py_cross_correlation_ylm_real_3d(self._fortran_pointer,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+    def fft(self,f1,f2):
+        py.py_fft(self._fortran_pointer,f1,f2)
+    def ifft(self,f1,f2):
+        py.py_ifft(self._fortran_pointer,f1,f2)
+    def rfft(self,f1,f2):
+        py.py_rfft(self._fortran_pointer,f1,f2)
+    def irfft(self,f1,f2):
+        py.py_irfft(self._fortran_pointer,f1,f2)

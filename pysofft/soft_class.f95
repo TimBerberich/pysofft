@@ -1081,11 +1081,11 @@ module softclass
      procedure :: inverse_wigner_loop_body_corr_cmplx_alloc => inverse_wigner_loop_body_corr_cmplx_alloc_
      procedure :: inverse_wigner_loop_body_corr_cmplx => inverse_wigner_loop_body_corr_cmplx_
      procedure :: cross_correlation_ylm_cmplx
-     procedure :: corss_correlation_ylm_cmplx_3d
+     procedure :: cross_correlation_ylm_cmplx_3d
      procedure :: inverse_wigner_loop_body_corr_real_alloc => inverse_wigner_loop_body_corr_real_alloc_
      procedure :: inverse_wigner_loop_body_corr_real => inverse_wigner_loop_body_corr_real_
      procedure :: cross_correlation_ylm_real
-     procedure :: corss_correlation_ylm_real_3d
+     procedure :: cross_correlation_ylm_real_3d
 
      ! handles for used fftw routines
      procedure :: fft
@@ -1143,6 +1143,7 @@ module softclass
   end interface
   
 contains
+  ! Instance functions
   subroutine destroy_fft(self,apply_to_real_fft)
     class(so3ft),intent(inout) :: self
     logical, intent(in) :: apply_to_real_fft
@@ -1378,22 +1379,6 @@ contains
     self%bw=0
     self%lmax=0
   end subroutine destroy
-
-  function get_so3func_part_halfcomplex(bw,m1,m2,so3func) result(so3func_part)
-    complex(kind = dp),intent(in) :: so3func(:,:,:)
-    integer(kind = dp),intent(in) :: m1,m2,bw
-    complex(kind = dp) :: so3func_part(size(so3func,1))
-    integer(kind = dp) :: s_ids(2)
-
-    if (m1<0) then
-       s_ids = order_to_ids(-m1,-m2,bw)
-       so3func_part = CONJG(so3func(:,s_ids(1),s_ids(2)))
-    else
-       s_ids = order_to_ids(m1,m2,bw)
-       so3func_part = so3func(:,s_ids(1),s_ids(2))
-    end if
-       
-  end function get_so3func_part_halfcomplex
 
   subroutine inverse_wigner_loop_body_cmplx_alloc_(self,coeff,so3func,m1,m2,sym_array,sym_const_m1)
     class(so3ft),intent(in),target :: self
@@ -2395,7 +2380,7 @@ contains
        do i=1,n
           call self%rsoft(so3funcs(:,:,:,i),coeffs(:,i),.FALSE.)       
        end do
-    end if       
+    end if
   end subroutine rsoft_many
   subroutine irsoft_many(self,coeffs,so3funcs,use_mp)
     !f2py threadsafe
@@ -2742,7 +2727,7 @@ contains
     call dfftw_execute_dft(self%plan_c2c_forward,self%fft_c2c_in,cc)
     cc = cc * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)   
   end subroutine cross_correlation_ylm_cmplx
-  subroutine corss_correlation_ylm_cmplx_3d(self,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+  subroutine cross_correlation_ylm_cmplx_3d(self,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
     ! let f,g be two square integrable functions on the $\mathbb{R}^3$ in spherical coordinates 
     ! Define CC: SO(3) ---> \mathbb{R},   R |---> <f,g \circ R> = \int_R dr r^2 \int_{S^2} dw f(r,w)*\overline{g(r,Rw)}
     ! This function calculates CC(R) for all R defined in make_SO3_grid
@@ -2801,7 +2786,7 @@ contains
        end do
     end if
     cc = cc*inv_radial_range
-  end subroutine corss_correlation_ylm_cmplx_3d
+  end subroutine cross_correlation_ylm_cmplx_3d
   subroutine inverse_wigner_loop_body_corr_real_alloc_(self,f_ml,g_ml,so3func,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_slice)
     ! This subroutine assumes 0<=m1<=m2<=bw
     ! which also means m = max(abs(m1),abs(m2)) = m2
@@ -3024,7 +3009,7 @@ contains
     call dfftw_execute_dft_c2r(self%plan_c2r_backward,self%fft_c2r_in,cc)
     cc = cc * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)   
   end subroutine cross_correlation_ylm_real
-  subroutine corss_correlation_ylm_real_3d(self,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+  subroutine cross_correlation_ylm_real_3d(self,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
     ! let f,g be two square integrable functions on the $\mathbb{R}^3$ in spherical coordinates 
     ! Define CC: SO(3) ---> \mathbb{R},   R |---> <f,g \circ R> = \int_R dr r^2 \int_{S^2} dw f(r,w)*\overline{g(r,Rw)}
     ! This function calculates CC(R) for all R defined in make_SO3_grid
@@ -3083,7 +3068,54 @@ contains
        end do
     end if
     cc = cc*inv_radial_range
-  end subroutine corss_correlation_ylm_real_3d
+  end subroutine cross_correlation_ylm_real_3d
+
+  subroutine fft(self,f1,f2)
+    class(so3ft),intent(in) :: self
+    complex(kind = dp), intent(in) :: f1(:,:,:)
+    complex(kind = dp), intent(inout) :: f2(:,:,:)    
+    call dfftw_execute_dft(self%plan_c2c_forward,f1,f2)
+    f2 = f2 * (1._dp/real(Size(f1,1),kind=dp)) 
+  end subroutine fft
+  subroutine ifft(self,f1,f2)
+    class(so3ft),intent(in) :: self
+    complex(kind = dp), intent(in) :: f1(:,:,:)
+    complex(kind = dp), intent(inout) :: f2(:,:,:)    
+    call dfftw_execute_dft(self%plan_c2c_backward,f1,f2)
+    f2 = f2 * (1._dp/real(Size(f1,1),kind=dp)) 
+  end subroutine ifft
+  subroutine rfft(self,f1,f2)
+    class(so3ft),intent(in) :: self
+    real(kind = dp), intent(in) :: f1(:,:,:)
+    complex(kind = dp), intent(inout) :: f2(:,:,:)    
+    call dfftw_execute_dft_r2c(self%plan_r2c_forward,f1,f2)
+    f2 = f2 * (1._dp/real(Size(f1,1),kind=dp)) 
+  end subroutine rfft
+  subroutine irfft(self,f1,f2)
+    class(so3ft),intent(in) :: self
+    complex(kind = dp), intent(in) :: f1(:,:,:)
+    real(kind = dp), intent(inout) :: f2(:,:,:)    
+    call dfftw_execute_dft_c2r(self%plan_c2r_backward,f1,f2)
+    f2 = f2 * (1._dp/(real(Size(f1,1),kind=dp)))
+  end subroutine irfft
+  
+  
+  ! Class functions
+  function get_so3func_part_halfcomplex(bw,m1,m2,so3func) result(so3func_part)
+    complex(kind = dp),intent(in) :: so3func(:,:,:)
+    integer(kind = dp),intent(in) :: m1,m2,bw
+    complex(kind = dp) :: so3func_part(size(so3func,1))
+    integer(kind = dp) :: s_ids(2)
+
+    if (m1<0) then
+       s_ids = order_to_ids(-m1,-m2,bw)
+       so3func_part = CONJG(so3func(:,s_ids(1),s_ids(2)))
+    else
+       s_ids = order_to_ids(m1,m2,bw)
+       so3func_part = so3func(:,s_ids(1),s_ids(2))
+    end if
+       
+  end function get_so3func_part_halfcomplex
   
   function import_fftw_wisdom(file_path) result(error_code)
     ! error_code == 0 means something went wrong in fftw
@@ -3197,17 +3229,17 @@ contains
   
 end module softclass
 
-
+!f2py compatible wrappers for class so3ft in softclass module
 module py
   !! Contains versions of the type bound procedures of so3ft that can be wrapped with f2py.
   use precision
   use softclass, only: so3ft,so3ft_ptr
   implicit none
 contains
-  subroutine set_nthreads(nthreads)
+  subroutine OMP_set_num_threads_(nthreads)
     integer(kind = dp), intent(in) :: nthreads
     call OMP_set_num_threads(nthreads)
-  end subroutine set_nthreads
+  end subroutine OMP_set_num_threads_
   
   function py_init_soft(bw,lmax,precompute_wigners,init_ffts,fftw_flags) result(self)
     integer(kind = dp), intent(in) :: bw
@@ -3235,6 +3267,7 @@ contains
     self => self_ptr%p
   end subroutine int_to_soft_pointer
   function py_get_bw(self_int) result(bw)
+    !f2py threadsafe
     integer(kind = dp),intent(in) :: self_int
     type(so3ft_ptr) :: self_ptr
     type(so3ft),pointer :: self
@@ -3243,6 +3276,7 @@ contains
     bw = self%bw
   end function py_get_bw
   function py_get_lmax(self_int) result(lmax)
+    !f2py threadsafe
     integer(kind = dp),intent(in) :: self_int
     type(so3ft_ptr) :: self_ptr
     type(so3ft),pointer :: self
@@ -3250,7 +3284,8 @@ contains
     call int_to_soft_pointer(self_int,self_ptr,self)
     lmax = self%lmax
   end function py_get_lmax
-  subroutine py_set_lmax(self_int,lmax) 
+  subroutine py_set_lmax(self_int,lmax)
+    !f2py threadsafe
     integer(kind = dp),intent(in) :: self_int
     integer(kind = dp),intent(in) :: lmax
     type(so3ft_ptr) :: self_ptr
@@ -3301,6 +3336,7 @@ contains
   end subroutine py_init_fft
 
   subroutine py_inverse_wigner_trf_cmplx(self_int,coeff,so3func,use_mp)
+    !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp), intent(in) :: coeff(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
@@ -3311,6 +3347,7 @@ contains
     call self%inverse_wigner_trf_cmplx(coeff, so3func, use_mp)
   end subroutine py_inverse_wigner_trf_cmplx
   subroutine py_forward_wigner_trf_cmplx(self_int,so3func,coeff,use_mp)
+    !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp), intent(inout) :: coeff(:)
     complex(kind = dp), intent(in) :: so3func(:,:,:)
@@ -3321,6 +3358,7 @@ contains
     call self%forward_wigner_trf_cmplx(so3func,coeff, use_mp)
   end subroutine py_forward_wigner_trf_cmplx
   subroutine py_inverse_wigner_trf_real(self_int,coeff,so3func,use_mp)
+    !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp), intent(in) :: coeff(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
@@ -3331,6 +3369,7 @@ contains
     call self%inverse_wigner_trf_real(coeff, so3func, use_mp)
   end subroutine py_inverse_wigner_trf_real
   subroutine py_forward_wigner_trf_real(self_int,so3func,coeff,use_mp)
+    !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp), intent(inout) :: coeff(:)
     complex(kind = dp), intent(in) :: so3func(:,:,:)
@@ -3342,6 +3381,7 @@ contains
   end subroutine py_forward_wigner_trf_real
 
   subroutine py_isoft(self_int,coeff,so3func,use_mp)
+    !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp), intent(in) :: coeff(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
@@ -3352,6 +3392,7 @@ contains
     call self%isoft(coeff,so3func,use_mp)
   end subroutine py_isoft
   subroutine py_soft(self_int,so3func,coeff,use_mp)
+    !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp), intent(inout) :: coeff(:)
     complex(kind = dp), intent(in) :: so3func(:,:,:)
@@ -3362,6 +3403,7 @@ contains
     call self%soft(so3func,coeff,use_mp)
   end subroutine py_soft
   subroutine py_irsoft(self_int,coeff,so3func,use_mp)
+    !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp), intent(in) :: coeff(:)
     real(kind = dp), intent(inout) :: so3func(:,:,:)
@@ -3372,6 +3414,7 @@ contains
     call self%irsoft(coeff,so3func,use_mp)
   end subroutine py_irsoft
   subroutine py_rsoft(self_int,so3func,coeff,use_mp)
+    !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp), intent(inout) :: coeff(:)
     real(kind = dp), intent(in) :: so3func(:,:,:)
@@ -3382,6 +3425,7 @@ contains
     call self%rsoft(so3func,coeff,use_mp)
   end subroutine py_rsoft
   subroutine py_isoft_many(self_int,coeffs,so3funcs,use_mp)
+    !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp), intent(in) :: coeffs(:,:)
     complex(kind = dp), intent(inout) :: so3funcs(:,:,:,:)
@@ -3392,6 +3436,7 @@ contains
     call self%isoft_many(coeffs,so3funcs,use_mp)
   end subroutine py_isoft_many
   subroutine py_soft_many(self_int,so3funcs,coeffs,use_mp)
+    !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp), intent(inout) :: coeffs(:,:)
     complex(kind = dp), intent(in) :: so3funcs(:,:,:,:)
@@ -3402,6 +3447,7 @@ contains
     call self%soft_many(so3funcs,coeffs,use_mp)
   end subroutine py_soft_many
   subroutine py_irsoft_many(self_int,coeffs,so3funcs,use_mp)
+    !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp), intent(in) :: coeffs(:,:)
     real(kind = dp), intent(inout) :: so3funcs(:,:,:,:)
@@ -3412,6 +3458,7 @@ contains
     call self%irsoft_many(coeffs,so3funcs,use_mp)
   end subroutine py_irsoft_many
   subroutine py_rsoft_many(self_int,so3funcs,coeffs,use_mp)
+    !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp), intent(inout) :: coeffs(:,:)
     real(kind = dp), intent(in) :: so3funcs(:,:,:,:)
@@ -3423,6 +3470,7 @@ contains
   end subroutine py_rsoft_many
 
   function py_integrate_over_so3_cmplx(self_int,f) result(integral)
+    !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp),intent(in) :: f(:,:,:)
     complex(kind = dp) :: integral
@@ -3432,6 +3480,7 @@ contains
     integral =  self%integrate_over_so3_cmplx(f)
   end function py_integrate_over_so3_cmplx
   function py_integrate_over_so3_real(self_int,f) result(integral)
+    !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     real(kind = dp),intent(in) :: f(:,:,:)
     real(kind = dp) :: integral
@@ -3441,5 +3490,95 @@ contains
     integral =  self%integrate_over_so3_real(f)
   end function py_integrate_over_so3_real
   
+  subroutine py_cross_correlation_ylm_cmplx(self_int,f_lm,g_lm,cc,use_mp)
+    !f2py threadsafe
+    integer(kind = dp),intent(in) :: self_int
+    complex(kind = dp),target,intent(in) :: f_lm(:),g_lm(:)
+    complex(kind = dp), intent(inout) :: cc(:,:,:)
+    logical,intent(in) :: use_mp
+    type(so3ft_ptr) :: self_ptr
+    type(so3ft),pointer :: self
+    call int_to_soft_pointer(self_int,self_ptr,self)
+    call self%cross_correlation_ylm_cmplx(f_lm,g_lm,cc,use_mp)
+  end subroutine py_cross_correlation_ylm_cmplx
+  subroutine py_cross_correlation_ylm_cmplx_3d(self_int,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+    !f2py threadsafe
+    integer(kind=dp),intent(in) :: self_int
+    complex(kind = dp),target,intent(in) :: f_lms(:,:),g_lms(:,:)
+    complex(kind = dp), intent(inout) :: cc(:,:,:)
+    real(kind = dp), intent(in) :: radial_sampling_points(:)
+    integer(kind = dp), intent(in) :: radial_limits(:)
+    logical,intent(in) :: use_mp
+    type(so3ft_ptr) :: self_ptr
+    type(so3ft),pointer :: self
+    call int_to_soft_pointer(self_int,self_ptr,self)
+    call self%cross_correlation_ylm_cmplx_3d(f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+  end subroutine py_cross_correlation_ylm_cmplx_3d
+  subroutine py_cross_correlation_ylm_real(self_int,f_lm,g_lm,cc,use_mp)
+    !f2py threadsafe
+    integer(kind = dp),intent(in) :: self_int
+    complex(kind = dp),target,intent(in) :: f_lm(:),g_lm(:)
+    real(kind = dp), intent(inout) :: cc(:,:,:)
+    logical,intent(in) :: use_mp
+    type(so3ft_ptr) :: self_ptr
+    type(so3ft),pointer :: self
+    call int_to_soft_pointer(self_int,self_ptr,self)
+    call self%cross_correlation_ylm_real(f_lm,g_lm,cc,use_mp)
+  end subroutine py_cross_correlation_ylm_real
+  subroutine py_cross_correlation_ylm_real_3d(self_int,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+    !f2py threadsafe
+    integer(kind=dp),intent(in) :: self_int
+    complex(kind = dp),target,intent(in) :: f_lms(:,:),g_lms(:,:)
+    real(kind = dp), intent(inout) :: cc(:,:,:)
+    real(kind = dp), intent(in) :: radial_sampling_points(:)
+    integer(kind = dp), intent(in) :: radial_limits(:)
+    logical,intent(in) :: use_mp
+    type(so3ft_ptr) :: self_ptr
+    type(so3ft),pointer :: self
+    call int_to_soft_pointer(self_int,self_ptr,self)
+    call self%cross_correlation_ylm_real_3d(f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+  end subroutine py_cross_correlation_ylm_real_3d
+
+  subroutine py_fft(self_int,f1,f2)
+    !f2py threadsafe
+    integer(kind = dp), intent(in) :: self_int
+    complex(kind = dp), intent(in) :: f1(:,:,:)
+    complex(kind = dp), intent(inout) :: f2(:,:,:)
+    type(so3ft_ptr) :: self_ptr
+    type(so3ft),pointer :: self
+    call int_to_soft_pointer(self_int,self_ptr,self)
+    call self%fft(f1,f2)
+  end subroutine py_fft
+  subroutine py_ifft(self_int,f1,f2)
+    !f2py threadsafe
+    integer(kind = dp), intent(in) :: self_int
+    complex(kind = dp), intent(in) :: f1(:,:,:)
+    complex(kind = dp), intent(inout) :: f2(:,:,:)
+    type(so3ft_ptr) :: self_ptr
+    type(so3ft),pointer :: self
+    call int_to_soft_pointer(self_int,self_ptr,self)
+    call self%ifft(f1,f2)
+  end subroutine py_ifft
+  subroutine py_rfft(self_int,f1,f2)
+    !f2py threadsafe
+    integer(kind = dp), intent(in) :: self_int
+    real(kind = dp), intent(in) :: f1(:,:,:)
+    complex(kind = dp), intent(inout) :: f2(:,:,:)
+    type(so3ft_ptr) :: self_ptr
+    type(so3ft),pointer :: self
+    call int_to_soft_pointer(self_int,self_ptr,self)
+    call self%rfft(f1,f2)
+  end subroutine py_rfft
+  subroutine py_irfft(self_int,f1,f2)
+    !f2py threadsafe
+    integer(kind = dp), intent(in) :: self_int
+    complex(kind = dp), intent(in) :: f1(:,:,:)
+    real(kind = dp), intent(inout) :: f2(:,:,:)
+    type(so3ft_ptr) :: self_ptr
+    type(so3ft),pointer :: self
+    call int_to_soft_pointer(self_int,self_ptr,self)
+    call self%irfft(f1,f2)
+  end subroutine py_irfft
+
 end module py
 
