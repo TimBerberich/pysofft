@@ -1,13 +1,14 @@
 import numpy as np
-from pysofft import _soft2
-from pysofft._soft2 import py
-from pysofft._soft2 import softclass
+from pysofft import _soft
+from pysofft._soft import py
+from pysofft._soft import softclass
 import os
+utils = _soft.utils
 
 #Temporary untill propper logging is implemented
 def log(txt):
     print(txt)
-    
+        
 class Soft:
     _fortran_pointer = None
     _wisdom_path = os.path.expanduser('~/.config/pysofft/fftw_wisdom.dat')
@@ -33,6 +34,7 @@ class Soft:
         self._fortran_pointer = py.py_init_soft(bw,lmax,precompute_wigners,init_ffts,fftw_flags)
         if enable_fftw_wisdom:
             softclass.export_fftw_wisdom(self._wisdom_path)
+        self._lmns = None
             
     def __del__(self):
         py.py_destroy(self._fortran_pointer)
@@ -54,6 +56,12 @@ class Soft:
     @property
     def fftw_flags(self):
         return py.py_get_fftw_flags(self._fortran_pointer)
+    @property
+    def coeff_indices(self):
+        if self._lmns is None:
+            self._lmns=utils.get_coeff_degrees(self.bw)
+            self._lmns.flags.writeable=False
+        return self._lmns
     def reset(self,
               bw,
               lmax=None,
@@ -67,8 +75,41 @@ class Soft:
         py.py_reset(self._fortran_pointer,bw,lmax,precompute_wigners,init_ffts,fftw_flags)
         if enable_fftw_wisdom:
             softclass.export_fftw_wisdom(self._wisdom_path)
+
     def init_ffts(self,real_fft=False):
         py.py_init_fft(self._fortran_pointer,real_fft)
+        
+    @staticmethod
+    def _fill_random(arr,seed=12345):
+        rng = np.random.default_rng(seed)
+        arr[...] = rng.random(arr.shape)
+        if np.isdtype(arr.dtype,np.dtype(complex)):
+            arr += 1.j*rng.random(arr.shape)
+        return arr
+
+    def get_coeff(self, real=False, random = False, seed=12345,raw=False):
+        coeff = utils.get_empty_coeff(self.bw)
+        if random:
+            coeff = self._fill_random(coeff,seed=seed)
+            if real:
+                utils.enforce_real_sym(coeff,self.bw)
+        if not raw:
+            coeff = CoeffSO3(coeff,self.coeff_indices)
+        return coeff
+
+    def get_so3func(self,real=False,random=False,seed=12345):
+        if real:
+            func = utils.get_empty_so3func_real(self.bw)
+        else:
+            func = utils.get_empty_so3func_cmplx(self.bw)
+        if random:
+            func = self._fill_random(func,seed=seed)
+        return func
+
+    def get_so3func_halfcmplx(self,random=False,seed=12345):
+        func = utils.get_empty_so3func_halfcmplx(self.bw)
+        if random:
+            func = self._fill_random(func,seed=seed)
         
     # Transforms
     def _inverse_wigner_trf_cmplx(self,coeff,so3func,use_mp = False):
@@ -79,6 +120,7 @@ class Soft:
         py.py_inverse_wigner_trf_real(self._fortran_pointer,coeff,so3func,use_mp)
     def _forward_wigner_trf_real(self,so3func,coeff,use_mp = False):
         py.py_forward_wigner_trf_real(self._fortran_pointer,so3func,coeff,use_mp)
+
     def soft(self,so3func,coeff,use_mp=False):
         py.py_soft(self._fortran_pointer,so3func,coeff,use_mp)
     def isoft(self,coeff,so3func,use_mp=False):
@@ -111,3 +153,155 @@ class Soft:
         py.py_rfft(self._fortran_pointer,f1,f2)
     def irfft(self,f1,f2):
         py.py_irfft(self._fortran_pointer,f1,f2)
+
+# Syntactic sugar section
+class CoeffSO3(np.ndarray):
+    r"""
+    A class to wrap SO3 fourier coefficients that provides easy access to individual coefficents
+    
+    Attributes
+    ----------
+    bw : int
+    Bandwidth of the distribution.
+    lnk : CharView
+    allows to acces $M_{lnk}$ by its indices l,n,k
+    """
+    def __new__(cls, coeff,lmns):
+        # Input array is an already formed ndarray instance
+        # We first cast to be our class type
+        obj = np.asarray(coeff).view(cls)
+        
+         # add the new attribute to the created instance
+        lmns.flags.writeable = False
+        obj._lmns = lmns
+        obj.lmn = CoeffView(obj,lmns)
+        obj.bw = obj.lmn.bw
+        
+        # Finally, we must return the newly created object:
+        return obj
+
+    def __array_finalize__(self, obj):
+        # see InfoArray.__array_finalize__ for comments
+        if obj is None: return
+        self.info = getattr(obj, 'info', None)
+
+    def __array_ufunc__(self, ufunc, method, *inputs, out=None, **kwargs):
+        # Enables ufuncs like +,-,*,/ to preserve the additional attributes _lmns,lmn,bw
+        
+        # convert args and output to ndarray
+        args = []
+        for i, input_ in enumerate(inputs):
+            if isinstance(input_, CoeffSO3):
+                args.append(input_.view(np.ndarray))
+            else:
+                args.append(input_)
+        outputs = out
+        if outputs:
+            out_args = []
+            for j, output in enumerate(outputs):
+                if isinstance(output, CoeffSO3):
+                    out_args.append(output.view(np.ndarray))
+                else:
+                    out_args.append(output)
+            kwargs['out'] = tuple(out_args)
+        else:
+            outputs = (None,) * ufunc.nout
+
+        # compute ufuncs
+        results = super().__array_ufunc__(ufunc, method, *args, **kwargs)
+        if results is NotImplemented:
+            return NotImplemented
+
+        if ufunc.nout == 1:
+            results = (results,)
+            
+        if method == 'at':
+            if isinstance(inputs[0], c):
+                inputs[0].info = info
+            return
+        
+        # Convert result back to CoeffSO3
+        results = list((np.asarray(result).view(CoeffSO3)
+                         if output is None else output)
+                        for result, output in zip(results, outputs))
+        
+        #If the shape did not change add back the propper attributes
+        if len(inputs)>0:
+            coeff_inputs = tuple(i for i in inputs if isinstance(i,CoeffSO3))
+            for res_id,res in enumerate(results):
+                res_modified = False
+                for inp in coeff_inputs:
+                    if res.shape == inp.shape:
+                        res._lmns = inp._lmns
+                        res.lmn = CoeffView(res,res._lmns)
+                        res.bw = res.lmn.bw
+                        res_modified = True
+                        break
+                if not res_modified:
+                    results[res_id]=res.view(np.ndarray)
+                
+        return results[0] if len(results) == 1 else results
+class CoeffView:
+    """
+    Helper class that allows to access a characteristic function $M_{l,n,k}$ by its indices l,n,k.
+    i.e. charview[l,n,k] returns  $M_{l,n,k}$. It is also possible to use slice notation i.e.
+    charview[:,0,:] returns a view into $M_{l,n,k}$ corresponding to all values with n=0. 
+
+    Attributes
+    ----------
+    bw : int
+    Bandwidth
+    array : np.ndarray, ((4*bw**4-bw)/3,), complex
+    characteristic function array
+    ls : np.ndarray, (bw,), int64
+    l indices 0,...,bw
+    ns : np.ndarray, (2*bw+1), int64
+    n indices  0,...,bw,-bw+1,...,-1
+    ks : np.ndarray, (2*bw+1), int64
+    k indices  0,...,bw,-bw+1,...,-1
+    _lnks: np.ndarray, (3,(4*bw**4-bw)/3), int64
+    l,n,k value grid
+    _lookups : np.ndarray, ((4*bw**4-bw)/3,), int64
+    array ids associated to each entry of _lnks  
+    """
+    def __init__(self,coeff_array,lnks):
+        self.array = coeff_array
+        self._lnks = lnks
+        self.ls = np.sort(np.unique(lnks[:,0]))
+        bw = len(self.ls)
+        self.bw = bw
+        self.ns = np.roll(np.sort(np.unique(lnks[:,1])),bw)
+        self.ks = np.roll(np.sort(np.unique(lnks[:,2])),bw)
+    def _get_mask(self,items):
+        if not isinstance(items,tuple):
+            items = (items,)
+        assert len(items)<=3
+        if (len(items)==3) and np.prod(tuple(isinstance(i,int) for i in items)):
+            id_ = utils.coeff_location(items[1],items[2],items[0],self.bw)-1
+            out = slice(id_,id_+1)
+        elif (len(items)==3) and np.prod(tuple(isinstance(i,int) for i in items[1:])) and isinstance(items[0],slice):
+            id_ = utils.coeff_slice(items[1],items[2],self.bw)
+            id_[0] -= 1
+            if (items[0].start is None) and (items[0].stop is None):
+                step = items[0].step
+                if step is None:
+                    out = slice(id_[0],id_[1])
+                elif step>=0:
+                    out = slice(id_[0],id_[1],step)
+                else:
+                    out = slice(id_[1]-1,id_[0]-1,step)
+            else:
+                selection_ids=[ids[sel] for sel,ids in zip(items,[self.ls,self.ns,self.ks])]
+                masks = [np.isin(lnk,sids) for sids,lnk in zip(selection_ids,self._lnks.T)]
+                out = np.prod(masks,axis = 0,dtype=bool)
+        else:
+            selection_ids=[ids[sel] for sel,ids in zip(items,[self.ls,self.ns,self.ks])]
+            masks = [np.isin(lnk,sids) for sids,lnk in zip(selection_ids,self._lnks.T)]
+            out = np.prod(masks,axis = 0,dtype=bool)
+        return out
+    def __getitem__(self, items):        
+        mask = self._get_mask(items)
+        return self.array[mask]
+    def __setitem__(self,items,value):
+        m = self._get_mask(items)
+        self.array[m] = value

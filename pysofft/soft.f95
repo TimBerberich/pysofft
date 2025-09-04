@@ -60,6 +60,7 @@ contains
     ids(1) = (1_dp-sign(1_dp,m1))/2_dp*bw2 + m1+1_dp
     ids(2) = (1_dp-sign(1_dp,m2))/2_dp*bw2 + m2+1_dp
   end function order_to_ids
+    
   function coeff_slice_legacy(m1,m2,bw) result(slice)
     ! So sample_slice tells me the location of the samples 
     ! needed to do the order (m1,m2)-Wigner-transform on the
@@ -133,7 +134,7 @@ contains
     !      if m1==m2, cycle
     !      f_{m2,-m1}
     !      f_{-m2,m1}
-    !
+
     integer(kind=dp), intent(in) :: n1,n2,bw
     integer(kind=dp) :: m(2),slice(2),an1,an2,temp1,temp2,temp3
     logical :: swapped,n1_neg,n2_neg
@@ -163,6 +164,68 @@ contains
     slice(2) = slice(1) + bw-m(2)
     slice(1) = slice(1) + 1_dp ! 1 indexing
   end function coeff_slice
+  function get_coeff_degrees(bw) result(lmn)
+    !! Returns an array containing all valid l,m,n coefficient combinations
+    !! in the native order they are stored in.
+    integer(kind = dp), intent(in) :: bw
+    integer(kind = dp) :: lmn((4_dp*(bw*bw*bw)-bw)/3_dp,3)
+    integer(kind = dp) :: m1,m2,cslice(2),ls(bw),l
+    do l=0,bw-1
+       ls(l+1)=l
+    end do
+    
+    do m1 = 0, bw-1
+       do m2 = m1, bw-1
+          cslice = coeff_slice(m1,m2,bw)
+          lmn(cslice(1):cslice(2),1) = ls(m2+1:)
+          lmn(cslice(1):cslice(2),2) = m1
+          lmn(cslice(1):cslice(2),3) = m2
+
+          if ((m1==0) .and. (m2==0)) cycle
+
+          cslice = coeff_slice(-m2,-m1,bw)
+          lmn(cslice(1):cslice(2),1) = ls(m2+1:)
+          lmn(cslice(1):cslice(2),2) = -m2
+          lmn(cslice(1):cslice(2),3) = -m1
+
+          if (m1/=m2) then
+             cslice = coeff_slice(m2,m1,bw)
+             lmn(cslice(1):cslice(2),1) = ls(m2+1:)
+             lmn(cslice(1):cslice(2),2) = m2
+             lmn(cslice(1):cslice(2),3) = m1
+
+             cslice = coeff_slice(-m1,-m2,bw)
+             lmn(cslice(1):cslice(2),1) = ls(m2+1:)
+             lmn(cslice(1):cslice(2),2) = -m1
+             lmn(cslice(1):cslice(2),3) = -m2
+          end if
+
+          if ((m1==0) .or. (m2==0)) cycle
+          
+          cslice = coeff_slice(m1,-m2,bw)
+          lmn(cslice(1):cslice(2),1) = ls(m2+1:)
+          lmn(cslice(1):cslice(2),2) = m1
+          lmn(cslice(1):cslice(2),3) = -m2
+          
+          cslice = coeff_slice(-m1,m2,bw)
+          lmn(cslice(1):cslice(2),1) = ls(m2+1:)
+          lmn(cslice(1):cslice(2),2) = -m1
+          lmn(cslice(1):cslice(2),3) = m2
+
+          if (m1==m2) cycle
+
+          cslice = coeff_slice(m2,-m1,bw)
+          lmn(cslice(1):cslice(2),1) = ls(m2+1:)
+          lmn(cslice(1):cslice(2),2) = m2
+          lmn(cslice(1):cslice(2),3) = -m1
+
+          cslice = coeff_slice(-m2,m1,bw)
+          lmn(cslice(1):cslice(2),1) = ls(m2+1:)
+          lmn(cslice(1):cslice(2),2) = -m2
+          lmn(cslice(1):cslice(2),3) = m1
+       end do
+    end do
+  end function get_coeff_degrees
   
   function wigLen_so3(m1,m2,bw) result(wigLen)
     ! Returns the number of small wigner d values d_{m1,m2}^l(\beta)
