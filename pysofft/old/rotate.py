@@ -19,10 +19,10 @@ def wignerdmat(L,matIn,trigs,sqrts):
             matOut[:tmpdim**2]=0
             for i in range(deg):
                 for j in range(deg):
-                    matOut[(i*tmpdim)+j] += rdeg*sqrts[deg-i]*sqrts[deg-j]* tmp[(i*deg)+j]*cosVal 
-                    matOut[((i+1)*tmpdim)+j] -= rdeg*sqrts[i+1]*sqrts[deg-j]*  tmp[(i*deg)+j]*sinVal 
-                    matOut[(i*tmpdim)+(j+1)] +=  rdeg*sqrts[deg-i]*sqrts[j+1]* tmp[(i*deg)+j]*sinVal
-                    matOut[((i+1)*tmpdim)+(j+1)] +=  rdeg*sqrts[i+1]*sqrts[j+1]* tmp[(i*deg)+j]*cosVal
+                    matOut[(i*tmpdim)+j]         +=  rdeg*sqrts[deg-i]*sqrts[deg-j]* tmp[(i*deg)+j]*cosVal 
+                    matOut[((i+1)*tmpdim)+j]     -=  rdeg*sqrts[i+1]  *sqrts[deg-j]*  tmp[(i*deg)+j]*sinVal 
+                    matOut[(i*tmpdim)+(j+1)]     +=  rdeg*sqrts[deg-i]*sqrts[j+1]  * tmp[(i*deg)+j]*sinVal
+                    matOut[((i+1)*tmpdim)+(j+1)] +=  rdeg*sqrts[i+1]  *sqrts[j+1]  * tmp[(i*deg)+j]*cosVal
                     #print("i,j = ",i,j, 'c: ',tmp[(i*deg)+j])            
             if deg == 2*L-1:
                 tmp[:] = matOut[:(2*L)**2]
@@ -42,6 +42,9 @@ def wignerdmat(L,matIn,trigs,sqrts):
         matOut[8] = matOut[0]
     #print('matOut', matOut)
     return matOut
+
+
+
 
 
 #Assumes f_{L,m} is given as coeff[m] for m in -L<=m<=L

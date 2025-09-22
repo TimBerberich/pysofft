@@ -22,7 +22,8 @@ class Soft:
                  fftw_flags = 0,
                  enable_fftw_wisdom=False,
                  fftw_wisdom_path=None):
-        
+        if lmax is None:
+            lmax = bw-1
         self.enable_fftw_wisdom = enable_fftw_wisdom
         if enable_fftw_wisdom:
             if isinstance(fftw_wisdom_path,str):

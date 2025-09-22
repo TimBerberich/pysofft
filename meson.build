@@ -6,3 +6,4 @@ project('pysofft','c',
 add_languages('fortran','c')
 
 subdir('pysofft')
+subdir('pysofft/old')

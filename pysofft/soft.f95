@@ -61,60 +61,6 @@ contains
     ids(2) = (1_dp-sign(1_dp,m2))/2_dp*bw2 + m2+1_dp
   end function order_to_ids
     
-  function coeff_slice_legacy(m1,m2,bw) result(slice)
-    ! So sample_slice tells me the location of the samples 
-    ! needed to do the order (m1,m2)-Wigner-transform on the
-    ! just fft'd data.
-    !
-    ! This function, coeff_slice, tells me where in the coefficient
-    ! array I should place the evaluated inner-products
-    ! for bandwidth bw of the transform.
-    integer(kind = dp) :: m1,m2,bw,sqrbw,m,size,slice(2)
-    integer(kind = dp) :: start,a1,a2,lsum
-    a1 = abs(m1)
-    a2 = abs(m2)
-    m = max(a1,a2)
-    if (m>=bw) then
-       print *, "Out of bounds error (coeff_slice): |m1|>bw or |m2|>bw"
-       stop
-    end if
-    sqrbw = bw*bw
-    size = bw-m       
-    
-    ! lsum is the number of coefficients with m1,n2,bw 
-    ! where n2 ranges from (0 to m2-1) or (m2 to 1) depending on the sign of m2
-    ! NOTE the below code coputes this without branching using
-    ! (1_dp-sign(1_dp,a2-a1))/2_dp  <=>  if a1>=a2 then 1_dp else 0_dp
-    ! (1_dp-sign(1_dp,a1-a2-1))/2_dp  <=>  if a2>a1 then 1_dp else 0_dp
-    lsum = (1_dp-sign(1_dp,a2-a1))/2_dp * a2*(bw-a1) &     
-         &+ (1_dp-sign(1_dp,a1-a2-1_dp))/2_dp &
-         &* (a2*(2_dp*bw-a2+sign(1_dp,m2))-a1*(a1+sign(1_dp,m2)))/2_dp
-    lsum = lsum*sign(1_dp,m2)
-    
-    
-    ! no branching version
-    ! (1_dp-sign(1_dp,m1))/2_dp  <=>  if m1>=0 then 1_dp else 0_dp
-    start = total_num_coeffs(bw)*(1_dp-sign(1_dp,m1))/2_dp &
-         &+ sqrbw*(m1+(1_dp-sign(1_dp,m2))/2_dp) &
-         &- (m1-sign(1_dp,m2))*m1*(2_dp*m1 - sign(1_dp,m2))/6_dp
-    
-    start = start + lsum
-    start = start + 1_dp ! +1 due to fortran indexing starting at 1   
-    slice(1) = start
-    slice(2) = start + (size-1)
-  end function coeff_slice_legacy
-  function coeff_location(m1,m2,l,bw) result(id)
-    ! This function returns the index of the coefficient array corresponding to f_{m1,m2}^l.
-    ! Note that this index has to lie within the slice given by coefLoc_so3.
-    integer(kind = dp) :: m1,m2,bw,l,m,slice(2),id
-    slice = coeff_slice(m1,m2,bw)
-    m =  max(abs(m1),abs(m2))
-    if (l<m .OR. l>bw) then
-       print *, "Out of bounds error (coeff_location): l does not satisfy max(|m1|,|m2|) <= l < bw "
-       stop
-    end if
-    id = slice(1)+l-m
-  end function coeff_location
   function coeff_slice(n1,n2,bw) result(slice)
     ! Returns the slice of coefficients f_(n1,n2)^l for all possible l valaues.
     ! It is chosen such that in loops of the follwing type memory access
@@ -164,6 +110,18 @@ contains
     slice(2) = slice(1) + bw-m(2)
     slice(1) = slice(1) + 1_dp ! 1 indexing
   end function coeff_slice
+  function coeff_location(m1,m2,l,bw) result(id)
+    ! This function returns the index of the coefficient array corresponding to f_{m1,m2}^l.
+    ! Note that this index has to lie within the slice given by coefLoc_so3.
+    integer(kind = dp) :: m1,m2,bw,l,m,slice(2),id
+    slice = coeff_slice(m1,m2,bw)
+    m =  max(abs(m1),abs(m2))
+    if (l<m .OR. l>bw) then
+       print *, "Out of bounds error (coeff_location): l does not satisfy max(|m1|,|m2|) <= l < bw "
+       stop
+    end if
+    id = slice(1)+l-m
+  end function coeff_location
   function get_coeff_degrees(bw) result(lmn)
     !! Returns an array containing all valid l,m,n coefficient combinations
     !! in the native order they are stored in.
@@ -227,39 +185,31 @@ contains
     end do
   end function get_coeff_degrees
   
-  function wigLen_so3(m1,m2,bw) result(wigLen)
-    ! Returns the number of small wigner d values d_{m1,m2}^l(\beta)
-    ! for a given choice of m1,m2 and bw.
-    ! Since beta is sampled at twice the bandwith the number of values is
-    !
-    ! number of values = (number of possible l) * 2*bw
-    integer(kind = dp) :: m1,m2,m,bw,wigLen
-    m = max(abs(m1),abs(m2))
-    if (m>=bw) then
-       print *, "Out of bounds error (wigLen_so3): |m1|>bw or |m2|>bw"
-       stop
-    end if
-    wigLen = (bw-m)*2*bw 
-  end function wigLen_so3
   function euler_shape(bw) result(eshape)
     integer(kind=dp), intent(in) :: bw
     integer(kind=dp) :: eshape(3)
     eshape = 2*bw
   end function euler_shape
-  
+
+  !> ----------
+  !! @brief Computes even legendre weights
+  !!
+  !! This function computes the even legendre weights
+  !! used in the quadrature of the SOFT algorithm
+  !! For a fixed bandwith (bw) the weights are the
+  !! unique solutions to the problem:
+  !!
+  !! $$\sum_{k=0}^{2\text{bw}-1} w_{\text{bw}}(k) P_m(\cos(\beta_k)) = \delta_{0,m} \quad \forall 0 \leq m \leq \text{bw}$$ 
+  !!
+  !! where the sampling angles are given by $$ \beta 1_k = \frac{\pi(2k+1)}{4 bw} $$
+  !! Their closed form expression is given by:
+  !!
+  !! $$ w_{\text{bw}}(k) = \frac{2}{\text{bw}}\sin(\frac{\pi(2k+1)}{4\text{bw}}) \sum_{j=0}^{\text{bw}-1}\frac{1}{2j+1}\sin((2k+1)(2j+1)\frac{\pi}{4\text{bw}})$$
+  !! both of these Formulas can be found in equations (2.13) and (2.14) of
+  !! :cite: P.J. Kostelec and D.N. Rockmore, J Fourier Anal Appl (2008) 14: 145–179
+  !! The proof of the closed form is contained in>
+  !! :cite: Driscoll, J.R., Healy, D.:  Proc. 34th IEEE FOCS (1989), pp. 344–349. Adv. in Appl. Math., vol. 15, pp. 202–250 (1994)
   function legendre_quadrature_weights(bw) result(weights)
-    ! This function computes the even legendre weights
-    ! used in the quadrature of the SOFT algorithm
-    ! For a fixed bandwith (bw) the weights are the
-    ! unique solutions to the problem:
-    ! $$\sum_{k=0}^{2\text{bw}-1} w_{\text{bw}}(k) P_m(\cos(\beta_k)) = \delta_{0,m} \quad \forall 0\leq m \leq \text{bw}$$
-    ! where the sampling angles are given by $$\beta_k = \frac{\pi(2k+1)}{4\text{bw}} $$
-    ! Their closed form expression is given by:
-    ! $$ w_{\text{bw}}(k) = \frac{2}{\text{bw}}\sin(\frac{\pi(2k+1)}{4\text{bw}}) \sum_{j=0}^{\text{bw}-1}\frac{1}{2j+1}\sin((2k+1)(2j+1)\frac{\pi}{4\text{bw}})$$
-    ! both of these Formulas can be found in equations (2.13) and (2.14) of
-    ! :cite: P.J. Kostelec and D.N. Rockmore, J Fourier Anal Appl (2008) 14: 145–179
-    ! The proof of the closed form is contained in>
-    ! :cite: Driscoll, J.R., Healy, D.:  Proc. 34th IEEE FOCS (1989), pp. 344–349. Adv. in Appl. Math., vol. 15, pp. 202–250 (1994)
     integer(kind = dp) :: bw,j,k
     real(kind = dp) :: weights(2*bw),tempsum,k_odd,j_odd,xi
     xi = pi/real(4_dp*bw,kind=dp)
@@ -315,25 +265,28 @@ contains
     end do
   end subroutine enforce_real_sym
 
-  pure function triangular_size(bw) result(tri_size)
+  ! Indexing tricks section
+
+  
+  !< --------------
+  !! 
+  function triangular_size(bw) result(tri_size)
     !! Consider the triangular index 0<=i<=j<bw
     !! This function returns the total number of possible pairs i,j
     integer(kind = dp),intent(in) :: bw
     integer(kind = dp) :: tri_size
     tri_size = (bw*(bw+1))/2_dp
   end function triangular_size
-  
-  pure function pyramid_size(bw) result(pyr_size)
+  function pyramid_size(bw) result(pyr_size)
     !! consider the pyramid index 0<=i<bw and -i<=j<=i
     !!This function returns the total number of possible pairs i,j
     integer(kind = dp),intent(in) ::bw
     integer(kind = dp) :: pyr_size
     pyr_size = bw**2
   end function pyramid_size
-  
   subroutine flat_to_pyramid_index(i,j,k)
     ! Converts a running index k=0 to bw*(bw+1)/2-1 into
-    ! a triangular double index i,j with  0<=i<kw and i<=j<=bw
+    ! a triangular double index i,j with  0<=i<bw and i<=j<=bw
     ! This allows to reformulate Triangular loops as simple loops via
     ! do k=1, (N+1)**2
     !    call flat_to_pyramid_index(i,j,k)
@@ -345,15 +298,27 @@ contains
     i = int(SQRT(real(k-1,dp)),kind = dp)
     j = -i+(k-1)-i**2 
   end subroutine flat_to_pyramid_index
+  !> ---------------------
+  !! @brief Converts a 1d index k to a triagonal double index (i,j).
+  !!
+  !! Converts a running index k=0 to (N+1)*(N+2)/2-1 into
+  !! a triangular double index i,j with  0<=i<kw and i<=j<=bw
+  !! This allows to reformulate Triangular loops as simple loops via
+  !!\code{.fortran}
+  !! do i=0,N
+  !!   do j=i,N
+  !!     print*,i,j   
+  !!   end do
+  !! end do
+  !!\endcode
+  !! with 
+  !!\code{.fortran}
+  !! do k=1,((N+1)*(N+2))/2_dp
+  !!   triangular_to_flat(i,j,k,N)
+  !!   print*,i,j    
+  !! end do
+  !!\endcode
   subroutine flat_to_triangular_index(i,j,k,N)
-    ! Converts a running index k=0 to bw*(bw+1)/2-1 into
-    ! a triangular double index i,j with  0<=i<kw and i<=j<=bw
-    ! This allows to reformulate Triangular loops as simple loops via
-    ! do k=1, (N+1)*(N+2)/2
-    !    call flat_to_triangular_index(i,j,k,bw)
-    ! is the same as
-    ! do i=0,N
-    !   do j=i,N
     integer(kind = dp), intent(inout) :: i,j
     integer(kind = dp), intent(in) :: k,N
     i = int(-SQRT(real((2_dp*N+3_dp)**2-8_dp*(k-1_dp),kind = dp))+real(2_dp*N+3_dp,kind=dp),kind=dp)/2_dp
@@ -361,24 +326,23 @@ contains
     !i = (-int(SQRT(real((2_dp*N+3_dp)**2-8_dp*(k-1_dp),kind = dp)),kind = dp)+2_dp*N+3_dp)/2_dp
     !j =  (k-1_dp)-i*(2_dp*N+1_dp-i)/2_dp
   end subroutine flat_to_triangular_index
-
+  !> ------------------
+  !! @brief Converts triangular index (i,j) to 1d index.
+  !!
+  !! Consider the triangular index $0<=i<=j<\text{bw}$.
+  !! 
+  !! This function converts an index (i,j) to a one dimensional index.
+  !! For fixed $i$ the differenct possible values of $j$ are contiguous in the one dimesional representation. 
   function triangular_to_flat_index(i,j,bw) result(id)
-    !! Consider the triangular index 0<=i<=j<bw 
-    !! This function returns the slice of of a flattened array that corresponds
-    !! to all valid j for a fixed i.
-    !! This function allows to store a triangular array in a j contiguous way
-    !! Designed for the following loops
-    !! do i=0,bw-1
-    !!    do j=i,bw-1
-    integer(kind = dp), intent(in) :: i,j,bw
-    integer(kind = dp) :: id
+    integer(kind = dp), intent(in) :: i,j,bw 
+    integer(kind = dp) :: id 
     id = (i*(2_dp*bw-i+1_dp))/2_dp + j-i + 1_dp
   end function triangular_to_flat_index
+  !> Consider the triangular index 0<=i<=j<bw 
+  !! This function returns the slice of of a flattened array that corresponds
+  !! to all valid i for a fixed j.
+  !! This function allows to store a triangular array in an i contiguous way
   function triangular_to_flat_index_reversed(j,i) result(id)
-    !! Consider the triangular index 0<=i<=j<bw 
-    !! This function returns the slice of of a flattened array that corresponds
-    !! to all valid i for a fixed j.
-    !! This function allows to store a triangular array in a i contiguous way
     integer(kind = dp), intent(in) :: j,i
     integer(kind = dp) :: id
     id = (j*(j+1_dp))/2_dp + i +1_dp
@@ -422,33 +386,35 @@ contains
     slice(1) = (mnl_to_flat_index(m,n,n,bw)-1_dp)*pad_size+1_dp
     slice(2) = slice(1) + pad_size*(bw - n) - 1_dp 
   end function mnl_to_flat_l_slice_padded
-  
-  pure function LMc(l,m) result(index)
-    ! Index for the spherical harmonic coefficient Y_lm for complex data.
-    ! This is the same convention used by the software SHTNS
-    ! https://nschaeff.bitbucket.io/shtns/index.html
-    ! Complex data => Coefficients are ordered by l and m contiguous
-    ! Loops of the following kind are contiguous in memory with this indexing
-    ! do l in [0,1,..., bw-1]
-    !   do m in [-(bw-1),...,bw-1]
+
+  !> ----------
+  !! Index for the spherical harmonic coefficient Y_lm for complex data.
+  !! This is the same convention used by the software SHTNS
+  !! https://nschaeff.bitbucket.io/shtns/index.html
+  !! Complex data => Coefficients are ordered by l and m contiguous
+  !! Loops of the following kind are contiguous in memory with this indexing
+  !! do l in [0,1,..., bw-1]
+  !!   do m in [-(bw-1),...,bw-1]
+  function LMc(l,m) result(index)
     integer(kind = dp),intent(in) :: l,m
     integer(kind = dp) :: index
     index = l*(l+1_dp)+m+1_dp
   end function LMc
 
-  pure function MLr(m,l,bw) result(index)
-    ! Index for the spherical harmonic coefficient Y_lm for real data.
-    ! This is the same convention used by the software SHTNS
-    ! https://nschaeff.bitbucket.io/shtns/index.html
-    ! Real data => Coefficients are ordered by m and l contiguous
-    ! Loops of the following kind are contiguous in memory with this indexing
-    ! do m in [0,1,..., bw-1]
-    !   do l in [m,...,bw-1]
+  !> ----------
+  !! Index for the spherical harmonic coefficient Y_lm for real data.
+  !! This is the same convention used by the software SHTNS
+  !! https://nschaeff.bitbucket.io/shtns/index.html
+  !! Real data => Coefficients are ordered by m and l contiguous
+  !! Loops of the following kind are contiguous in memory with this indexing
+  !! do m in [0,1,..., bw-1]
+  !!   do l in [m,...,bw-1]
+  function MLr(m,l,bw) result(index)
     integer(kind = dp),intent(in) :: l,m,bw
     integer(kind = dp) :: index
     index = (m*(2_dp*bw-1_dp-m))/2_dp + l + 1_dp
   end function MLr
-  pure function MLr_slice(m,bw) result(slice)
+  function MLr_slice(m,bw) result(slice)
     integer(kind = dp), intent(in) :: m,bw
     integer(kind = dp) :: slice(2)
 
@@ -456,24 +422,27 @@ contains
     slice(2) = slice(1) + bw-m-1_dp
   end function MLr_slice
 
-  pure function MLc(m,l,bw) result(index)
-    ! Index for the spherical harmonic coefficient Y_lm for complex data.
-    ! Custom vesion that is ordered by m and l contiguous,
-    ! while positive and negative m are interleaved.
-    ! Loops of the following kind are contiguous in memory with this indexing
-    ! do m in [0,1,-1,2,-2,..., bw-1,-(bw-1)]
-    !   do l in [|m|,...,bw-1]
+  !> ----------
+  !! Index for the spherical harmonic coefficient Y_lm for real data.
+  !! Custom vesion that is ordered by m and l contiguous,
+  !! while positive and negative m are interleaved.
+  !! Loops of the following kind are contiguous in memory with this indexing
+  !! do m in [0,1,-1,2,-2,..., bw-1,-(bw-1)]
+  !!   do l in [|m|,...,bw-1]
+  function MLc(m,l,bw) result(index)
     integer(kind = dp),intent(in) :: l,m,bw
     integer(kind = dp) :: index
     index = MAX(0, ABS(m)*(2_dp*bw - ABS(m)) - bw) + MERGE(0_dp,bw-abs(m),m>=0) + l + 1_dp
   end function MLc
-  pure function MLc_slice(m,bw) result(slice)
-    ! Index for the spherical harmonic coefficient Y_lm for complex data.
-    ! Custom vesion that is ordered by m and l contiguous,
-    ! while positive and negative m are interleaved.
-    ! Loops of the following kind are contiguous in memory with this indexing
-    ! do m in [0,1,-1,2,-2,..., bw-1,-(bw-1)]
-    !   do l in [|m|,...,bw-1]
+
+  !> ------------
+  !! Index for the spherical harmonic coefficient Y_lm for complex data.
+  !! Custom vesion that is ordered by m and l contiguous,
+  !! while positive and negative m are interleaved.
+  !! Loops of the following kind are contiguous in memory with this indexing
+  !! do m in [0,1,-1,2,-2,..., bw-1,-(bw-1)]
+  !!   do l in [|m|,...,bw-1]
+  function MLc_slice(m,bw) result(slice)
     integer(kind = dp),intent(in) :: m,bw
     integer(kind = dp) :: slice(2)
     
@@ -577,22 +546,21 @@ contains
     real(kind = dp),intent(in) :: sincos(:),cos2(:)
     logical,intent(in) :: normalized
     !f2py logical :: normalized = TRUE
-    integer(kind = dp) :: i,l,swap_id,nc1,nc2
+    integer(kind = dp) :: i,l,swap_id,swap_id2,nc1,nc2
 
     !Normalization defining constants
     nc1 = MERGE(2_dp,1_dp,normalized)
     nc2 = nc1+1_dp
     
-    swap_id = m+1
-    do i=1,min(bw-m,swap_id)
+    swap_id = m+1_dp
+    swap_id2 =Merge(m,swap_id,(m==0))
+    do i=1,min(bw-m,swap_id2)
        !(l,m-1 -> l+1,m)
        l=m+(i-1_dp)-1_dp
-       ! Don't substitute the following by dlml(:,i)*1._dp for m==0 
-       ! This will cause tiny rounding errors that can accumulate for very high iterative recursion calls.
-       dlml(:,i) = MERGE(dlml(:,i), dlml(:,i) * SQRT(real((2_dp*l+nc1)*(2_dp*l+nc2),kind=dp)/real((l+m)*(l+m+1_dp),kind=dp))*cos2,m==0)
+       dlml(:,i) = dlml(:,i) * SQRT(real((2_dp*l+nc1)*(2_dp*l+nc2),kind=dp)/real((l+m)*(l+m+1_dp),kind=dp))*cos2
     end do
-    do i=swap_id,bw-m-1
-       !(l-> l+1)
+    do i=swap_id,bw-m-1_dp
+       !(l -> l+1)
        l=m+(i-1_dp)
        dlml(:,i+1) = dlml(:,i) * SQRT(real((2_dp*l+nc1)*(2_dp*l+nc2),kind=dp)/real((l+m+1_dp)*(l-m+1_dp),kind=dp))*sincos
     end do
@@ -636,7 +604,7 @@ contains
     end do
   end function compute_all_dlml_l_contiguous
   subroutine dlml_recursion_m_contiguous(dlml,l,bw,sincos,cos2,normalized)
-    !! dlml for all l at fixed m. Has to be of size [Size(sincos,1),bw]
+    !! dlml for all m at fixed l. Has to be of size [Size(sincos,1),bw]
     real(kind = dp),intent(inout) :: dlml(:,:)
     !! bandwidth 0<=l<bw
     integer(kind=dp),intent(in) :: l,bw
@@ -701,7 +669,7 @@ contains
     end do
   end function compute_all_dlml_m_contiguous
 
-  subroutine wig_l_recurrence(workspace,cos,l,m1,m2,normalized)
+  subroutine wig_l_recurrence_kostelec(workspace,cos,l,m1,m2,normalized)
     !
     integer(kind = dp), intent(in) :: l,m1,m2
     real(kind = dp),intent(in) :: cos(:)
@@ -745,7 +713,7 @@ contains
        !end do
     end if
     
-  end subroutine wig_l_recurrence
+  end subroutine wig_l_recurrence_kostelec
   function genWig_L2(m1,m2,bw,cos,dlml) result(wigners_m1m2)
     !  Given orders 0<=m1<=m2<=bw, and a bandwidth bw, this function will
     !  generate all the Wigner little d functions whose orders
@@ -805,7 +773,7 @@ contains
     !print * , 'lstart', l_start,'m1m2',m1,m2
     do i=1, bw-l_start-1
        l=l_start+(i-1_dp)
-       call wig_l_recurrence(workspace,cos,l,m1,m2,.TRUE.)
+       call wig_l_recurrence_kostelec(workspace,cos,l,m1,m2,.TRUE.)
        o = MODULO(i+1_dp,3)+1_dp
        wigners_m1m2(:,i+1) = workspace(:,o)
     end do
@@ -834,48 +802,19 @@ contains
     !print * , 'lstart', l_start,'m1m2',m1,m2
     do i=1, bw-l_start-1
        l=l_start+(i-1_dp)
-       call wig_l_recurrence(workspace,cos,l,m1,m2,.TRUE.)
+       call wig_l_recurrence_kostelec(workspace,cos,l,m1,m2,.TRUE.)
        o = MODULO(i+1_dp,3)+1_dp
        wigners_m1m2(i+1,:) = workspace(:,o)
     end do
   end function genWig_L2_trsp
 
-  function compute_dmn(m1,m2,bw,betas,normalized) result(wigners_m1m2)
-    integer(kind = dp) :: m1,m2,bw
-    real(kind = dp) :: betas(:)
-    logical,intent(in) :: normalized
-    !f2py logical :: normalized = TRUE
-    real(kind = dp) :: wigners_m1m2(Size(betas,1),(bw-max(abs(m1),abs(m2)))),cos_vals(Size(betas,1)),sincos(Size(betas,1)),cos2(Size(betas,1)),dlml(Size(betas,1))
-    real(kind = dp) :: workspace(Size(betas,1),3)
-    integer(kind = dp) :: i,l_start,l,n_samples,o
-
-    if (.NOT.(0<=m1 .AND. m1<=m2 .AND. m2<=bw )) then
-       print *, 'Invalid arguments:  0<=m1<=m2<=bw is not sattisfied.'
-    end if
-
-    cos_vals = COS(betas)
-    sincos = SIN(betas/2._dp)*COS(betas/2._dp)
-    cos2 = COS(betas/2._dp)**2
-    
-    l_start = m2 !max(abs(m1),abs(m2))
-    n_samples = size(betas,1)
-    workspace(:,1) = 0
-    workspace(:,2) = compute_dlml(l_start, m1, sincos, cos2, normalized)
-    do i=1,Size(workspace,1)
-       if (workspace(i,2)<1.0D-300) then
-          workspace(i,2)=0._dp
-       end if
-    end do
-    wigners_m1m2(:,1) = workspace(:,2)
-    !print * , 'lstart', l_start,'m1m2',m1,m2
-    do i=1, bw-l_start-1
-       l=l_start+(i-1_dp)
-       call wig_l_recurrence(workspace,cos_vals,l,m1,m2,normalized)
-       o = MODULO(i+1_dp,3)+1_dp
-       wigners_m1m2(:,i+1) = workspace(:,o)
-    end do
-  end function compute_dmn
-  function wigner_l(l,betas,normalized) result(dl)
+  !> ---------
+  !! @brief Computes the small Wigner d matrix $d^l\\_{m,n}(\beta)$ for fixed $l$.
+  !!
+  !! Convenience function to compute the small Wigner d matrix $d^l\\_{m,n}(\beta)$ for fixed $l$.
+  !! It uses the three recurrence realtion in l from \ref wig_l_recurrence() .
+  !! This implies that it has to compute all small wigner $d^k\\_{m,n}$ matrices as well.
+  function wigner_dl_kostelec(l,betas,normalized) result(dl)
     !! compute the small wigner-d matrix $d^l_{m_1,m_2}(\beta)$ for fixed l
     integer(kind = dp),intent(in) :: l
     real(kind = dp),intent(in) :: betas(:)
@@ -916,7 +855,7 @@ contains
           workspace(:,3) = workspace(:,2)
           
           do i=n,l-1
-             call wig_l_recurrence(workspace,trig(:,1),i,m,n,normalized)
+             call wig_l_recurrence_kostelec(workspace,trig(:,1),i,m,n,normalized)
           end do
           
           o = MODULO(l-n+1_dp,3)+1_dp
@@ -940,7 +879,7 @@ contains
           
        end do
     end do
-  end function wigner_l
+  end function wigner_dl_kostelec
 
   function genWigAll(bw) result(wigners)
     ! Computes all independent small wigner d-matrix elements
@@ -1024,60 +963,130 @@ contains
     end do
   end subroutine genWigAll_preallocated
 
-  function wigner_d_recurrence(d_l_1,l,trig_vals,sqrts) result(d_l)
-    ! given a wigner little-d matrix of degree L-1 evaluated
-    ! at some angle beta, construct the wigner little-d
-    ! matrix of degree L, EVALUATED AT THAT SAME BETA.
-    
-    real(kind = dp), intent(in) :: trig_vals(:),sqrts(:),d_l_1(:)
+  !> ----------
+  !!
+  !! @brief $d^{l-1}\\_{m,n}(\beta) \rightarrow d^l\\_{m,n}(\beta)$
+  !!
+  !! Given a wigner little-d matrix of degree L-1 evaluated
+  !! at some angles beta, this function constructs the wigner little-d
+  !! matrix of degree L, evaluated at the same betas.
+  !! This algorithm is an implementation of the one given by T. Risbo in
+  !!
+  !! >    "Fourier transform summation of Legendre series and D-Functions"
+  !!      T. Risbo
+  !!      Journal of Geodesy
+  !!      1996
+  !!      volume 70: p. 383 - 396
+  !!
+  !! Example: To compute the wigner d-matrix of degree l you can use this reccurrence
+  !!     as follows
+  !! ```fortran
+  !! real(kind=8) :: betas(1)
+  !! real(kind=8) :: dl(Size(betas,1),1)
+  !! real(kind=8) :: ls_sqrt(l+1)
+  !! ! Setup
+  !! betas(1) = 1.23
+  !! dl = 0._dp
+  !! cos_betas=COS(betas/2)
+  !! sin_betas=SIN(betas/2)
+  !! do l=0,l
+  !!   ls_sqrt(l+1) = SQRT(l)
+  !! end do
+  !!
+  !! ! Use reccurrence
+  !! do l=1,L
+  !!   dl = wigner_d_recurrence(dl,l,cos_beta,sin_beta,ls_sqrt)
+  !! end do
+  !! ```
+  !!
+  function wigner_mn_recurrence_risbo(d_l_1,l,cos_beta,sin_beta,sqrts) result(d_l)
+    real(kind = dp), intent(in) :: cos_beta(:),sin_beta(:),sqrts(:),d_l_1(:,:)
     integer(kind = dp), intent(in)  :: l
-    real(kind = dp) :: d_l((2*l+1)*(2*l+1)),temp((2*l)*(2*l)),cos_beta,sin_beta,inv_deg
-    integer(kind = dp) :: deg,tmpdim,i,j
+    real(kind = dp) :: d_l(Size(d_l_1,1),(2*l+1)*(2*l+1)),temp(Size(d_l_1,1),(2*l)*(2*l)),inv_deg
+    integer(kind = dp) :: deg,tmpdim,i,j,ij,ippj,ijpp,ippjpp,pdeg
     
-    cos_beta = trig_vals(1)
-    sin_beta = trig_vals(2)
-
     if (l==0) then
        d_l = 1
     else if (l==1) then
-       d_l(1) = cos_beta * sin_beta
-       d_l(2) = sqrts(3) * cos_beta * sin_beta
-       d_l(3) = sin_beta**2
+       d_l(:,1) = cos_beta**2
+       d_l(:,2) = sqrts(3) * cos_beta * sin_beta
+       d_l(:,3) = sin_beta**2
 
-       d_l(4) = -d_l(2)
-       d_l(5) = d_l(1)-d_l(3)
-       d_l(6) = d_l(2)
+       d_l(:,4) = -d_l(:,2)
+       d_l(:,5) =  d_l(:,1)-d_l(:,3)
+       d_l(:,6) =  d_l(:,2)
 
-       d_l(7) = d_l(3)
-       d_l(8) = -d_l(2)
-       d_l(9) = d_l(1)
-      
+       d_l(:,7) =  d_l(:,3)
+       d_l(:,8) = -d_l(:,2)
+       d_l(:,9) =  d_l(:,1)
+
     else
-       d_l = 0
-       temp(:(2*l-1)**2) = d_l_1
-       temp((2*l-1)**2+1:) = 0
-       do deg=(2*l-1), 2*l
-          inv_deg = (1._dp/real(deg,kind=dp))
-          tmpdim = deg + 1_dp
-          d_l(:tmpdim**2) = 0
-          do i=1,deg
-             do j=1,deg
-                d_l((i*tmpdim)+j) = d_l((i*tmpdim)+j) &
-                     & + inv_deg*sqrts(deg-i)*sqrts(deg-j)   * temp((i*deg)+j)*cos_beta
-                d_l((i*tmpdim)+j+1_dp) = d_l((i*tmpdim)+j+1_dp) &
-                     & + inv_deg*sqrts(deg-i)*sqrts(j+1_dp)  * temp((i*deg)+j)*sin_beta
-                d_l(((i+1_dp)*tmpdim)+j) = d_l(((i+1_dp)*tmpdim)+j) &
-                     & - inv_deg*sqrts(i+1_dp)*sqrts(deg-j)  * temp((i*deg)+j)*sin_beta
-                d_l(((i+1_dp)*tmpdim)+j+1_dp) = d_l((i*tmpdim)+j) &
-                     & + inv_deg*sqrts(i+1_dp)*sqrts(j+1_dp) * temp((i*deg)+j)*cos_beta
-             end do
+       temp = 0._dp
+       deg = 2*l-1
+       pdeg = deg+1
+       inv_deg = (1._dp/real(deg,kind=dp))
+       do i=0,deg-1
+          do j=0,deg-1
+             ij     = i*pdeg + j+1
+             ippj   = (i+1)*pdeg + j+1
+             ijpp   = i*pdeg + (j+1)+1
+             ippjpp = (i+1)*pdeg + (j+1)+1
+             
+             temp(:,ij)     = temp(:,ij)     + inv_deg*sqrts(deg-i+1)*sqrts(deg-j+1) *d_l_1(:,i*deg+j+1)*cos_beta
+             temp(:,ippj)   = temp(:,ippj)   - inv_deg*sqrts(i+2)    *sqrts(deg-j+1) *d_l_1(:,i*deg+j+1)*sin_beta
+             temp(:,ijpp)   = temp(:,ijpp)   + inv_deg*sqrts(deg-i+1)*sqrts(j+2)     *d_l_1(:,i*deg+j+1)*sin_beta
+             temp(:,ippjpp) = temp(:,ippjpp) + inv_deg*sqrts(i+2)    *sqrts(j+2)     *d_l_1(:,i*deg+j+1)*cos_beta
           end do
-          if (deg == 2*l-1) then
-             temp = d_l(:tmpdim**2)
-          end if
+       end do
+       d_l  = 0._dp
+       deg = 2*l
+       pdeg = deg+1
+       inv_deg = (1._dp/real(deg,kind=dp))
+       do i=0,deg-1
+          do j=0,deg-1
+             ij     = i*pdeg + j+1
+             ippj   = (i+1)*pdeg + j+1
+             ijpp   = i*pdeg + (j+1)+1
+             ippjpp = (i+1)*pdeg + (j+1)+1
+             d_l(:,ij)     = d_l(:,ij)     + inv_deg*sqrts(deg-i+1)*sqrts(deg-j+1) *temp(:,i*deg+j+1)*cos_beta
+             d_l(:,ippj)   = d_l(:,ippj)   - inv_deg*sqrts(i+2)    *sqrts(deg-j+1) *temp(:,i*deg+j+1)*sin_beta
+             d_l(:,ijpp)   = d_l(:,ijpp)   + inv_deg*sqrts(deg-i+1)*sqrts(j+2)     *temp(:,i*deg+j+1)*sin_beta
+             d_l(:,ippjpp) = d_l(:,ippjpp) + inv_deg*sqrts(i+2)    *sqrts(j+2)     *temp(:,i*deg+j+1)*cos_beta
+          end do
        end do
     end if
-  end function wigner_d_recurrence
+  end function wigner_mn_recurrence_risbo
+  function wigner_dl_risbo(l,betas,normalized) result(dl)
+    integer(kind = dp),intent(in) :: l
+    real(kind = dp),intent(in) :: betas(:)
+    logical, intent(in) :: normalized
+    real(kind = dp) :: dl_tmp(Size(betas,1),(2*l+1)*(2*l+1)), dl(SIZE(betas,1),2*l+1,2*l+1)
+    real(kind=dp) :: cos_b(Size(betas,1)),sin_b(Size(betas,1)),ls_sqrt(2*l+1)
+    integer(kind = dp) :: i,j
+    ! Setup
+    cos_b = COS(betas/2._dp)
+    sin_b = SIN(betas/2._dp)
+    do i=0_dp,2_dp*l
+       ls_sqrt(i+1) = SQRT(real(i,kind=dp))
+    end do
+
+    dl_tmp = 0._dp
+    do i=0_dp,l
+       dl_tmp(:,1:(2*i+1)*(2*i+1)) = wigner_mn_recurrence_risbo(dl_tmp(:,1:(2*i-1)*(2*i-1)), i, cos_b, sin_b, ls_sqrt)
+    end do
+
+    ! Save transposed array to output
+    do i=1,2*l+1
+       do j=1,2*l+1
+          dl(:,j,i) = dl_tmp(:,(i-1_dp)*(2*l+1_dp)+j)
+       end do
+    end do
+
+    if (normalized) then
+       dl = dl * SQRT(real(2*l+1_dp,kind=dp)/2._dp)
+    end if
+  end function wigner_dl_risbo
+
 end module make_wigner
 
 module softclass
@@ -1093,7 +1102,8 @@ module softclass
   integer :: f2py_bug  = 1
   type :: so3ft
      integer(kind = dp) :: wigner_size
-     integer(kind = dp) :: bw,Lmax
+     integer(kind = dp) :: bw = 0
+     integer(kind = dp) :: Lmax = 0
      real(kind = dp), allocatable :: wigner_d(:,:)
      real(kind = dp), allocatable :: wigner_d_trsp(:)
      real(kind = dp), allocatable :: wigner_dlml(:,:)
@@ -1402,7 +1412,6 @@ contains
           call self%init_wigners()
        end if
     end if
-    
     self%lmax = lmax
     self%fftw_flags = fftw_flags
     if (init_ffts) then
@@ -3207,88 +3216,88 @@ contains
     error_code = fftw_export_wisdom_to_filename(c_path)
   end function export_fftw_wisdom
 
-  subroutine ylm_rotation_cmplx_(f_lm,rot_f_lm,bw,trigs,sqrts,exp_a,exp_g)
-    ! Computes all wigner D matrices needed for rotating all
-    ! spherical harmonic coefficients f^l_m with l<bw
-    ! Euler angles follow the Z-Y-Z convention for \alpha,\beta,\gamma
-    integer(kind = dp),intent(in) :: bw
-    complex(kind = dp),intent(in) :: f_lm(:)
-    complex(kind = dp),intent(inout) :: rot_f_lm(:)
-    real(kind = dp),intent(in) :: trigs(:),sqrts(:)
-    complex(kind = dp),intent(in) :: exp_a(:),exp_g(:)
-    real(kind = dp) :: d_l_1((2*bw-1)**2)
-    complex(kind = dp),target :: D((2*bw+1)**2)
-    complex(kind = dp),pointer :: Dl(:,:)
-    integer(kind = dp) :: m,n,l,nm,m_start,lm_slice(2)
+  ! subroutine ylm_rotation_cmplx_(f_lm,rot_f_lm,bw,cos_beta,sin_beta,sqrts,exp_a,exp_g)
+  !   ! Computes all wigner D matrices needed for rotating all
+  !   ! spherical harmonic coefficients f^l_m with l<bw
+  !   ! Euler angles follow the Z-Y-Z convention for \alpha,\beta,\gamma
+  !   integer(kind = dp),intent(in) :: bw
+  !   complex(kind = dp),intent(in) :: f_lm(:)
+  !   complex(kind = dp),intent(inout) :: rot_f_lm(:)
+  !   real(kind = dp),intent(in) :: cos_beta(:),sin_beta(:),sqrts(:)
+  !   complex(kind = dp),intent(in) :: exp_a(:),exp_g(:)
+  !   real(kind = dp) :: d_l_1(1,(2*bw-1),(2*bw-1))
+  !   complex(kind = dp),target :: D((2*bw+1)**2)
+  !   complex(kind = dp),pointer :: Dl(:,:)
+  !   integer(kind = dp) :: m,n,l,nm,m_start,lm_slice(2)
 
-    ! rotate coeff while computing wigners on the fly.
-    rot_f_lm(1) = f_lm(1)
-    do l=1,bw-1
-       ! Compute Wigner d by recurrence
-       nm = 2_dp*l+1_dp
-       m_start = bw-l
-       d_l_1 = wigner_d_recurrence(d_l_1,l,trigs,sqrts)
-       do m=1,nm
-          do n=1,nm
-             D(m*nm+n) = exp_a(m_start+m)*d_l_1(m*nm+n)*exp_g(m_start+n)
-          end do
-       end do
-       Dl(1:2*l+1,1:2*l+1) => D(:(2*l+1)**2)
+  !   ! rotate coeff while computing wigners on the fly.
+  !   rot_f_lm(1) = f_lm(1)
+  !   do l=1,bw-1
+  !      ! Compute Wigner d by recurrence
+  !      nm = 2_dp*l+1_dp
+  !      m_start = bw-l
+  !      d_l_1 = wigner_d_recurrence(d_l_1,l,cos_beta,sin_beta,sqrts)
+  !      do m=1,nm
+  !         do n=1,nm
+  !            D(m*nm+n) = exp_a(m_start+m)*d_l_1(1,m*nm+n)*exp_g(m_start+n)
+  !         end do
+  !      end do
+  !      Dl(1:2*l+1,1:2*l+1) => D(:(2*l+1)**2)
 
-       ! Do the rotation
-       lm_slice = LMc(l,m)
-       rot_f_lm(lm_slice(1):lm_slice(2)) = MATMUL(Dl,f_lm(lm_slice(1):lm_slice(2)))
-    end do
-  end subroutine ylm_rotation_cmplx_
-  function ylm_rotation_cmplx(f_lm,bw,euler_angles) result(rot_f_lm)
-    integer(kind = dp),intent(in) :: bw
-    complex(kind = dp),intent(in) :: f_lm(:)
-    real(kind = dp),intent(in) :: euler_angles(:)
-    complex(kind = dp) :: rot_f_lm(size(f_lm))
-    real(kind = dp) :: trigs(2),sqrts(2*bw)
-    complex(kind = dp) :: exp_a(2*bw),exp_g(2*bw),za,zg
-    integer(kind = dp) :: i,bw2
+  !      ! Do the rotation
+  !      lm_slice = LMc(l,m)
+  !      rot_f_lm(lm_slice(1):lm_slice(2)) = MATMUL(Dl,f_lm(lm_slice(1):lm_slice(2)))
+  !   end do
+  ! end subroutine ylm_rotation_cmplx_
+  ! function ylm_rotation_cmplx(f_lm,bw,euler_angles) result(rot_f_lm)
+  !   integer(kind = dp),intent(in) :: bw
+  !   complex(kind = dp),intent(in) :: f_lm(:)
+  !   real(kind = dp),intent(in) :: euler_angles(:)
+  !   complex(kind = dp) :: rot_f_lm(size(f_lm))
+  !   real(kind = dp) :: cos_beta(1),sin_beta(1),sqrts(2*bw)
+  !   complex(kind = dp) :: exp_a(2*bw),exp_g(2*bw),za,zg
+  !   integer(kind = dp) :: i,bw2
 
-    ! prepare variables
-    bw2 = 2_dp*bw
-    trigs(1) = COS(euler_angles(2))
-    trigs(2) = SIN(euler_angles(2))
-    za = (0._dp,-1._dp)*euler_angles(1)
-    zg = (0._dp,-1._dp)*euler_angles(3)
-    do i=1,bw2
-       sqrts(i) = SQRT(real(i,kind = dp))
-       exp_a(i) = EXP(za*real(-bw+i,kind = dp))
-       exp_g(i) = EXP(zg*real(-bw+i,kind = dp))
-    end do
+  !   ! prepare variables
+  !   bw2 = 2_dp*bw
+  !   cos_beta(1) = COS(euler_angles(2)/2)
+  !   sin_beta(1) = SIN(euler_angles(2)/2)
+  !   za = (0._dp,-1._dp)*euler_angles(1)
+  !   zg = (0._dp,-1._dp)*euler_angles(3)
+  !   do i=1,bw2
+  !      sqrts(i) = SQRT(real(i,kind = dp))
+  !      exp_a(i) = EXP(za*real(-bw+i,kind = dp))
+  !      exp_g(i) = EXP(zg*real(-bw+i,kind = dp))
+  !   end do
 
-    call ylm_rotation_cmplx_(f_lm, rot_f_lm, bw, trigs, sqrts, exp_a, exp_g)
+  !   call ylm_rotation_cmplx_(f_lm, rot_f_lm, bw, cos_beta,sin_beta, sqrts, exp_a, exp_g)
     
-  end function ylm_rotation_cmplx
-  function ylm_rotation_cmplx_many(f_lms,bw,euler_angles) result(rot_f_lms)
-    integer(kind = dp),intent(in) :: bw
-    complex(kind = dp),intent(in) :: f_lms(:,:)
-    real(kind = dp),intent(in) :: euler_angles(:)
-    complex(kind = dp) :: rot_f_lms(size(f_lms,1),size(f_lms,2))
-    real(kind = dp) :: trigs(2),sqrts(2*bw)
-    complex(kind = dp) :: exp_a(2*bw),exp_g(2*bw),za,zg
-    integer(kind = dp) :: i,bw2
+  ! end function ylm_rotation_cmplx
+  ! function ylm_rotation_cmplx_many(f_lms,bw,euler_angles) result(rot_f_lms)
+  !   integer(kind = dp),intent(in) :: bw
+  !   complex(kind = dp),intent(in) :: f_lms(:,:)
+  !   real(kind = dp),intent(in) :: euler_angles(:)
+  !   complex(kind = dp) :: rot_f_lms(size(f_lms,1),size(f_lms,2))
+  !   real(kind = dp) :: cos_beta(1),sin_beta(1),sqrts(2*bw)
+  !   complex(kind = dp) :: exp_a(2*bw),exp_g(2*bw),za,zg
+  !   integer(kind = dp) :: i,bw2
 
-    ! prepare variables
-    bw2 = 2_dp*bw
-    trigs(1) = COS(euler_angles(2))
-    trigs(2) = SIN(euler_angles(2))
-    za = (0._dp,-1._dp)*euler_angles(1)
-    zg = (0._dp,-1._dp)*euler_angles(3)
-    do i=1,bw2
-       sqrts(i) = SQRT(real(i,kind = dp))
-       exp_a(i) = EXP(za*real(-bw+i,kind = dp))
-       exp_g(i) = EXP(zg*real(-bw+i,kind = dp))
-    end do
+  !   ! prepare variables
+  !   bw2 = 2_dp*bw
+  !   cos_beta(1) = COS(euler_angles(2)/2)
+  !   sin_beta(1) = SIN(euler_angles(2)/2)
+  !   za = (0._dp,-1._dp)*euler_angles(1)
+  !   zg = (0._dp,-1._dp)*euler_angles(3)
+  !   do i=1,bw2
+  !      sqrts(i) = SQRT(real(i,kind = dp))
+  !      exp_a(i) = EXP(za*real(-bw+i,kind = dp))
+  !      exp_g(i) = EXP(zg*real(-bw+i,kind = dp))
+  !   end do
 
-    do i=1,size(f_lms,2)
-       call ylm_rotation_cmplx_(f_lms(:,i), rot_f_lms(:,i), bw, trigs, sqrts, exp_a, exp_g)
-    end do
-  end function ylm_rotation_cmplx_many
+  !   do i=1,size(f_lms,2)
+  !      call ylm_rotation_cmplx_(f_lms(:,i), rot_f_lms(:,i), bw, cos_beta,sin_beta, sqrts, exp_a, exp_g)
+  !   end do
+  ! end function ylm_rotation_cmplx_many
   
 end module softclass
 
@@ -3307,14 +3316,9 @@ contains
   function py_init_soft(bw,lmax,precompute_wigners,init_ffts,fftw_flags) result(self)
     integer(kind = dp), intent(in) :: bw
     integer(kind = dp), intent(in) :: lmax
-    !f2py integer :: lmax = bw - 1
     logical, intent(in) :: init_ffts
-    !f2py logical :: init_ffts = FALSE
     logical, intent(in) :: precompute_wigners
-    !f2py logical :: precompute_wigners = FALSE
     integer(kind = sp), intent(in) :: fftw_flags
-    !f2py integer :: fftw_flags = 0
-    ! FFTW_ESTIMATE=64, FFTW_MEASURE=0
     type(so3ft_ptr) :: self_ptr
     integer(kind = dp) :: self
     ALLOCATE(self_ptr%p)

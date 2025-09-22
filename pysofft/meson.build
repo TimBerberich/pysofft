@@ -64,3 +64,4 @@ py.install_sources(
   pure: false,
   subdir: 'pysofft'
 )
+

@@ -37,3 +37,4 @@ var/
 *.egg-info/
 *.egg
 *.so
+*.mkdoxy/
