@@ -274,7 +274,6 @@ class TestUtils:
                 assert i==int(fi) and j==int(fj), f'Index mismatch between i,j={(i,j)} and k={k}, fi,fj={(fi,fj)}.'
 
 class TestSo3ft:    
-    # make sure real,alloc,nthreads>1 and _many versions yield the same results as the simple complex routines soft and isoft
     # dont forget lmax setting
     
     # test correlation with simple example
@@ -627,3 +626,20 @@ class TestSo3ft:
         assert np.allclose(d,d3),'Mismatch between irsoft and irsoft_many using OMP'        
         _soft.py.py_destroy(s_int)
         _soft.py.omp_set_num_threads_(1)
+        
+    def test_integrate_over_so3(self):
+        '''Tests that integral of a constant 1 functions returns the volume of SO(3),
+        which is $$8 \pi^2$$ in the Haar measure.
+        '''
+        bw = 64
+        precompute_wigners = False
+        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,False,0)
+        dr = _soft.utils.get_empty_so3func_real(bw)
+        dc = _soft.utils.get_empty_so3func_cmplx(bw)
+        dr[:]=1
+        dc[:]=1
+        
+        vr = _soft.py.py_integrate_over_so3_real(s_int,dr)
+        vc = _soft.py.py_integrate_over_so3_cmplx(s_int,dc)
+        assert np.isclose(vr,8*np.pi**2), f'Incorrect real integral, value is {vr}'
+        assert np.isclose(vc.real,8*np.pi**2), f'Incorrect real integral, value is {vc}'
