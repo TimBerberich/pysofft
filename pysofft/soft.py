@@ -63,6 +63,12 @@ class Soft:
             self._lmns=utils.get_coeff_degrees(self.bw)
             self._lmns.flags.writeable=False
         return self._lmns
+    @property
+    def euler_angles(self):
+        beta = _soft.make_wigner.create_beta_samples(self.bw*2)
+        alpha = _soft.make_wigner.create_alpha_gamma_samples(self.bw*2)
+        gamma = alpha.copy()
+        return {'alpha':alpha,'gamma':gamma,'beta':beta}
     def reset(self,
               bw,
               lmax=None,
@@ -88,8 +94,11 @@ class Soft:
             arr += 1.j*rng.random(arr.shape)
         return arr
 
-    def get_coeff(self, real=False, random = False, seed=12345,raw=False):
-        coeff = utils.get_empty_coeff(self.bw)
+    def get_coeff(self, real=False, random = False, seed=12345, raw=False, howmany=0):
+        if howmany>0:
+            coeff = utils.get_empty_coeff_many(self.bw,howmany)
+        else:
+            coeff = utils.get_empty_coeff(self.bw)
         if random:
             coeff = self._fill_random(coeff,seed=seed)
             if real:
@@ -98,17 +107,26 @@ class Soft:
             coeff = CoeffSO3(coeff,self.coeff_indices)
         return coeff
 
-    def get_so3func(self,real=False,random=False,seed=12345):
+    def get_so3func(self,real=False,random=False,seed=12345,howmany=0):
         if real:
-            func = utils.get_empty_so3func_real(self.bw)
+            if howmany>0:
+                func = utils.get_empty_so3func_real_many(self.bw,howmany)
+            else:
+                func = utils.get_empty_so3func_real(self.bw)
         else:
-            func = utils.get_empty_so3func_cmplx(self.bw)
+            if howmany>0:
+                func = utils.get_empty_so3func_cmplx_many(self.bw,howmany)
+            else:
+                func = utils.get_empty_so3func_cmplx(self.bw)
         if random:
             func = self._fill_random(func,seed=seed)
         return func
 
-    def get_so3func_halfcmplx(self,random=False,seed=12345):
-        func = utils.get_empty_so3func_halfcmplx(self.bw)
+    def get_so3func_halfcmplx(self,random=False,seed=12345,howmany=0):
+        if howmany>0:
+            func = utils.get_empty_so3func_halfcmplx_many(self.bw,howmany)
+        else:
+            func = utils.get_empty_so3func_halfcmplx(self.bw)
         if random:
             func = self._fill_random(func,seed=seed)
         

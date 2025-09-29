@@ -231,21 +231,41 @@ contains
     complex(kind = dp) :: coeff((4_dp*(bw*bw*bw)-bw)/3_dp)
     coeff = 0.0
   end function get_empty_coeff
+  function get_empty_coeff_many(bw,n) result(coeff)
+    integer(kind = dp) :: bw,n
+    complex(kind = dp) :: coeff((4_dp*(bw*bw*bw)-bw)/3_dp,n)
+    coeff = 0.0
+  end function get_empty_coeff_many
   function get_empty_so3func_cmplx(bw) result(so3func)
     integer(kind = dp) :: bw
     complex(kind = dp) :: so3func(2*bw,2*bw,2*bw)
     so3func = 0.0
   end function get_empty_so3func_cmplx
+  function get_empty_so3func_cmplx_many(bw,n) result(so3func)
+    integer(kind = dp) :: bw,n
+    complex(kind = dp) :: so3func(2*bw,2*bw,2*bw,n)
+    so3func = 0.0
+  end function get_empty_so3func_cmplx_many
   function get_empty_so3func_halfcmplx(bw) result(so3func)
     integer(kind = dp) :: bw
     complex(kind = dp) :: so3func(2*bw,bw+1,2*bw)
     so3func = 0.0
   end function get_empty_so3func_halfcmplx
+  function get_empty_so3func_halfcmplx_many(bw,n) result(so3func)
+    integer(kind = dp) :: bw,n
+    complex(kind = dp) :: so3func(2*bw,bw+1,2*bw,n)
+    so3func = 0.0
+  end function get_empty_so3func_halfcmplx_many
   function get_empty_so3func_real(bw) result(so3func)
     integer(kind = dp) ::  bw
     real(kind = dp) :: so3func(2*bw,2*bw,2*bw)
     so3func = 0.0
   end function get_empty_so3func_real
+  function get_empty_so3func_real_many(bw,n) result(so3func)
+    integer(kind = dp) ::  bw,n
+    real(kind = dp) :: so3func(2*bw,2*bw,2*bw,n)
+    so3func = 0.0
+  end function get_empty_so3func_real_many
   subroutine enforce_real_sym(coeff,bw)
     complex(kind=dp) ,intent(inout) :: coeff(:)
     integer(kind=dp) ,intent(in) :: bw
@@ -442,7 +462,7 @@ contains
   !! Loops of the following kind are contiguous in memory with this indexing
   !! do m in [0,1,-1,2,-2,..., bw-1,-(bw-1)]
   !!   do l in [|m|,...,bw-1]
-  function MLc_slice(m,bw) result(slice)
+  function  MLc_slice(m,bw) result(slice)
     integer(kind = dp),intent(in) :: m,bw
     integer(kind = dp) :: slice(2)
     
@@ -486,6 +506,14 @@ contains
     trig_samples(:,2) = cos(betas/2_dp)*sin(betas/2_dp) ! <= needed for d^l_ml computation
     trig_samples(:,3) = cos(betas/2_dp)**2              ! <= needed for d^l_ml computation
   end function create_trig_samples
+  function create_alpha_gamma_samples(n) result(alpha)
+    ! returns n uniformly sampled angles in (0,pi)
+    ! Note: These are angles used in Chebyshev nodes of the first kind.
+    integer(kind = dp) :: n,i
+    real(kind = dp) :: alpha(n),factor
+    factor = 2._dp*pi / real(n, dp)
+    alpha = [(real(i-1_dp, dp) * factor, i = 1, n)]
+  end function create_alpha_gamma_samples
 
   function compute_dlml(l,m,sincos,cos2,normalized) result(dlml)
     !! Computes the Wigner little d_lmn(beta) for n=l
@@ -859,8 +887,6 @@ contains
           end do
           
           o = MODULO(l-n+1_dp,3)+1_dp
-          !remove norm from wigner d values
-          workspace(:,o) = workspace(:,o)!*norm
 
           ! populate the small wigner d-matrix using all of the available symmetries
           dl(:,nid,mid)=workspace(:,o)          
@@ -1093,6 +1119,7 @@ module softclass
   use precision
   use utils
   use make_wigner
+  use omp_lib
   use, intrinsic :: iso_c_binding
   implicit none
   include 'fftw3.f03'
@@ -1140,9 +1167,13 @@ module softclass
      procedure :: forward_wigner_loop_body_real_alloc => forward_wigner_loop_body_real_alloc_
      procedure :: forward_wigner_loop_body_real => forward_wigner_loop_body_real_
      procedure :: isoft
+     procedure :: isoft_
      procedure :: soft
+     procedure :: soft_
      procedure :: rsoft
+     procedure :: rsoft_
      procedure :: irsoft
+     procedure :: irsoft_
      procedure :: isoft_many
      procedure :: soft_many
      procedure :: rsoft_many
@@ -2306,22 +2337,41 @@ contains
        end do
     end if
   end subroutine forward_wigner_trf_real
-  
+
+  subroutine isoft_(self,coeff,so3func,fft_array,use_mp)
+    class(so3ft),intent(inout) :: self
+    complex(kind = dp), intent(in) :: coeff(:)
+    complex(kind = dp), intent(inout) :: so3func(:,:,:)
+    complex(kind = dp), intent(inout) :: fft_array(:,:,:)
+    logical,intent(in) :: use_mp
+
+    fft_array=0.0_dp
+    call self%inverse_wigner_trf_cmplx(coeff,fft_array,use_mp)
+    call dfftw_execute_dft(self%plan_c2c_forward,fft_array,so3func)
+  end subroutine isoft_
   subroutine isoft(self,coeff,so3func,use_mp)
     class(so3ft),intent(inout) :: self
     complex(kind = dp), intent(in) :: coeff(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
     logical,intent(in) :: use_mp
-    
+
     if (.NOT. self%plans_allocated_c) then
        call self%init_fft(.FALSE.)
     end if
-    self%fft_c2c_in=0.0_dp
-    call self%inverse_wigner_trf_cmplx(coeff,self%fft_c2c_in,use_mp)
-
-    call dfftw_execute_dft(self%plan_c2c_forward,self%fft_c2c_in,so3func)
-    so3func = so3func * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)
+    call self%isoft_(coeff,so3func,self%fft_c2c_in,use_mp)
   end subroutine isoft
+  subroutine soft_(self,so3func,coeff,fft_array,use_mp)    
+    class(so3ft),intent(inout) :: self
+    complex(kind = dp), intent(inout) :: coeff(:)
+    complex(kind = dp), intent(inout) :: fft_array(:,:,:)
+    complex(kind = dp), intent(in) :: so3func(:,:,:)
+    logical,intent(in) :: use_mp
+    
+    fft_array = 0.0_dp
+    call dfftw_execute_dft(self%plan_c2c_backward,so3func,fft_array)
+    fft_array = fft_array * (1._dp/real(2_dp*self%bw,kind=dp)**2) ! * 1/(2*bw) * 1/(2*bw)    
+    call self%forward_wigner_trf_cmplx(fft_array,coeff,use_mp)
+  end subroutine soft_
   subroutine soft(self,so3func,coeff,use_mp)
     class(so3ft),intent(inout) :: self
     complex(kind = dp), intent(inout) :: coeff(:)
@@ -2331,15 +2381,21 @@ contains
     if (.NOT. self%plans_allocated_c) then
        call self%init_fft(.FALSE.)
     end if
-    self%fft_c2c_out=0.0_dp
-
-    call dfftw_execute_dft(self%plan_c2c_backward,so3func,self%fft_c2c_out)
-
-    self%fft_c2c_out = self%fft_c2c_out * (2.0_dp*pi/real(2_dp*self%bw,kind=dp)**2) ! * 1/(2*bw) * 2*pi/(2*bw)
     
-    call self%forward_wigner_trf_cmplx(self%fft_c2c_out,coeff,use_mp)
-
+    call self%soft_(so3func,coeff,self%fft_c2c_out,use_mp)
   end subroutine soft
+  subroutine irsoft_(self,coeff,so3func,fft_array,use_mp)
+    class(so3ft),intent(inout) :: self
+    complex(kind = dp), intent(in) :: coeff(:)
+    real(kind = dp), intent(inout) :: so3func(:,:,:)
+    complex(kind = dp), intent(inout) :: fft_array(:,:,:)
+    logical,intent(in) :: use_mp
+
+    fft_array=0.0_dp
+    call self%inverse_wigner_trf_real(coeff,fft_array,use_mp)
+    fft_array = CONJG(fft_array) ! to correct for the fact that we have to compute the forward not the backward fft.
+    call dfftw_execute_dft_c2r(self%plan_c2r_backward,fft_array,so3func)
+  end subroutine irsoft_
   subroutine irsoft(self,coeff,so3func,use_mp)
     class(so3ft),intent(inout) :: self
     complex(kind = dp), intent(in) :: coeff(:)
@@ -2349,13 +2405,21 @@ contains
     if (.NOT. self%plans_allocated_r) then
        call self%init_fft(.TRUE.)
     end if
-    self%fft_c2r_in=0.0_dp
-    call self%inverse_wigner_trf_real(coeff,self%fft_c2r_in,use_mp)
-
-    self%fft_c2r_in = CONJG(self%fft_c2r_in) ! to correct for the fact that we have to compute the forward not the backward fft.
-    call dfftw_execute_dft_c2r(self%plan_c2r_backward,self%fft_c2r_in,so3func)
-    so3func = so3func * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)
+    call self%irsoft_(coeff,so3func,self%fft_c2r_in,use_mp)
   end subroutine irsoft
+  subroutine rsoft_(self,so3func,coeff,fft_array,use_mp)
+    class(so3ft),intent(inout) :: self
+    complex(kind = dp), intent(inout) :: coeff(:)
+    complex(kind = dp), intent(inout) :: fft_array(:,:,:)
+    real(kind = dp), intent(in) :: so3func(:,:,:)
+    logical,intent(in) :: use_mp
+    
+    fft_array=0.0_dp
+    call dfftw_execute_dft_r2c(self%plan_r2c_forward,so3func,fft_array)
+    fft_array = fft_array * (1._dp/real(2_dp*self%bw,kind=dp)**2) ! * 1/(2*bw) * 1/(2*bw)
+    fft_array = CONJG(fft_array) ! to correct for the fact that we have to compute the backward not the forward fft.
+    call self%forward_wigner_trf_real(fft_array,coeff,use_mp)    
+  end subroutine rsoft_
   subroutine rsoft(self,so3func,coeff,use_mp)
     class(so3ft),intent(inout) :: self
     complex(kind = dp), intent(inout) :: coeff(:)
@@ -2365,12 +2429,7 @@ contains
     if (.NOT. self%plans_allocated_r) then
        call self%init_fft(.TRUE.)
     end if
-    self%fft_c2r_in=0.0_dp
-    
-    call dfftw_execute_dft_r2c(self%plan_r2c_forward,so3func,self%fft_c2r_in)
-    self%fft_c2r_in = self%fft_c2r_in * (2.0_dp*pi/real(2_dp*self%bw,kind=dp)**2) ! * 1/(2*bw) * 2*pi/(2*bw)
-    self%fft_c2r_in = CONJG(self%fft_c2r_in) ! to correct for the fact that we have to compute the backward not the forward fft.
-    call self%forward_wigner_trf_real(self%fft_c2r_in,coeff,use_mp)    
+    call self%rsoft_(so3func,coeff,self%fft_c2r_in,use_mp)
   end subroutine rsoft
   subroutine soft_many(self,so3funcs,coeffs,use_mp)
     !f2py threadsafe
@@ -2378,24 +2437,28 @@ contains
     complex(kind=dp),intent(in) :: so3funcs(:,:,:,:)
     complex(kind=dp),intent(inout) :: coeffs(:,:)
     logical, intent(in) :: use_mp
+    complex(kind=dp) :: fft_c2c_in(self%bw*2,self%bw*2,self%bw*2)
     integer(kind=dp) :: n,i
-    n = size(so3funcs,1)
+    n = size(so3funcs,4)
 
-    if (use_mp) then       
-       call self%dealloc_fft_arrays(.False.)
-       !$OMP PARALLEL PRIVATE(i) SHARED(so3funcs,coeffs,n)
-       call self%alloc_fft_arrays(.False.)
+    if (.NOT. self%plans_allocated_c) then
+       call self%init_fft(.FALSE.)
+    end if
+    
+    if (use_mp) then
+       ! We can not use self%fft_c2c_in in openMP since it is not thread private and openMP does not support 
+       ! declaration of derived type arguments as private, so we create a local copy, fft_c2c_in.
+       
+       !$OMP PARALLEL PRIVATE(i,fft_c2c_in) SHARED(so3funcs,coeffs,n)
        !$OMP DO
        do i=1,n
-          call self%soft(so3funcs(:,:,:,i),coeffs(:,i),.FALSE.)       
+          call self%soft_(so3funcs(:,:,:,i),coeffs(:,i),fft_c2c_in,.False.)
        end do
        !$OMP END DO
-       call self%dealloc_fft_arrays(.False.)
        !$OMP END PARALLEL
-       call self%alloc_fft_arrays(.False.)
     else
        do i=1,n
-          call self%soft(so3funcs(:,:,:,i),coeffs(:,i),.FALSE.)       
+          call self%soft_(so3funcs(:,:,:,i),coeffs(:,i),fft_c2c_in,.FALSE.)       
        end do
     end if
        
@@ -2405,25 +2468,22 @@ contains
     class(so3ft),intent(inout) :: self
     complex(kind=dp),intent(inout) :: so3funcs(:,:,:,:)
     complex(kind=dp),intent(in) :: coeffs(:,:)
+    complex(kind=dp) :: fft_c2c_in(self%bw*2,self%bw*2,self%bw*2)
     logical, intent(in) :: use_mp
     integer(kind=dp) :: n,i
-    n = size(so3funcs,1)
+    n = size(coeffs,2)
 
     if (use_mp) then
-       call self%dealloc_fft_arrays(.False.)
-       !$OMP PARALLEL PRIVATE(i) SHARED(so3funcs,coeffs,n)
-       call self%alloc_fft_arrays(.False.)
+       !$OMP PARALLEL PRIVATE(i,fft_c2c_in) SHARED(so3funcs,coeffs,n)
        !$OMP DO
        do i=1,n
-          call self%isoft(coeffs(:,i),so3funcs(:,:,:,i),.FALSE.)       
+          call self%isoft_(coeffs(:,i),so3funcs(:,:,:,i),fft_c2c_in,.FALSE.)       
        end do
        !$OMP END DO
-       call self%dealloc_fft_arrays(.False.)
        !$OMP END PARALLEL
-       call self%alloc_fft_arrays(.False.)
     else
        do i=1,n
-          call self%isoft(coeffs(:,i),so3funcs(:,:,:,i),.FALSE.)       
+          call self%isoft_(coeffs(:,i),so3funcs(:,:,:,i),fft_c2c_in,.FALSE.)       
        end do
     end if
   end subroutine isoft_many
@@ -2433,24 +2493,26 @@ contains
     real(kind=dp),intent(in) :: so3funcs(:,:,:,:)
     complex(kind=dp),intent(inout) :: coeffs(:,:)
     logical, intent(in) :: use_mp
+    complex(kind=dp) :: fft_c2r_in(self%bw*2,self%bw+1,self%bw*2)
     integer(kind=dp) :: n,i
-    n = size(so3funcs,1)
+    n = size(so3funcs,4)
 
+    if (.NOT. self%plans_allocated_r) then
+       call self%init_fft(.TRUE.)
+    end if
+    
     if (use_mp) then
-       call self%dealloc_fft_arrays(.False.)
-       !$OMP PARALLEL PRIVATE(i) SHARED(so3funcs,coeffs,n)
-       call self%alloc_fft_arrays(.False.)
+       !$OMP PARALLEL PRIVATE(i,fft_c2r_in) SHARED(so3funcs,coeffs,n)
        !$OMP DO
        do i=1,n
-          call self%rsoft(so3funcs(:,:,:,i),coeffs(:,i),.FALSE.)       
+          call self%rsoft_(so3funcs(:,:,:,i),coeffs(:,i),fft_c2r_in,.FALSE.)       
        end do
-       !$OMP END DO
-       call self%dealloc_fft_arrays(.False.)
+       !$OMP END DO   
        !$OMP END PARALLEL
-       call self%alloc_fft_arrays(.False.)
     else
        do i=1,n
-          call self%rsoft(so3funcs(:,:,:,i),coeffs(:,i),.FALSE.)       
+          call self%rsoft_(so3funcs(:,:,:,i),coeffs(:,i),fft_c2r_in,.FALSE.)
+          !call self%rsoft(so3funcs(:,:,:,i),coeffs(:,i),.FALSE.)       
        end do
     end if
   end subroutine rsoft_many
@@ -2460,25 +2522,25 @@ contains
     real(kind=dp),intent(inout) :: so3funcs(:,:,:,:)
     complex(kind=dp),intent(in) :: coeffs(:,:)
     logical, intent(in) :: use_mp
+    complex(kind=dp) :: fft_c2r_in(self%bw*2,self%bw+1,self%bw*2)
     integer(kind=dp) :: n,i
-    !f2py integer(kind = dp) :: nthreads = 1_dp
-    n = size(so3funcs,1)
+    n = size(coeffs,2)
 
+    if (.NOT. self%plans_allocated_r) then
+       call self%init_fft(.TRUE.)
+    end if
+    
     if (use_mp) then
-       call self%dealloc_fft_arrays(.False.)
-       !$OMP PARALLEL PRIVATE(i) SHARED(so3funcs,coeffs,n)
-       call self%alloc_fft_arrays(.False.)
+       !$OMP PARALLEL PRIVATE(i,fft_c2r_in) SHARED(so3funcs,coeffs,n)
        !$OMP DO
        do i=1,n
-          call self%irsoft(coeffs(:,i),so3funcs(:,:,:,i),.FALSE.)       
+          call self%irsoft_(coeffs(:,i),so3funcs(:,:,:,i),fft_c2r_in,.FALSE.)       
        end do
        !$OMP END DO
-       call self%dealloc_fft_arrays(.False.)
        !$OMP END PARALLEL
-       call self%alloc_fft_arrays(.False.)
     else
        do i=1,n
-          call self%irsoft(coeffs(:,i),so3funcs(:,:,:,i),.FALSE.)       
+          call self%irsoft_(coeffs(:,i),so3funcs(:,:,:,i),fft_c2r_in,.FALSE.)       
        end do
     end if
   end subroutine irsoft_many

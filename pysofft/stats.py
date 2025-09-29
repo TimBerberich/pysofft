@@ -341,7 +341,7 @@ class CharFuncFactory:
             if nonzero_value:
                 #The following two equations are equivalent
                 #cos2n[_id]=Kcos*np.sqrt(np.pi)*np.exp(loggamma(2*nn+1)-(2*nn+1)*np.log(2)-loggamma(nn-l//2+1)-loggamma(nn+l//2+3/2))
-                cos2n[_id]=Kcos*np.exp(loggamma(2*nn+1)+loggamma(nn+l//2+1)+l*np.log(2)-loggamma(nn-l//2+1)-loggamma(2*nn+l+2))
+                cos2n[_id]=Kcos*np.exp(loggamma(2*nn+1)+loggamma(nn+l//2+1)+(l+1)*np.log(2)-loggamma(nn-l//2+1)-loggamma(2*nn+l+2))
             else:
                 cos2n[_id]=0
         return cos2n

@@ -8,95 +8,109 @@ def compute_dlml_naiv(l,m,betas):
     f = factorial
     dlml = np.sqrt((2*l+1)/2)*np.sqrt(f(2*l)/(f(l+m)*f(l-m)))*np.cos(betas/2)**(l+m)*np.sin(betas/2)**(l-m)
     return dlml
+
 def wigner_Dlmn_limited_l(l,m,n,alpha,beta,gamma):
     if l==0:
-        d = 1
+        normalization = np.sqrt(1/2)
+        d = np.ones(len(beta))
     elif l==1:
         normalization = np.sqrt((2*1+1)/2)
-        if m==-1 and n==-1:
+        if m==1 and n==1:
             d = np.cos(beta/2)**2
-        elif m==-1 and n==0:
-            d = -np.sqrt(2)*np.sin(beta/2)*np.cos(beta/2)
-        elif m==-1 and n==1:
-            d[0,0]= np.sin(beta/2)**2
-        elif m==0 and n==-1:
-            d = np.sqrt(2)*np.sin(beta/2)*np.cos(beta/2)
-        elif m==0 and n==0:
-            d = np.cos(beta)
-        elif m==0 and n==1:
+        elif m==1 and n==0:
             d = -np.sqrt(2)*np.sin(beta/2)*np.cos(beta/2)
         elif m==1 and n==-1:
             d = np.sin(beta/2)**2
-        elif m==1 and n==0:
+        elif m==0 and n==1:
             d = np.sqrt(2)*np.sin(beta/2)*np.cos(beta/2)
-        elif m==1 and n==1:
+        elif m==0 and n==0:
+            d = np.cos(beta)
+        elif m==0 and n==-1:
+            d = -np.sqrt(2)*np.sin(beta/2)*np.cos(beta/2)
+        elif m==-1 and n==1:
+            d = np.sin(beta/2)**2
+        elif m==-1 and n==0:
+            d = np.sqrt(2)*np.sin(beta/2)*np.cos(beta/2)
+        elif m==-1 and n==-1:
             d = np.cos(beta/2)**2
         else:
             raise Exception(f'm={m} and n={n} not possible for l=1')
     elif l==2 :
         normalization = np.sqrt((2*2+1)/2)
-        if m==-2 and n==-2:
-            d=np.cos(beta/2)**2
-        elif m==-2 and n==-1:
+        if m==2 and n==2:
+            d=np.cos(beta/2)**4
+        elif m==2 and n==1:
             d=-2*np.sin(beta/2)*np.cos(beta/2)**3
-        elif m==-2 and n==0:
+        elif m==2 and n==0:
             d= np.sqrt(6)*np.sin(beta/2)**2*np.cos(beta/2)**2
-        elif m==-2 and n==1:
+        elif m==2 and n==-1:
             d= -2*np.sin(beta/2)**3*np.cos(beta/2)
-        elif m==-2 and n==2:
-            d=np.sin(beta/2)**4
-        elif m==-1 and n==-2:
-            d=2*np.sin(beta/2)*np.cos(beta/2)**3
-        elif m==-1 and n==-1:
-            d=1/2*np.cos(beta/2)**2*(4*np.cos(beta)-2)
-        elif m==-1 and n==0:
-            d=np.sqrt(6)*np.sin(beta/2)*np.cos(beta/2)*np.cos(beta)
-        elif m==-1 and n==1:
-            d=1/2*np.sin(beta/2)**2*(4*np.cos(beta)+2)
-        elif m==-1 and n==2:
-            d=-2*np.sin(beta/2)**3*np.cos(beta/2)
-        elif m==0 and n==-2:
-            d=np.sqrt(6)*np.sin(beta/2)**2*np.cos(beta/2)**2
-        elif m==0 and n==-1:
-            d=np.sqrt(6)*np.sin(beta/2)*np.cos(beta/2)*np.cos(beta)
-        elif m==0 and n==0:
-            d=1/2*(3*np.cos(beta)-1)
-        elif m==0 and n==1:
-            d=-np.sqrt(6)*np.sin(beta/2)*np.cos(beta/2)*np.cos(beta)
-        elif m==0 and n==2:
-            d=np.sqrt(6)*np.sin(beta/2)**2*np.cos(beta/2)**2
-        elif m==1 and n==-2:
-            d=2*np.sin(beta/2)**2*np.cos(beta/2)
-        elif m==1 and n==-1:
-            d=1/2*np.sin(beta/2)**2*(4*np.cos(beta)+2)
-        elif m==1 and n==0:
-            d=np.sqrt(6)*np.sin(beta/2)*np.cos(beta/2)*np.cos(beta)
-        elif m==1 and n==1:
-            d=1/2*np.cos(beta/2)**2*(4*np.cos(beta)-2)
-        elif m==1 and n==2:
-            d=-2*np.sin(beta/2)*np.cos(beta/2)**3
         elif m==2 and n==-2:
             d=np.sin(beta/2)**4
-        elif m==2 and n==-1:
-            d=2*np.sin(beta/2)**3*np.cos(beta/2)
-        elif m==2 and n==0:
-            d=np.sqrt(6)*np.sin(beta/2)**2*np.cos(beta/2)**2
-        elif m==2 and n==1:
+        elif m==1 and n==2:
             d=2*np.sin(beta/2)*np.cos(beta/2)**3
-        elif m==2 and n==2:
+        elif m==1 and n==1:
+            d=1/2*np.cos(beta/2)**2*(4*np.cos(beta)-2)
+        elif m==1 and n==0:
+            d=-np.sqrt(6)*np.sin(beta/2)*np.cos(beta/2)*np.cos(beta)
+        elif m==1 and n==-1:
+            d=1/2*np.sin(beta/2)**2*(4*np.cos(beta)+2)
+        elif m==1 and n==-2:
+            d=-2*np.sin(beta/2)**3*np.cos(beta/2)
+        elif m==0 and n==2:
+            d=np.sqrt(6)*np.sin(beta/2)**2*np.cos(beta/2)**2
+        elif m==0 and n==1:
+            d=np.sqrt(6)*np.sin(beta/2)*np.cos(beta/2)*np.cos(beta)
+        elif m==0 and n==0:
+            d=1/2*(3*np.cos(beta)**2-1)
+        elif m==0 and n==-1:
+            d=-np.sqrt(6)*np.sin(beta/2)*np.cos(beta/2)*np.cos(beta)
+        elif m==0 and n==-2:
+            d=np.sqrt(6)*np.sin(beta/2)**2*np.cos(beta/2)**2
+        elif m==-1 and n==2:
+            d=2*np.sin(beta/2)**3*np.cos(beta/2)
+        elif m==-1 and n==1:
+            d=1/2*np.sin(beta/2)**2*(4*np.cos(beta)+2)
+        elif m==-1 and n==0:
+            d=np.sqrt(6)*np.sin(beta/2)*np.cos(beta/2)*np.cos(beta)
+        elif m==-1 and n==-1:
+            d=1/2*np.cos(beta/2)**2*(4*np.cos(beta)-2)
+        elif m==-1 and n==-2:
+            d=-2*np.sin(beta/2)*np.cos(beta/2)**3
+        elif m==-2 and n==2:
+            d=np.sin(beta/2)**4
+        elif m==-2 and n==1:
+            d=2*np.sin(beta/2)**3*np.cos(beta/2)
+        elif m==-2 and n==0:
+            d=np.sqrt(6)*np.sin(beta/2)**2*np.cos(beta/2)**2
+        elif m==-2 and n==-1:
+            d=2*np.sin(beta/2)*np.cos(beta/2)**3
+        elif m==-2 and n==-2:
             d=np.cos(beta/2)**4
         else:
             raise Exception(f'm={m} and n={n} not possible for l=2')                
     elif l>2:
-        normalization = np.sqrt((2*l+1)/2)
+        normalization = 1#np.sqrt((2*l+1)/2)
         if n==l:
             d = compute_dlml_naiv(l,m,beta)
         else:
             raise NotImplementedError()
-        d *=normalization
-        D = np.exp(-1.j*m*alpha)*d*np.exp(-1.j*n*gamma)
+    d *=normalization
+    D = np.exp(-1.j*m*alpha[None,:,None])*d[:,None,None]*np.exp(-1.j*n*gamma[None,None,:])
     return D
-    
+
+def cos_2eta_coeff(l,eta):
+    from math import lgamma
+    if l<=(2*eta) and l%2==0:
+        kcos = (2*eta+1)*np.sqrt((2*l+1)/2)
+        ll=l//2
+        return kcos*np.exp(lgamma(2*eta+1)+lgamma(eta+ll+1)+(l+1)*np.log(2)-lgamma(eta-l//2+1)-lgamma(2*eta+l+2))
+    else:
+        return 0
+def cos_2eta_func(betas,eta):
+    kcos = 2*eta+1
+    return kcos*np.cos(betas)**(eta*2)
+
 class TestMakeWigner:
     bw = 15
     def test_size_wigner_d(self):
@@ -231,7 +245,7 @@ class TestMakeWigner:
         Lmax = 128
         betas = np.array([np.pi*5/11])
         for l in range(2,Lmax+1):
-            dl_risbo = _soft.make_wigner.wigner_dl_risbo(l,betas,False)[0]
+            dl_risbo = _soft.make_wigner.wigner_dl_risbo(l,betas,False)
             dl_kostelec = _soft.make_wigner.wigner_dl_kostelec(l,betas,False)[0]
             assert np.allclose(dl_risbo,dl_kostelec), f'Missmatch between risbo an kosteleic in wigner matrix of degree {l}.'
         
@@ -260,19 +274,13 @@ class TestUtils:
                 assert i==int(fi) and j==int(fj), f'Index mismatch between i,j={(i,j)} and k={k}, fi,fj={(fi,fj)}.'
 
 class TestSo3ft:    
-    # Maybe test wigner transform separately
-    
-    # test forward and inverse for small l with known solutions soft and isoft
-    
     # make sure real,alloc,nthreads>1 and _many versions yield the same results as the simple complex routines soft and isoft
     # dont forget lmax setting
-
+    
     # test correlation with simple example
     # make sure the real and nthread versions
-
+    
     # test ylm rotation for simple exact example
-
-    # test Fork safety
     
     def test_init(self):
         # exhaustive test init for segfaults or similar by trying out all obtions for bandwidth below a threshold.
@@ -293,10 +301,295 @@ class TestSo3ft:
                                         grid[3][i])
             _soft.py.py_destroy(s_int)
             
+    # test_soft and test_isoft are the important tests all other tests
+    # check transform properties and self consistency but these two check against analytic truth.
     def test_isoft(self):
-        bw = 64
+        '''
+        1. Test whether inverse soft of a single nonzero coefficient gives Wigner D matrices as result.
+        2. Test using that the SO3 coefficients of (2*n+1)*cos(beta)**{2*n} are given by
+            flmn nonzero only for m=n=0 and even l such that l<=2*n with coefficients
+                (2*n+1)*(2**(l+1)*(2*n)!*(n+l/2+1)!)/((n-l/2)!*(2*n+l+2)!)
+            see equation 199 in my thesis
+            Tim Berberich
+            Fluctuation X-ray Scattering for Systems of Particles Obeying Arbitrary Orientational Distributions: From Theory to Applications
+            https://www.proquest.com/openview/ef531770a6c7bf2df0989399196adfa5/1?pq-origsite=gscholar&cbl=2026366&diss=y
+        '''
+        bw = 32
         precompute_wigners = False
-        s_int = _soft.py.py_init_soft(bw,bw,precompute_wigners,True,0)
-
-        coeff = _soft.utils.get_empty_coeff(bw)
+        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
         
+        coeff = _soft.utils.get_empty_coeff(bw)
+        beta = _soft.make_wigner.create_beta_samples(2*bw)
+        alpha = _soft.make_wigner.create_alpha_gamma_samples(2*bw)
+        gamma = alpha.copy()
+        
+        for l in range(10):
+            for m in range(-l,l+1):
+                if l<3:
+                    for n in range(-l,l+1):
+                        #print(f'l,n,m = {l,n,m}')
+                        d_test = wigner_Dlmn_limited_l(l,m,n,alpha,beta,gamma)
+                        coeff = _soft.utils.get_empty_coeff(bw)
+                        d =  _soft.utils.get_empty_so3func_cmplx(bw)
+                        cid = _soft.utils.coeff_location(m,n,l,bw)-1
+                        coeff[cid]=1
+                        _soft.py.py_isoft(s_int,coeff,d,False)
+                        assert np.allclose(d_test,d), f'wigner mismatch for l,m,n,= {l,m,n}'
+                else:
+                    n=l
+                    #print(f'l,n,m = {l,n,m}')
+                    d_test = wigner_Dlmn_limited_l(l,m,n,alpha,beta,gamma)
+                    coeff = _soft.utils.get_empty_coeff(bw)
+                    d =  _soft.utils.get_empty_so3func_cmplx(bw)
+                    cid = _soft.utils.coeff_location(m,n,l,bw)-1
+                    coeff[cid]=1
+                    _soft.py.py_isoft(s_int,coeff,d,False)
+                    assert np.allclose(d_test,d), f'wigner mismatch for l,m,n,= {l,m,n}'
+                    
+        for eta in range(1,bw//2):
+            d =  _soft.utils.get_empty_so3func_cmplx(bw)
+            coeff = _soft.utils.get_empty_coeff(bw)
+            for l in range(bw):
+                cid = _soft.utils.coeff_location(0,0,l,bw)-1
+                coeff[cid]=cos_2eta_coeff(l,eta)
+            _soft.py.py_isoft(s_int,coeff,d,False)
+            d_test = cos_2eta_func(beta,eta)
+            assert np.allclose(d_test,d[:,0,0]),f'isoft & cos(beta)^(2*eta) mismatch at eta={eta}'
+        _soft.py.py_destroy(s_int)        
+    def test_soft(self):
+        '''
+        1. Test whether soft of a Wigner D matrics has a singe nonzero coefficient value as result.
+        2. Test using that the SO3 coefficients of (2*n+1)*cos(beta)**{2*n} are given by
+            flmn nonzero only for m=n=0 and even l such that l<=2*n with coefficients
+                (2*n+1)*(2**(l+1)*(2*n)!*(n+l/2+1)!)/((n-l/2)!*(2*n+l+2)!)
+            see equation 199 in my thesis
+            Tim Berberich
+            Fluctuation X-ray Scattering for Systems of Particles Obeying Arbitrary Orientational Distributions: From Theory to Applications
+            https://www.proquest.com/openview/ef531770a6c7bf2df0989399196adfa5/1?pq-origsite=gscholar&cbl=2026366&diss=y
+        '''
+        bw = 32
+        precompute_wigners = False
+        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
+        
+        coeff = _soft.utils.get_empty_coeff(bw)
+        beta = _soft.make_wigner.create_beta_samples(2*bw)
+        alpha = _soft.make_wigner.create_alpha_gamma_samples(2*bw)
+        gamma = alpha.copy()
+        
+        for l in range(10):
+            for m in range(-l,l+1):
+                if l<3:
+                    for n in range(-l,l+1):
+                        #print(f'l,n,m = {l,n,m}')
+                        coeff_test = _soft.utils.get_empty_coeff(bw)
+                        cid = _soft.utils.coeff_location(m,n,l,bw)-1
+                        coeff_test[cid]=1
+                        coeff = _soft.utils.get_empty_coeff(bw)
+                        d = wigner_Dlmn_limited_l(l,m,n,alpha,beta,gamma)
+                        _soft.py.py_soft(s_int,d,coeff,False)
+                        assert np.allclose(coeff_test,coeff), f'wigner mismatch for l,m,n,= {l,m,n}'
+                else:
+                    n=l
+                    #print(f'l,n,m = {l,n,m}')
+                    coeff_test = _soft.utils.get_empty_coeff(bw)
+                    cid = _soft.utils.coeff_location(m,n,l,bw)-1
+                    coeff_test[cid]=1
+                    coeff = _soft.utils.get_empty_coeff(bw)
+                    d = wigner_Dlmn_limited_l(l,m,n,alpha,beta,gamma)
+                    _soft.py.py_soft(s_int,d,coeff,False)
+                    assert np.allclose(coeff_test,coeff), f'wigner mismatch for l,m,n,= {l,m,n}'
+                    
+        for eta in range(1,bw//2):
+            d =  _soft.utils.get_empty_so3func_cmplx(bw)
+            d[:,:,:] =  cos_2eta_func(beta,eta)[:,None,None]
+            coeff = _soft.utils.get_empty_coeff(bw)
+            coeff_test = _soft.utils.get_empty_coeff(bw)
+            for l in range(bw):
+                cid = _soft.utils.coeff_location(0,0,l,bw)-1
+                coeff_test[cid]=cos_2eta_coeff(l,eta)
+            _soft.py.py_soft(s_int,d,coeff,False)
+            assert np.allclose(coeff_test,coeff),f'isoft & cos(beta)^(2*eta) mismatch at eta={eta}'
+        _soft.py.py_destroy(s_int)
+        
+    # test invertability and equality between soft,isoft,rsoft,irsoft
+    def test_soft_isoft_invertible(self):
+        '''
+        Tests invertability of the complex soft and isoft routines
+        '''
+        bw = 32
+        precompute_wigners = False
+        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
+        for bw in range(1,32):
+            precompute_wigners = False
+            s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
+            coeff = _soft.utils.get_empty_coeff(bw)
+            coeff2 = _soft.utils.get_empty_coeff(bw)
+            d = _soft.utils.get_empty_so3func_cmplx(bw)
+            d2 = _soft.utils.get_empty_so3func_cmplx(bw)
+            
+            coeff[...] = np.random.rand(*coeff.shape) + 1.j*np.random.rand(*coeff.shape)
+            _soft.py.py_isoft(s_int,coeff,d,False)
+            _soft.py.py_soft(s_int,d,coeff2,False)
+            assert np.allclose(coeff,coeff2), f'isoft soft not identity for bw = {bw}'
+            
+            _soft.py.py_isoft(s_int,coeff2,d2,False)
+            assert np.allclose(d,d2), f'soft isoft not identity for bw = {bw}'
+            
+            _soft.py.py_destroy(s_int)            
+    def test_rsoft_same_as_soft(self):
+        '''
+        Tests that the complex transform soft, restricted to real inputs, gives the same result as the real version rsoft.
+        '''
+        bw = 32
+        precompute_wigners = False
+        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
+        for bw in range(1,32):        
+            s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
+            d = _soft.utils.get_empty_so3func_cmplx(bw)            
+            coeff = _soft.utils.get_empty_coeff(bw)
+            coeff2 = _soft.utils.get_empty_coeff(bw)
+            d[...] = np.random.rand(*d.shape)
+            _soft.py.py_soft(s_int,d,coeff,False)
+            _soft.py.py_rsoft(s_int,d.real,coeff2,False)
+            assert np.allclose(coeff,coeff2),f'rsoft,soft mismatch for bw={bw}'
+            _soft.py.py_destroy(s_int)
+    def test_irsoft_same_as_isoft(self):
+        '''
+        Tests that the complex transform soft, restricted to real inputs, gives the same result as the real version rsoft.
+        '''
+        bw = 32
+        precompute_wigners = False
+        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
+        for bw in range(1,32):        
+            s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
+            coeff = _soft.utils.get_empty_coeff(bw)
+            d = _soft.utils.get_empty_so3func_cmplx(bw)
+            d2 = _soft.utils.get_empty_so3func_real(bw)            
+            coeff[...] = np.random.rand(*coeff.shape) + 1.j*np.random.rand(*coeff.shape)
+            _soft.utils.enforce_real_sym(coeff,bw)
+            
+            _soft.py.py_isoft(s_int,coeff,d,False)
+            _soft.py.py_irsoft(s_int,coeff,d2,False)
+            assert np.allclose(d.real,d2),f'irsoft,isoft mismatch for bw={bw}'
+            _soft.py.py_destroy(s_int)            
+    def test_rsoft_irsoft_invertible(self):
+        '''
+        Tests invertability of the real rsoft and irsoft routines
+        '''
+        bw = 32
+        precompute_wigners = False
+        for bw in range(1,32):        
+            s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
+            coeff = _soft.utils.get_empty_coeff(bw)
+            coeff2 = _soft.utils.get_empty_coeff(bw)
+            d = _soft.utils.get_empty_so3func_real(bw)
+            d2 = _soft.utils.get_empty_so3func_real(bw)
+            
+            coeff[...] = np.random.rand(*coeff.shape) + 1.j*np.random.rand(*coeff.shape)
+            _soft.utils.enforce_real_sym(coeff,bw)
+            _soft.py.py_irsoft(s_int,coeff,d,False)
+            _soft.py.py_rsoft(s_int,d,coeff2,False)
+            assert np.allclose(coeff,coeff2), f'isoft soft not identity for bw = {bw}'
+            
+            _soft.py.py_irsoft(s_int,coeff2,d2,False)
+            assert np.allclose(d,d2), f'soft isoft not identity for bw = {bw}'
+            
+            _soft.py.py_destroy(s_int)                        
+
+    # test _many versions of all transforms
+    def test_soft_many_same_as_soft(self):
+        '''
+        Tests invertability of the real rsoft and irsoft routines
+        '''
+        bw = 32
+        howmany=10
+        precompute_wigners = False
+        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
+        d = _soft.utils.get_empty_so3func_cmplx_many(bw,howmany)
+        coeff = _soft.utils.get_empty_coeff_many(bw,howmany)
+        coeff2 = _soft.utils.get_empty_coeff_many(bw,howmany)
+        coeff3 = _soft.utils.get_empty_coeff_many(bw,howmany)
+        d[:]=np.random.rand(*d.shape)
+        for i in range(howmany):
+            _soft.py.py_soft(s_int,d[...,i],coeff[:,i],False)
+        _soft.py.py_soft_many(s_int,d,coeff2,False)
+        assert np.allclose(coeff,coeff2),'Mismatch between soft and soft_many'
+        _soft.py.omp_set_num_threads_(4)
+        _soft.py.py_soft_many(s_int,d,coeff3,True)
+        assert np.allclose(coeff,coeff3),'Mismatch between soft and soft_many using OMP'        
+        _soft.py.py_destroy(s_int)
+        _soft.py.omp_set_num_threads_(1)
+    def test_rsoft_many_same_as_rsoft(self):
+        '''
+        Tests invertability of the real rsoft and irsoft routines
+        '''
+        bw = 31
+        howmany=10
+        precompute_wigners = False
+        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
+        d = _soft.utils.get_empty_so3func_real_many(bw,howmany)
+        d2 = _soft.utils.get_empty_so3func_real_many(bw,howmany)
+        d3 = _soft.utils.get_empty_so3func_real_many(bw,howmany)
+        coeff = _soft.utils.get_empty_coeff_many(bw,howmany)
+        coeff2 = _soft.utils.get_empty_coeff_many(bw,howmany)
+        coeff3 = _soft.utils.get_empty_coeff_many(bw,howmany)
+        d[:]=np.random.rand(*d.shape)
+        d2[:] = d
+        d3[:] = d
+        for i in range(howmany):
+            _soft.py.py_rsoft(s_int,d[...,i],coeff[:,i],False)
+        _soft.py.py_rsoft_many(s_int,d2,coeff2,False)
+        assert np.allclose(coeff,coeff2),'Mismatch between rsoft and rsoft_many'
+        _soft.py.omp_set_num_threads_(4)
+        _soft.py.py_rsoft_many(s_int,d2,coeff3,True)
+        assert np.allclose(coeff,coeff3),'Mismatch between rsoft and rsoft_many using OMP'        
+        _soft.py.py_destroy(s_int)
+        _soft.py.omp_set_num_threads_(1)
+    def test_isoft_many_same_as_isoft(self):
+        '''
+        Tests invertability of the real rsoft and irsoft routines
+        '''
+        bw = 33
+        howmany=9
+        precompute_wigners = True
+        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
+        coeff = _soft.utils.get_empty_coeff_many(bw,howmany)
+        d = _soft.utils.get_empty_so3func_cmplx_many(bw,howmany)
+        d2 = _soft.utils.get_empty_so3func_cmplx_many(bw,howmany)
+        d3 = _soft.utils.get_empty_so3func_cmplx_many(bw,howmany)
+        coeff[:]=np.random.rand(*coeff.shape)+1.j*np.random.rand(*coeff.shape)
+        for i in range(howmany):
+            _soft.py.py_isoft(s_int,coeff[:,i],d[...,i],False)
+        _soft.py.py_isoft_many(s_int,coeff,d2,False)
+        assert np.allclose(d,d2),'Mismatch between rsoft and rsoft_many'
+        _soft.py.omp_set_num_threads_(4)
+        _soft.py.py_isoft_many(s_int,coeff,d3,True)
+        assert np.allclose(d,d3),'Mismatch between isoft and isoft_many using OMP'        
+        _soft.py.py_destroy(s_int)
+        _soft.py.omp_set_num_threads_(1)
+    def test_irsoft_many_same_as_irsoft(self):
+        '''
+        Tests invertability of the real rsoft and irsoft routines
+        '''
+        bw = 27
+        howmany=11
+        precompute_wigners = True
+        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
+        coeff = _soft.utils.get_empty_coeff_many(bw,howmany)
+        coeff2 = _soft.utils.get_empty_coeff_many(bw,howmany)
+        d = _soft.utils.get_empty_so3func_real_many(bw,howmany)        
+        d2 = _soft.utils.get_empty_so3func_real_many(bw,howmany)
+        d3 = _soft.utils.get_empty_so3func_real_many(bw,howmany)
+        coeff[:]=np.random.rand(*coeff.shape)+1.j*np.random.rand(*coeff.shape)
+        _soft.utils.enforce_real_sym(coeff,bw)
+        coeff2[:] = coeff
+        for i in range(howmany):
+            _soft.py.py_irsoft(s_int,coeff[:,i],d[...,i],False)
+        _soft.py.py_irsoft_many(s_int,coeff2,d2,False)
+        #assert np.allclose(d,d2),'Mismatch between rsoft and rsoft_many'
+        #assert((d3==0).all())
+        _soft.py.omp_set_num_threads_(4)
+        _soft.py.py_irsoft_many(s_int,coeff2,d3,True)
+        assert np.allclose(d,d3),'Mismatch between irsoft and irsoft_many using OMP'        
+        _soft.py.py_destroy(s_int)
+        _soft.py.omp_set_num_threads_(1)
