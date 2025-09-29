@@ -331,23 +331,32 @@ class TestSo3ft:
                         d_test = wigner_Dlmn_limited_l(l,m,n,alpha,beta,gamma)
                         coeff = _soft.utils.get_empty_coeff(bw)
                         d =  _soft.utils.get_empty_so3func_cmplx(bw)
+                        d2 =  _soft.utils.get_empty_so3func_cmplx(bw)
                         cid = _soft.utils.coeff_location(m,n,l,bw)-1
                         coeff[cid]=1
                         _soft.py.py_isoft(s_int,coeff,d,False)
                         assert np.allclose(d_test,d), f'wigner mismatch for l,m,n,= {l,m,n}'
+                        _soft.py.omp_set_num_threads_(4)
+                        _soft.py.py_isoft(s_int,coeff,d2,True)
+                        assert np.allclose(d_test,d2), f'wigner mismatch using OMP for l,m,n,= {l,m,n}'
                 else:
                     n=l
                     #print(f'l,n,m = {l,n,m}')
                     d_test = wigner_Dlmn_limited_l(l,m,n,alpha,beta,gamma)
                     coeff = _soft.utils.get_empty_coeff(bw)
                     d =  _soft.utils.get_empty_so3func_cmplx(bw)
+                    d2 =  _soft.utils.get_empty_so3func_cmplx(bw)
                     cid = _soft.utils.coeff_location(m,n,l,bw)-1
                     coeff[cid]=1
                     _soft.py.py_isoft(s_int,coeff,d,False)
                     assert np.allclose(d_test,d), f'wigner mismatch for l,m,n,= {l,m,n}'
+                    _soft.py.omp_set_num_threads_(4)
+                    _soft.py.py_isoft(s_int,coeff,d2,True)
+                    assert np.allclose(d_test,d2), f'wigner mismatch using OMP for l,m,n,= {l,m,n}'
                     
         for eta in range(1,bw//2):
             d =  _soft.utils.get_empty_so3func_cmplx(bw)
+            d2 =  _soft.utils.get_empty_so3func_cmplx(bw)
             coeff = _soft.utils.get_empty_coeff(bw)
             for l in range(bw):
                 cid = _soft.utils.coeff_location(0,0,l,bw)-1
@@ -355,7 +364,11 @@ class TestSo3ft:
             _soft.py.py_isoft(s_int,coeff,d,False)
             d_test = cos_2eta_func(beta,eta)
             assert np.allclose(d_test,d[:,0,0]),f'isoft & cos(beta)^(2*eta) mismatch at eta={eta}'
-        _soft.py.py_destroy(s_int)        
+            _soft.py.omp_set_num_threads_(4)
+            _soft.py.py_isoft(s_int,coeff,d2,True)
+            assert np.allclose(d_test,d2[:,0,0]),f'isoft OMP & cos(beta)^(2*eta) mismatch at eta={eta}'
+        _soft.py.py_destroy(s_int)
+        _soft.py.omp_set_num_threads_(1)        
     def test_soft(self):
         '''
         1. Test whether soft of a Wigner D matrics has a singe nonzero coefficient value as result.
@@ -385,9 +398,13 @@ class TestSo3ft:
                         cid = _soft.utils.coeff_location(m,n,l,bw)-1
                         coeff_test[cid]=1
                         coeff = _soft.utils.get_empty_coeff(bw)
+                        coeff2 = _soft.utils.get_empty_coeff(bw)
                         d = wigner_Dlmn_limited_l(l,m,n,alpha,beta,gamma)
                         _soft.py.py_soft(s_int,d,coeff,False)
                         assert np.allclose(coeff_test,coeff), f'wigner mismatch for l,m,n,= {l,m,n}'
+                        _soft.py.omp_set_num_threads_(4)
+                        _soft.py.py_soft(s_int,d,coeff2,True)
+                        assert np.allclose(coeff_test,coeff2), f'wigner mismatch OMP for l,m,n,= {l,m,n}'
                 else:
                     n=l
                     #print(f'l,n,m = {l,n,m}')
@@ -398,6 +415,9 @@ class TestSo3ft:
                     d = wigner_Dlmn_limited_l(l,m,n,alpha,beta,gamma)
                     _soft.py.py_soft(s_int,d,coeff,False)
                     assert np.allclose(coeff_test,coeff), f'wigner mismatch for l,m,n,= {l,m,n}'
+                    _soft.py.omp_set_num_threads_(4)
+                    _soft.py.py_soft(s_int,d,coeff2,True)
+                    assert np.allclose(coeff_test,coeff2), f'wigner mismatch OMP for l,m,n,= {l,m,n}'
                     
         for eta in range(1,bw//2):
             d =  _soft.utils.get_empty_so3func_cmplx(bw)
@@ -409,7 +429,11 @@ class TestSo3ft:
                 coeff_test[cid]=cos_2eta_coeff(l,eta)
             _soft.py.py_soft(s_int,d,coeff,False)
             assert np.allclose(coeff_test,coeff),f'isoft & cos(beta)^(2*eta) mismatch at eta={eta}'
+            _soft.py.omp_set_num_threads_(4)
+            _soft.py.py_soft(s_int,d,coeff2,True)
+            assert np.allclose(coeff_test,coeff2),f'isoft OMP & cos(beta)^(2*eta) mismatch at eta={eta}'
         _soft.py.py_destroy(s_int)
+        _soft.py.omp_set_num_threads_(1)
         
     # test invertability and equality between soft,isoft,rsoft,irsoft
     def test_soft_isoft_invertible(self):
@@ -448,11 +472,16 @@ class TestSo3ft:
             d = _soft.utils.get_empty_so3func_cmplx(bw)            
             coeff = _soft.utils.get_empty_coeff(bw)
             coeff2 = _soft.utils.get_empty_coeff(bw)
+            coeff3 = _soft.utils.get_empty_coeff(bw)
             d[...] = np.random.rand(*d.shape)
             _soft.py.py_soft(s_int,d,coeff,False)
             _soft.py.py_rsoft(s_int,d.real,coeff2,False)
             assert np.allclose(coeff,coeff2),f'rsoft,soft mismatch for bw={bw}'
-            _soft.py.py_destroy(s_int)
+            _soft.py.omp_set_num_threads_(4)
+            _soft.py.py_rsoft(s_int,d.real,coeff3,True)
+            assert np.allclose(coeff,coeff3),f'rsoft OMP,soft mismatch for bw={bw}'
+            _soft.py.omp_set_num_threads_(1)
+            _soft.py.py_destroy(s_int)            
     def test_irsoft_same_as_isoft(self):
         '''
         Tests that the complex transform soft, restricted to real inputs, gives the same result as the real version rsoft.
@@ -464,13 +493,18 @@ class TestSo3ft:
             s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
             coeff = _soft.utils.get_empty_coeff(bw)
             d = _soft.utils.get_empty_so3func_cmplx(bw)
-            d2 = _soft.utils.get_empty_so3func_real(bw)            
+            d2 = _soft.utils.get_empty_so3func_real(bw)
+            d3 = _soft.utils.get_empty_so3func_real(bw)            
             coeff[...] = np.random.rand(*coeff.shape) + 1.j*np.random.rand(*coeff.shape)
             _soft.utils.enforce_real_sym(coeff,bw)
             
             _soft.py.py_isoft(s_int,coeff,d,False)
             _soft.py.py_irsoft(s_int,coeff,d2,False)
             assert np.allclose(d.real,d2),f'irsoft,isoft mismatch for bw={bw}'
+            _soft.py.omp_set_num_threads_(4)
+            _soft.py.py_irsoft(s_int,coeff,d3,True)
+            assert np.allclose(d.real,d3),f'irsoft OMP,isoft  mismatch for bw={bw}'
+            _soft.py.omp_set_num_threads_(1)
             _soft.py.py_destroy(s_int)            
     def test_rsoft_irsoft_invertible(self):
         '''
