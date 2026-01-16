@@ -173,6 +173,51 @@ class Soft:
     def irfft(self,f1,f2):
         py.py_irfft(self._fortran_pointer,f1,f2)
 
+def rotate_ylm_complex(ylms,euler_angles):
+    '''
+    Rotates an array of spherical harmonic coefficients of a complex function
+    by an array of rotations given as ZXZ euler angles.
+
+    Input
+    ylms         : (n_ylmns,spherical_harmonic_coefficients)  : (n,(2*bw-1)**2)   : complex
+    euler_angles : (m_rotations,euler_angles)                 : (m,3)             : int
+
+    Output
+    ylns_rot     : (m_rotations,n_ylms,harmonic_coefficients) : (m,n,(2*bw-1)**2) : complex   
+    '''
+    #setup working arrays
+    cos_b = np.cos(np.array(euler_angles[:,1])/2)
+    sin_b = np.sin(np.array(-euler_angles[:,1])/2)
+    # I need to invert the beta angles because my fortran code produces transposed d-matrices in python/c code
+    # and we have d^l_mn(\beta) = d^l_(nm)(-beta) so substituting beta with -beta is the same as transposing.
+    # because of this there is then minus in  np.sin(np.array(-euler_angles[:,1])/2)
+    
+    bw = int(np.sqrt(ylms.shape[-1]))
+    sqrts = np.sqrt(np.arange(2*bw-1))
+
+    #exp_a = np.exp(-1.j*euler_angles[:,0,None]*(np.arange(2*bw-1)[None,:]-bw+1))
+    #exp_g = np.exp(-1.j*euler_angles[:,2,None]*(np.arange(2*bw-1)[None,:]-bw+1))
+    exp_a = np.exp(-1.j*euler_angles[:,0,None]*np.arange(-bw+1,bw)[None,:])
+    exp_g = np.exp(-1.j*euler_angles[:,2,None]*np.arange(-bw+1,bw)[None,:])
+    
+    dl_tmp = np.zeros((len(euler_angles),(2*bw-1)*(2*bw-1)),float)
+    D_conj = np.zeros((len(euler_angles),(2*bw-1),(2*bw-1)),complex)
+    ylms_rot = np.zeros((len(euler_angles),)+ylms.shape,dtype=complex) 
+    for l in range(bw):
+        # use recursion to compute the Wigner small-d matrices for the current oder l
+        dl_tmp[:,0:(2*l+1)*(2*l+1)] = _soft.make_wigner.wigner_mn_recurrence_risbo(dl_tmp[:,0:(2*l-1)*(2*l-1)],l,cos_b,sin_b,sqrts)
+        # slice of relevant orders in exp_a, exp_b and D
+        l_slice_sym = slice(bw-1-l,bw+l)
+        # populate Wiegner D^l_mn(alpha,beta,gamma)
+        D_conj[:,l_slice_sym,l_slice_sym] =  dl_tmp[:,0:(2*l+1)*(2*l+1)].reshape(len(euler_angles),(2*l+1),(2*l+1))*exp_g[:,None,l_slice_sym]*exp_a[:,l_slice_sym,None]
+        # slice to order l part of the input ylmns
+        tmp = _soft.utils.lmc_slice(l)
+        lmc_slice = slice(tmp[0]-1,tmp[1])
+        lmc_slice_reverse = slice(tmp[1]-1,tmp[0])
+        # Perform the rotation in order l
+        np.matmul(ylms[:,lmc_slice],D_conj[:,l_slice_sym,l_slice_sym],out=ylms_rot[...,lmc_slice])
+    return ylms_rot
+
 # Syntactic sugar section
 class CoeffSO3(np.ndarray):
     r"""

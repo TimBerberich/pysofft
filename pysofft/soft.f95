@@ -421,6 +421,12 @@ contains
     index = l*(l+1_dp)+m+1_dp
   end function LMc
 
+  function LMc_slice(l) result(slice)
+    integer(kind = dp),intent(in) :: l
+    integer(kind = dp) :: slice(2)
+    slice(1) = LMc(l,-l)
+    slice(2) = LMc(l,l)
+  end function LMc_slice
   !> ----------
   !! Index for the spherical harmonic coefficient Y_lm for real data.
   !! This is the same convention used by the software SHTNS
@@ -1114,6 +1120,57 @@ contains
   end function wigner_dl_risbo
 
 end module make_wigner
+
+! Module to rotate spherical harmonic coefficients
+module rotate_spherical_harmonics
+  use precision
+  use math_constants
+  use utils
+  use make_wigner
+  implicit none
+
+  !interface rotate_ylm_cmplx
+  !   module procedure rotate_ylm_cmplx_many,rotate_ylm_cmplx_single
+  !end interface rotate_ylm_cmplx
+contains
+  function rotate_ylm_cmplx_many(f_lm,bw,euler_angles) result(rot_f_lm)
+    integer(kind = dp),intent(in) :: bw
+    complex(kind = dp),intent(in) :: f_lm(:,:)
+    real(kind = dp),intent(in) :: euler_angles(:,:)
+    real(kind = dp) :: dl(size(euler_angles,1),(2*bw+1)*(2*bw+1))
+    complex(kind = dp) :: rot_f_lm(size(euler_angles,1),size(f_lm,1),size(f_lm,2))
+    real(kind = dp) :: cos_beta(size(euler_angles,1)),sin_beta(size(euler_angles,1)),sqrts(2*bw-1)
+    complex(kind = dp) :: exp_a(size(euler_angles,1),2*bw-1),exp_g(size(euler_angles,1),2*bw-1),za(size(euler_angles,1)),zg(size(euler_angles,1))
+    integer(kind = dp) :: l,i,bw2,aid,ll,b,m,n
+    integer(kind = dp) :: lm_slice(2)
+    
+    ! prepare variables
+    bw2 = 2_dp*bw
+    cos_beta = COS(euler_angles(:,2)/2)
+    sin_beta = SIN(euler_angles(:,2)/2)
+    za = (0._dp,-1._dp)*euler_angles(:,1)
+    zg = (0._dp,-1._dp)*euler_angles(:,3)
+    do i=1,bw2-1
+       sqrts(i) = SQRT(real(i-1,kind = dp))
+       exp_a(:,i) = EXP(za*real(-bw+i,kind = dp))
+       exp_g(:,i) = EXP(zg*real(-bw+i,kind = dp))
+    end do
+    do l=0, bw-1
+       dl(:,1:(2*l+1)*(2*l+1)) = wigner_mn_recurrence_risbo(dl(:,1:(2*l-1)*(2*l-1)), l, cos_beta, sin_beta, sqrts)
+       ll=2*l+1
+       lm_slice = LMc_slice(l)
+       !print * , "yay: " ,l,size(dl,1), ll**2,(ll-1)*ll+ll
+       do m=-l,l
+          do n=-l,l
+             do i=1,size(f_lm,1)
+                rot_f_lm(:,i,LMc(l,m)) = rot_f_lm(:,i,LMc(l,m)) + dl(:,(m-1)*ll+n)*f_lm(i,LMc(l,n))! * dl(b,(m-1)*ll+n) !* exp_a(b,bw-l+m-1) * exp_g(b,bw-l+n-1)
+             end do
+          end do
+       end do
+    end do
+  end function rotate_ylm_cmplx_many
+end module rotate_spherical_harmonics
+
 
 module softclass
   use precision
