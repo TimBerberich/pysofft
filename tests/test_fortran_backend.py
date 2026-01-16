@@ -628,7 +628,7 @@ class TestSo3ft:
         _soft.py.omp_set_num_threads_(1)
         
     def test_integrate_over_so3(self):
-        '''Tests that integral of a constant 1 functions returns the volume of SO(3),
+        r'''Tests that integral of a constant 1 functions returns the volume of SO(3),
         which is $$8 \pi^2$$ in the Haar measure.
         '''
         bw = 64
