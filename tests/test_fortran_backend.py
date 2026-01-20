@@ -2,8 +2,9 @@ import numpy as np
 import pysofft
 from math import factorial
 from pysofft import _soft
+from pysofft.soft import rotate_ylm_complex
 
-def compute_dlml_naiv(l,m,betas):
+def computqe_dlml_naiv(l,m,betas):
     # This exact formula is only good for small l !
     f = factorial
     dlml = np.sqrt((2*l+1)/2)*np.sqrt(f(2*l)/(f(l+m)*f(l-m)))*np.cos(betas/2)**(l+m)*np.sin(betas/2)**(l-m)
@@ -247,7 +248,7 @@ class TestMakeWigner:
         for l in range(2,Lmax+1):
             dl_risbo = _soft.make_wigner.wigner_dl_risbo(l,betas,False)
             dl_kostelec = _soft.make_wigner.wigner_dl_kostelec(l,betas,False)[0]
-            assert np.allclose(dl_risbo,dl_kostelec), f'Missmatch between risbo an kosteleic in wigner matrix of degree {l}.'
+            assert np.allclose(dl_risbo,dl_kostelec), f'Missmatch between risbo an kosteleic in wigner matrix of degree {l}.' 
         
 class TestUtils:
     bw = 16
@@ -643,3 +644,14 @@ class TestSo3ft:
         vc = _soft.py.py_integrate_over_so3_cmplx(s_int,dc)
         assert np.isclose(vr,8*np.pi**2), f'Incorrect real integral, value is {vr}'
         assert np.isclose(vc.real,8*np.pi**2), f'Incorrect real integral, value is {vc}'
+
+    def test_cross_correlate(self):
+        bw = 32
+        precompute_wigners = False
+        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
+        coeff = np.zeros(_soft.utils.n_lmc(bw),dtype=complex)
+        coeff[_soft.utils.lmc(1,-1)]=1
+        rot_coeff = rotate_ylm_complex(coeff,(np.pi/2,0,0))
+        corr = _soft.utils.get_empty_so3func_cmplx(bw)
+        #_soft.py.py_cross_correlation_ylm_cmplx(s_int,coeff,rot_coeff,corr,False)
+        return corr

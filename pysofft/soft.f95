@@ -408,6 +408,24 @@ contains
   end function mnl_to_flat_l_slice_padded
 
   !> ----------
+  !! Computes number of complex spherical harmonic coefficients for
+  !! a given order bandwidth bw.
+  function n_LMc(bw) result(n)
+    integer(kind=dp), intent(in) :: bw
+    integer(kind=dp) :: n
+    n=bw*bw
+  end function n_LMc
+
+  !> ----------
+  !! Computes number of real spherical harmonic coefficients for
+  !! a given order bandwidth bw.
+  function n_LMr(bw) result(n)
+    integer(kind=dp), intent(in) :: bw
+    integer(kind=dp) :: n
+    n= (bw*(bw+1_dp))/2_dp
+  end function n_LMr
+  
+  !> ----------
   !! Index for the spherical harmonic coefficient Y_lm for complex data.
   !! This is the same convention used by the software SHTNS
   !! https://nschaeff.bitbucket.io/shtns/index.html
@@ -2646,7 +2664,6 @@ contains
     pm2_slice = MLc_slice(m2,bw)
     nm2_slice = MLc_slice(-m2,bw) 
     
-    
     ! This method assiumes 0<=m1<=m2<=bw
     ! which also means m = max(abs(m1),abs(m2)) = m2
 
@@ -2753,10 +2770,11 @@ contains
     !! use of symmetries does not cause a change in d_{m1,m2}^l(beta) !!
     !! m1,m2 !!
     !s_slice = sample_slice(m1,m2,bw)
+    !print * , size(wig_norm(l_start:),1) , pm1_slice(2)-pm1_slice(1)+1_dp, pm2_slice(2)-pm2_slice(1)+1_dp
     cc_lmn = wig_norm(l_start:) * f_ml(pm1_slice(1):pm1_slice(2)) * g_ml(pm2_slice(1):pm2_slice(2)) * sym_const_m1m2
     so3func(:,m1+1,m2+1) = matmul(cc_lmn,wig_mat)
     
-    if (m1 ==0 .AND. m2 ==0) return    ! prevents m1=m2=0 from beeing evaluated twice
+    if (m1==0 .AND. m2==0) return    ! prevents m1=m2=0 from beeing evaluated twice
     
     !! -m2,-m1 !!
     !s_slice = sample_slice(-m2,-m1,bw)
@@ -2842,7 +2860,7 @@ contains
     complex(kind = dp), intent(inout) :: cc(:,:,:)
     logical, intent(in) :: use_mp
     complex(kind = dp) ::  f_ml(size(f_lm)),g_ml(size(f_lm))
-    integer(kind = dp) :: i,m1,m2,m,L,bw,pm1_slice(2),nm1_slice(2)    
+    integer(kind = dp) :: i,n,m1,m2,m,l,lmax,bw,pm1_slice(2),nm1_slice(2),pm1_tmp(2),nm1_tmp(2)   
     real(kind=dp) :: sym_const_m1,sym_array(self%bw),wig_norm(self%bw)
     procedure(wigner_corr_interface),pointer :: loop_body
 
@@ -2864,8 +2882,8 @@ contains
     self%fft_c2c_in = 0._dp
     
     ! initiallizing some constants
-    L = self%lmax
-    do i=0,L
+    lmax = self%lmax
+    do i=0,lmax
        sym_array(i+1) = (-1.0)**i
        wig_norm = 2._dp*pi*SQRT(2._dp/real(2_dp*i+1_dp,kind = dp))
     end do
@@ -2899,17 +2917,23 @@ contains
        do l=0,bw-1
           do m=-l,l
              f_ml(MLc(m,l,bw)) = f_lm(LMc(l,m))
-             g_ml(MLc(m,l,bw)) = g_lm(LMc(l,m))
+             g_ml(MLc(m,l,bw)) = CONJG(g_lm(LMc(l,m)))
           end do
        end do
-
+       
        ! non-fft part of the SO(3) fourier transform + assembly of cc_lmn = wig_norm * f_ml_part * g_ml_part * sym_const_m1 * sym_const_m2       
-       do m1=0, L
+       do m1=0, lmax
           sym_const_m1 = (-1.0)**m1
-          pm1_slice= MLc_slice(m1,bw)
-          nm1_slice= MLc_slice(-m1,bw)
-          do m2=m1, L          
-             call loop_body(self,f_ml,g_ml,self%fft_c2c_in,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_slice,nm1_slice)
+          pm1_slice = MLc_slice(m1,bw)
+          pm1_tmp = pm1_slice
+          nm1_slice = MLc_slice(-m1,bw)
+          nm1_tmp = nm1_slice
+          !print * , pm1_slice,nm1_slice       
+          do m2=m1, lmax
+             n = m2 - m1
+             pm1_tmp(1) = pm1_slice(1) + n
+             nm1_tmp(1) = nm1_slice(1) + n 
+             call loop_body(self,f_ml,g_ml,self%fft_c2c_in,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_tmp,nm1_tmp)
           end do
        end do
     end if
@@ -3767,4 +3791,3 @@ contains
   end subroutine py_irfft
 
 end module py
-

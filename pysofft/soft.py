@@ -185,6 +185,8 @@ def rotate_ylm_complex(ylms,euler_angles):
     Output
     ylns_rot     : (m_rotations,n_ylms,harmonic_coefficients) : (m,n,(2*bw-1)**2) : complex   
     '''
+    euler_angles = np.atleast_2d(euler_angles)
+    ylms = np.atleast_2d(ylms)
     #setup working arrays
     cos_b = np.cos(np.array(euler_angles[:,1])/2)
     sin_b = np.sin(np.array(-euler_angles[:,1])/2)
@@ -216,6 +218,11 @@ def rotate_ylm_complex(ylms,euler_angles):
         lmc_slice_reverse = slice(tmp[1]-1,tmp[0])
         # Perform the rotation in order l
         np.matmul(ylms[:,lmc_slice],D_conj[:,l_slice_sym,l_slice_sym],out=ylms_rot[...,lmc_slice])
+
+    # If only one rotation or one set of harmonic coefficients is provided
+    # reduce the unecesary dimension in the output array
+    if euler_angles.shape[0]==1 or ylms.shape[0]==1:
+        ylms_rot = np.squeeze(ylms_rot)
     return ylms_rot
 
 # Syntactic sugar section
