@@ -1260,11 +1260,11 @@ module softclass
      procedure :: inverse_wigner_loop_body_corr_cmplx_alloc => inverse_wigner_loop_body_corr_cmplx_alloc_
      procedure :: inverse_wigner_loop_body_corr_cmplx => inverse_wigner_loop_body_corr_cmplx_
      procedure :: cross_correlation_ylm_cmplx
-     procedure :: cross_correlation_ylm_cmplx_3d
+     procedure :: cross_correlation_ylm_cmplx_many
      procedure :: inverse_wigner_loop_body_corr_real_alloc => inverse_wigner_loop_body_corr_real_alloc_
      procedure :: inverse_wigner_loop_body_corr_real => inverse_wigner_loop_body_corr_real_
      procedure :: cross_correlation_ylm_real
-     procedure :: cross_correlation_ylm_real_3d
+     procedure :: cross_correlation_ylm_real_many
 
      ! handles for used fftw routines
      procedure :: fft
@@ -2897,7 +2897,7 @@ contains
        do i=1,bw**2
           call flat_to_pyramid_index(l,m,i)
           f_ml(MLc(m,l,bw)) = f_lm(LMc(l,m))
-          g_ml(MLc(m,l,bw)) = g_lm(LMc(l,m))
+          g_ml(MLc(m,l,bw)) = CONJG(g_lm(LMc(l,m)))
        end do
        !$OMP END DO
        
@@ -2906,8 +2906,11 @@ contains
        do i=1,(L+1)*(L+2)/2
           call flat_to_triangular_index(m1,m2,i,L)
           sym_const_m1 = (-1.0)**m1
-          pm1_slice= MLc_slice(m1,bw)
-          nm1_slice= MLc_slice(-m1,bw)
+          pm1_slice = MLc_slice(m1,bw)
+          nm1_slice = MLc_slice(-m1,bw)
+          pm1_slice(1) = pm1_slice(1) + m2-m1
+          nm1_slice(1) = nm1_slice(1) + m2-m1
+          
           call loop_body(self,f_ml,g_ml,self%fft_c2c_in,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_slice,nm1_slice)
        end do
        !$OMP END DO
@@ -2942,7 +2945,7 @@ contains
     call dfftw_execute_dft(self%plan_c2c_forward,self%fft_c2c_in,cc)
     cc = cc * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)   
   end subroutine cross_correlation_ylm_cmplx
-  subroutine cross_correlation_ylm_cmplx_3d(self,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+  subroutine cross_correlation_ylm_cmplx_many(self,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
     ! let f,g be two square integrable functions on the $\mathbb{R}^3$ in spherical coordinates 
     ! Define CC: SO(3) ---> \mathbb{R},   R |---> <f,g \circ R> = \int_R dr r^2 \int_{S^2} dw f(r,w)*\overline{g(r,Rw)}
     ! This function calculates CC(R) for all R defined in make_SO3_grid
@@ -3001,7 +3004,7 @@ contains
        end do
     end if
     cc = cc*inv_radial_range
-  end subroutine cross_correlation_ylm_cmplx_3d
+  end subroutine cross_correlation_ylm_cmplx_many
   subroutine inverse_wigner_loop_body_corr_real_alloc_(self,f_ml,g_ml,so3func,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_slice)
     ! This subroutine assumes 0<=m1<=m2<=bw
     ! which also means m = max(abs(m1),abs(m2)) = m2
@@ -3224,7 +3227,7 @@ contains
     call dfftw_execute_dft_c2r(self%plan_c2r_backward,self%fft_c2r_in,cc)
     cc = cc * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)   
   end subroutine cross_correlation_ylm_real
-  subroutine cross_correlation_ylm_real_3d(self,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+  subroutine cross_correlation_ylm_real_many(self,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
     ! let f,g be two square integrable functions on the $\mathbb{R}^3$ in spherical coordinates 
     ! Define CC: SO(3) ---> \mathbb{R},   R |---> <f,g \circ R> = \int_R dr r^2 \int_{S^2} dw f(r,w)*\overline{g(r,Rw)}
     ! This function calculates CC(R) for all R defined in make_SO3_grid
@@ -3283,7 +3286,7 @@ contains
        end do
     end if
     cc = cc*inv_radial_range
-  end subroutine cross_correlation_ylm_real_3d
+  end subroutine cross_correlation_ylm_real_many
 
   subroutine fft(self,f1,f2)
     class(so3ft),intent(in) :: self
@@ -3711,7 +3714,7 @@ contains
     call int_to_soft_pointer(self_int,self_ptr,self)
     call self%cross_correlation_ylm_cmplx(f_lm,g_lm,cc,use_mp)
   end subroutine py_cross_correlation_ylm_cmplx
-  subroutine py_cross_correlation_ylm_cmplx_3d(self_int,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+  subroutine py_cross_correlation_ylm_cmplx_many(self_int,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
     !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp),target,intent(in) :: f_lms(:,:),g_lms(:,:)
@@ -3722,8 +3725,8 @@ contains
     type(so3ft_ptr) :: self_ptr
     type(so3ft),pointer :: self
     call int_to_soft_pointer(self_int,self_ptr,self)
-    call self%cross_correlation_ylm_cmplx_3d(f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
-  end subroutine py_cross_correlation_ylm_cmplx_3d
+    call self%cross_correlation_ylm_cmplx_many(f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+  end subroutine py_cross_correlation_ylm_cmplx_many
   subroutine py_cross_correlation_ylm_real(self_int,f_lm,g_lm,cc,use_mp)
     !f2py threadsafe
     integer(kind = dp),intent(in) :: self_int
@@ -3735,7 +3738,7 @@ contains
     call int_to_soft_pointer(self_int,self_ptr,self)
     call self%cross_correlation_ylm_real(f_lm,g_lm,cc,use_mp)
   end subroutine py_cross_correlation_ylm_real
-  subroutine py_cross_correlation_ylm_real_3d(self_int,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+  subroutine py_cross_correlation_ylm_real_many(self_int,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
     !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp),target,intent(in) :: f_lms(:,:),g_lms(:,:)
@@ -3746,8 +3749,8 @@ contains
     type(so3ft_ptr) :: self_ptr
     type(so3ft),pointer :: self
     call int_to_soft_pointer(self_int,self_ptr,self)
-    call self%cross_correlation_ylm_real_3d(f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
-  end subroutine py_cross_correlation_ylm_real_3d
+    call self%cross_correlation_ylm_real_many(f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+  end subroutine py_cross_correlation_ylm_real_many
 
   subroutine py_fft(self_int,f1,f2)
     !f2py threadsafe
