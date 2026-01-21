@@ -1260,11 +1260,11 @@ module softclass
      procedure :: inverse_wigner_loop_body_corr_cmplx_alloc => inverse_wigner_loop_body_corr_cmplx_alloc_
      procedure :: inverse_wigner_loop_body_corr_cmplx => inverse_wigner_loop_body_corr_cmplx_
      procedure :: cross_correlation_ylm_cmplx
-     procedure :: cross_correlation_ylm_cmplx_many
+     procedure :: cross_correlation_ylm_cmplx_3d
      procedure :: inverse_wigner_loop_body_corr_real_alloc => inverse_wigner_loop_body_corr_real_alloc_
      procedure :: inverse_wigner_loop_body_corr_real => inverse_wigner_loop_body_corr_real_
      procedure :: cross_correlation_ylm_real
-     procedure :: cross_correlation_ylm_real_many
+     procedure :: cross_correlation_ylm_real_3d
 
      ! handles for used fftw routines
      procedure :: fft
@@ -2945,7 +2945,7 @@ contains
     call dfftw_execute_dft(self%plan_c2c_forward,self%fft_c2c_in,cc)
     cc = cc * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)   
   end subroutine cross_correlation_ylm_cmplx
-  subroutine cross_correlation_ylm_cmplx_many(self,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+  subroutine cross_correlation_ylm_cmplx_3d(self,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
     ! let f,g be two square integrable functions on the $\mathbb{R}^3$ in spherical coordinates 
     ! Define CC: SO(3) ---> \mathbb{R},   R |---> <f,g \circ R> = \int_R dr r^2 \int_{S^2} dw f(r,w)*\overline{g(r,Rw)}
     ! This function calculates CC(R) for all R defined in make_SO3_grid
@@ -2973,9 +2973,10 @@ contains
     real(kind = dp), intent(in) :: radial_sampling_points(:)
     integer(kind = dp), intent(in) :: radial_limits(:)
     logical, intent(in) :: use_mp
+    logical :: dimensions_wrong
     real(kind = dp) :: inv_radial_range,radial_step
     integer(kind=dp) :: rid
-
+    
     ! Make sure fft plans and matrices are allocated
     if (.NOT. self%plans_allocated_c) then
        call self%init_fft(.FALSE.)
@@ -2984,6 +2985,22 @@ contains
     cc = 0._dp
     radial_step = radial_sampling_points(2)-radial_sampling_points(1)
     inv_radial_range = 1._dp/(radial_sampling_points(radial_limits(2))-radial_sampling_points(radial_limits(1)) + radial_step)
+
+    !make sure array dimensions are correct
+    dimensions_wrong = (size(radial_sampling_points,1)/=size(f_lms,2)) .OR. (size(radial_sampling_points,1)/=size(g_lms,2))
+    if (dimensions_wrong) then
+       print *, "Size of last dimension of f_lms and g_lms have to be equal to length of radial_sampling points, but:"
+       print *, "shape(f_lm) = ", shape(f_lms)
+       print *, "shape(g_lm) = ", shape(g_lms)
+       print *, "shape(radial_sampling_points) = ", shape(radial_sampling_points)
+       ERROR STOP "Wrong input array dimensions!"
+    end if
+    ! make sure radial_limits stay within bounds
+    if ((radial_limits(1)<1) .or. (radial_limits(2)>size(radial_sampling_points,1))) then
+       print *,"radial_limits out of bounds for radial_sampling points of length",size(radial_sampling_points,1)
+       ERROR STOP "radial_limits contains out of bounds indices"
+    end if
+    
     if (use_mp) then
        call self%dealloc_fft_arrays(.False.)
        !$OMP PARALLEL PRIVATE(rid) SHARED(f_lms,g_lms,radial_step,radial_sampling_points)
@@ -2999,12 +3016,14 @@ contains
        call self%alloc_fft_arrays(.False.)       
     else
        do rid=radial_limits(1),radial_limits(2)
+          !print *, rid,radial_limits(2)
           call self%cross_correlation_ylm_cmplx(f_lms(:,rid),g_lms(:,rid),self%fft_c2c_out,.FALSE.)
           cc = cc+self%fft_c2c_out*radial_sampling_points(rid)**2
        end do
     end if
     cc = cc*inv_radial_range
-  end subroutine cross_correlation_ylm_cmplx_many
+  end subroutine cross_correlation_ylm_cmplx_3d
+
   subroutine inverse_wigner_loop_body_corr_real_alloc_(self,f_ml,g_ml,so3func,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_slice)
     ! This subroutine assumes 0<=m1<=m2<=bw
     ! which also means m = max(abs(m1),abs(m2)) = m2
@@ -3227,7 +3246,7 @@ contains
     call dfftw_execute_dft_c2r(self%plan_c2r_backward,self%fft_c2r_in,cc)
     cc = cc * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)   
   end subroutine cross_correlation_ylm_real
-  subroutine cross_correlation_ylm_real_many(self,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+  subroutine cross_correlation_ylm_real_3d(self,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
     ! let f,g be two square integrable functions on the $\mathbb{R}^3$ in spherical coordinates 
     ! Define CC: SO(3) ---> \mathbb{R},   R |---> <f,g \circ R> = \int_R dr r^2 \int_{S^2} dw f(r,w)*\overline{g(r,Rw)}
     ! This function calculates CC(R) for all R defined in make_SO3_grid
@@ -3258,6 +3277,7 @@ contains
     real(kind = dp) :: inv_radial_range,radial_step
     integer(kind=dp) :: rid
 
+
     ! Make sure fft plans and matrices are allocated
     if (.NOT. self%plans_allocated_r) then
        call self%init_fft(.TRUE.)
@@ -3286,7 +3306,7 @@ contains
        end do
     end if
     cc = cc*inv_radial_range
-  end subroutine cross_correlation_ylm_real_many
+  end subroutine cross_correlation_ylm_real_3d
 
   subroutine fft(self,f1,f2)
     class(so3ft),intent(in) :: self
@@ -3714,7 +3734,7 @@ contains
     call int_to_soft_pointer(self_int,self_ptr,self)
     call self%cross_correlation_ylm_cmplx(f_lm,g_lm,cc,use_mp)
   end subroutine py_cross_correlation_ylm_cmplx
-  subroutine py_cross_correlation_ylm_cmplx_many(self_int,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+  subroutine py_cross_correlation_ylm_cmplx_3d(self_int,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
     !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp),target,intent(in) :: f_lms(:,:),g_lms(:,:)
@@ -3725,8 +3745,8 @@ contains
     type(so3ft_ptr) :: self_ptr
     type(so3ft),pointer :: self
     call int_to_soft_pointer(self_int,self_ptr,self)
-    call self%cross_correlation_ylm_cmplx_many(f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
-  end subroutine py_cross_correlation_ylm_cmplx_many
+    call self%cross_correlation_ylm_cmplx_3d(f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+  end subroutine py_cross_correlation_ylm_cmplx_3d
   subroutine py_cross_correlation_ylm_real(self_int,f_lm,g_lm,cc,use_mp)
     !f2py threadsafe
     integer(kind = dp),intent(in) :: self_int
@@ -3738,7 +3758,7 @@ contains
     call int_to_soft_pointer(self_int,self_ptr,self)
     call self%cross_correlation_ylm_real(f_lm,g_lm,cc,use_mp)
   end subroutine py_cross_correlation_ylm_real
-  subroutine py_cross_correlation_ylm_real_many(self_int,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+  subroutine py_cross_correlation_ylm_real_3d(self_int,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
     !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp),target,intent(in) :: f_lms(:,:),g_lms(:,:)
@@ -3749,8 +3769,8 @@ contains
     type(so3ft_ptr) :: self_ptr
     type(so3ft),pointer :: self
     call int_to_soft_pointer(self_int,self_ptr,self)
-    call self%cross_correlation_ylm_real_many(f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
-  end subroutine py_cross_correlation_ylm_real_many
+    call self%cross_correlation_ylm_real_3d(f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+  end subroutine py_cross_correlation_ylm_real_3d
 
   subroutine py_fft(self_int,f1,f2)
     !f2py threadsafe
