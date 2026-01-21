@@ -202,9 +202,9 @@ def rotate_ylm_complex(ylms,euler_angles):
     exp_a = np.exp(-1.j*euler_angles[:,0,None]*np.arange(-bw+1,bw)[None,:])
     exp_g = np.exp(-1.j*euler_angles[:,2,None]*np.arange(-bw+1,bw)[None,:])
     
-    dl_tmp = np.zeros((len(euler_angles),(2*bw-1)*(2*bw-1)),float)
-    D_conj = np.zeros((len(euler_angles),(2*bw-1),(2*bw-1)),complex)
-    ylms_rot = np.zeros((len(euler_angles),)+ylms.shape,dtype=complex) 
+    dl_tmp = np.zeros((len(euler_angles),(2*bw-1)*(2*bw-1)),float,order="F")
+    D_conj = np.zeros((len(euler_angles),(2*bw-1),(2*bw-1)),complex,order="F")
+    ylms_rot = np.zeros((len(euler_angles),)+ylms.shape,dtype=complex,order="F") 
     for l in range(bw):
         # use recursion to compute the Wigner small-d matrices for the current oder l
         dl_tmp[:,0:(2*l+1)*(2*l+1)] = _soft.make_wigner.wigner_mn_recurrence_risbo(dl_tmp[:,0:(2*l-1)*(2*l-1)],l,cos_b,sin_b,sqrts)
