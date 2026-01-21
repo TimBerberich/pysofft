@@ -1260,6 +1260,7 @@ module softclass
      procedure :: inverse_wigner_loop_body_corr_cmplx_alloc => inverse_wigner_loop_body_corr_cmplx_alloc_
      procedure :: inverse_wigner_loop_body_corr_cmplx => inverse_wigner_loop_body_corr_cmplx_
      procedure :: cross_correlation_ylm_cmplx
+     procedure :: cross_correlation_ylm_cmplx_
      procedure :: cross_correlation_ylm_cmplx_3d
      procedure :: inverse_wigner_loop_body_corr_real_alloc => inverse_wigner_loop_body_corr_real_alloc_
      procedure :: inverse_wigner_loop_body_corr_real => inverse_wigner_loop_body_corr_real_
@@ -2513,6 +2514,7 @@ contains
     complex(kind=dp),intent(inout) :: coeffs(:,:)
     logical, intent(in) :: use_mp
     complex(kind=dp) :: fft_c2c_in(self%bw*2,self%bw*2,self%bw*2)
+    complex(kind=dp), allocatable :: fft_c2c_in_2(:,:,:)
     integer(kind=dp) :: n,i
     n = size(so3funcs,4)
 
@@ -2524,16 +2526,20 @@ contains
        ! We can not use self%fft_c2c_in in openMP since it is not thread private and openMP does not support 
        ! declaration of derived type arguments as private, so we create a local copy, fft_c2c_in.
        
-       !$OMP PARALLEL PRIVATE(i,fft_c2c_in) SHARED(so3funcs,coeffs,n)
+       !$OMP PARALLEL PRIVATE(i,fft_c2c_in_2) SHARED(so3funcs,coeffs,n)
+       !! allocatable array is precaution to not cause stack overflows
+       !! for large self%bw
+       allocate(fft_c2c_in_2(self%bw*2,self%bw*2,self%bw*2))
        !$OMP DO
        do i=1,n
-          call self%soft_(so3funcs(:,:,:,i),coeffs(:,i),fft_c2c_in,.False.)
+          call self%soft_(so3funcs(:,:,:,i),coeffs(:,i),fft_c2c_in_2,.False.)
        end do
        !$OMP END DO
+       deallocate(fft_c2c_in_2)
        !$OMP END PARALLEL
     else
        do i=1,n
-          call self%soft_(so3funcs(:,:,:,i),coeffs(:,i),fft_c2c_in,.FALSE.)       
+          call self%soft_(so3funcs(:,:,:,i),coeffs(:,i),fft_c2c_in,.FALSE.)
        end do
     end if
        
@@ -2544,17 +2550,22 @@ contains
     complex(kind=dp),intent(inout) :: so3funcs(:,:,:,:)
     complex(kind=dp),intent(in) :: coeffs(:,:)
     complex(kind=dp) :: fft_c2c_in(self%bw*2,self%bw*2,self%bw*2)
+    complex(kind=dp), allocatable :: fft_c2c_in_2(:,:,:)
     logical, intent(in) :: use_mp
     integer(kind=dp) :: n,i
     n = size(coeffs,2)
 
     if (use_mp) then
-       !$OMP PARALLEL PRIVATE(i,fft_c2c_in) SHARED(so3funcs,coeffs,n)
+       !$OMP PARALLEL DEFAULT(SHARED) PRIVATE(i,fft_c2c_in_2)
+       !! allocatable array is precaution to not cause stack overflows
+       !! for large self%bw
+       allocate(fft_c2c_in_2(self%bw*2,self%bw*2,self%bw*2))
        !$OMP DO
        do i=1,n
-          call self%isoft_(coeffs(:,i),so3funcs(:,:,:,i),fft_c2c_in,.FALSE.)       
+          call self%isoft_(coeffs(:,i),so3funcs(:,:,:,i),fft_c2c_in_2,.FALSE.)       
        end do
        !$OMP END DO
+       deallocate(fft_c2c_in_2)
        !$OMP END PARALLEL
     else
        do i=1,n
@@ -2569,6 +2580,7 @@ contains
     complex(kind=dp),intent(inout) :: coeffs(:,:)
     logical, intent(in) :: use_mp
     complex(kind=dp) :: fft_c2r_in(self%bw*2,self%bw+1,self%bw*2)
+    complex(kind=dp), allocatable :: fft_c2r_in_2(:,:,:)
     integer(kind=dp) :: n,i
     n = size(so3funcs,4)
 
@@ -2577,12 +2589,16 @@ contains
     end if
     
     if (use_mp) then
-       !$OMP PARALLEL PRIVATE(i,fft_c2r_in) SHARED(so3funcs,coeffs,n)
+       !$OMP PARALLEL PRIVATE(i,fft_c2r_in_2) SHARED(so3funcs,coeffs,n)
+       !! allocatable array is precaution to not cause stack overflows
+       !! for large self%bw
+       allocate(fft_c2r_in_2(self%bw*2,self%bw+1,self%bw*2))
        !$OMP DO
        do i=1,n
-          call self%rsoft_(so3funcs(:,:,:,i),coeffs(:,i),fft_c2r_in,.FALSE.)       
+          call self%rsoft_(so3funcs(:,:,:,i),coeffs(:,i),fft_c2r_in_2,.FALSE.)
        end do
-       !$OMP END DO   
+       !$OMP END DO
+       deallocate(fft_c2r_in_2)
        !$OMP END PARALLEL
     else
        do i=1,n
@@ -2598,6 +2614,7 @@ contains
     complex(kind=dp),intent(in) :: coeffs(:,:)
     logical, intent(in) :: use_mp
     complex(kind=dp) :: fft_c2r_in(self%bw*2,self%bw+1,self%bw*2)
+    complex(kind=dp),allocatable :: fft_c2r_in_2(:,:,:)
     integer(kind=dp) :: n,i
     n = size(coeffs,2)
 
@@ -2606,12 +2623,14 @@ contains
     end if
     
     if (use_mp) then
-       !$OMP PARALLEL PRIVATE(i,fft_c2r_in) SHARED(so3funcs,coeffs,n)
+       !$OMP PARALLEL PRIVATE(i,fft_c2r_in_2) SHARED(so3funcs,coeffs,n)
+       allocate(fft_c2r_in_2(self%bw*2,self%bw+1,self%bw*2))
        !$OMP DO
        do i=1,n
-          call self%irsoft_(coeffs(:,i),so3funcs(:,:,:,i),fft_c2r_in,.FALSE.)       
+          call self%irsoft_(coeffs(:,i),so3funcs(:,:,:,i),fft_c2r_in_2,.FALSE.)       
        end do
        !$OMP END DO
+       deallocate(fft_c2r_in_2)
        !$OMP END PARALLEL
     else
        do i=1,n
@@ -2835,6 +2854,101 @@ contains
          & * sym_array(l_start:)
     so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m2*matmul(cc_lmn,wig_mat)
   end subroutine inverse_wigner_loop_body_corr_cmplx_
+  
+  subroutine cross_correlation_ylm_cmplx_(self,f_lm,g_lm,cc,fft_array,use_mp)
+    class(so3ft),intent(inout),target :: self
+    complex(kind = dp),target,intent(in) :: f_lm(:),g_lm(:)
+    complex(kind = dp), intent(inout) :: cc(:,:,:)
+    complex(kind = dp), intent(inout) :: fft_array(:,:,:)
+    logical, intent(in) :: use_mp
+    complex(kind = dp) ::  f_ml(size(f_lm)),g_ml(size(f_lm))
+    integer(kind = dp) :: i,n,m1,m2,m,l,lmax,bw,pm1_slice(2),nm1_slice(2),pm1_tmp(2),nm1_tmp(2)   
+    real(kind=dp) :: sym_const_m1,sym_array(self%bw),wig_norm(self%bw)
+    procedure(wigner_corr_interface),pointer :: loop_body
+
+    bw = self%bw
+    
+    if (allocated(self%wigner_d_trsp)) then
+       loop_body => inverse_wigner_loop_body_corr_cmplx_alloc_
+    else
+       loop_body => inverse_wigner_loop_body_corr_cmplx_
+    end if
+    
+    ! Make sure fft plans and matrices are allocated
+    if (.NOT. self%plans_allocated_c) then
+       call self%init_fft(.FALSE.)
+    end if
+
+    ! zero fft array
+    ! Important since not all elements will be written to before doing the fft
+    fft_array = 0._dp
+    
+    ! initiallizing some constants
+    lmax = self%lmax
+    do i=0,lmax
+       sym_array(i+1) = (-1.0)**i
+       wig_norm = 2._dp*pi*SQRT(2._dp/real(2_dp*i+1_dp,kind = dp))
+    end do
+    
+    if (use_mp) then
+       
+       !$OMP PARALLEL PRIVATE(i,l,m,m1,m2,sym_const_m1,pm1_slice,nm1_slice) SHARED(f_ml,f_lm,g_ml,g_lm,self,sym_array,wig_norm,fft_array)
+
+       ! "Transpose" input coefficient layout to be adapted to the wigner memory layout (l contiguous)   
+       !$OMP DO 
+       do i=1,bw**2
+          call flat_to_pyramid_index(l,m,i)
+          f_ml(MLc(m,l,bw)) = f_lm(LMc(l,m))
+          g_ml(MLc(m,l,bw)) = CONJG(g_lm(LMc(l,m)))
+       end do
+       !$OMP END DO
+       
+       ! non-fft part of the SO(3) fourier transform + assembly of cc_lmn = wig_norm * f_ml_part * g_ml_part * sym_const_m1 * sym_const_m2
+       !$OMP DO
+       do i=1,(L+1)*(L+2)/2
+          call flat_to_triangular_index(m1,m2,i,L)
+          sym_const_m1 = (-1.0)**m1
+          pm1_slice = MLc_slice(m1,bw)
+          nm1_slice = MLc_slice(-m1,bw)
+          pm1_slice(1) = pm1_slice(1) + m2-m1
+          nm1_slice(1) = nm1_slice(1) + m2-m1
+          
+          call loop_body(self,f_ml,g_ml,fft_array,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_slice,nm1_slice)
+       end do
+       !$OMP END DO
+       !$OMP END PARALLEL
+    else
+       ! "Transpose" input coefficient layout to be adapted to the wigner memory layout (l contiguous)
+       do l=0,bw-1
+          do m=-l,l
+             f_ml(MLc(m,l,bw)) = f_lm(LMc(l,m))
+             g_ml(MLc(m,l,bw)) = CONJG(g_lm(LMc(l,m)))
+          end do
+       end do
+       
+       ! non-fft part of the SO(3) fourier transform + assembly of cc_lmn = wig_norm * f_ml_part * g_ml_part * sym_const_m1 * sym_const_m2       
+       do m1=0, lmax
+          sym_const_m1 = (-1.0)**m1
+          pm1_slice = MLc_slice(m1,bw)
+          pm1_tmp = pm1_slice
+          nm1_slice = MLc_slice(-m1,bw)
+          nm1_tmp = nm1_slice
+          !print * , pm1_slice,nm1_slice       
+          do m2=m1, lmax
+             n = m2 - m1
+             pm1_tmp(1) = pm1_slice(1) + n
+             nm1_tmp(1) = nm1_slice(1) + n 
+             call loop_body(self,f_ml,g_ml,fft_array,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_tmp,nm1_tmp)
+          end do
+       end do
+    end if
+
+    ! Compute inverse fft
+    call dfftw_execute_dft(self%plan_c2c_forward,fft_array,cc)
+    cc = cc * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)   
+  end subroutine cross_correlation_ylm_cmplx_
+
+
   subroutine cross_correlation_ylm_cmplx(self,f_lm,g_lm,cc,use_mp)
     ! let f,g be two square integrable functions on the 2 sphere 
     ! Define CC: SO(3) ---> \mathbb{R},   R |---> <f,g \circ R> = \int_{S^2} dx f(x)*\overline{g(Rx)}
@@ -2864,87 +2978,14 @@ contains
     real(kind=dp) :: sym_const_m1,sym_array(self%bw),wig_norm(self%bw)
     procedure(wigner_corr_interface),pointer :: loop_body
 
-    bw = self%bw
-    
-    if (allocated(self%wigner_d_trsp)) then
-       loop_body => inverse_wigner_loop_body_corr_cmplx_alloc_
-    else
-       loop_body => inverse_wigner_loop_body_corr_cmplx_
-    end if
-    
-    ! Make sure fft plans and matrices are allocated
-    if (.NOT. self%plans_allocated_c) then
-       call self%init_fft(.FALSE.)
+    if (.NOT. self%plans_allocated_r) then
+       call self%init_fft(.TRUE.)
     end if
 
-    ! zero fft array
-    ! Important since not all elements will be written to before doing the fft
-    self%fft_c2c_in = 0._dp
-    
-    ! initiallizing some constants
-    lmax = self%lmax
-    do i=0,lmax
-       sym_array(i+1) = (-1.0)**i
-       wig_norm = 2._dp*pi*SQRT(2._dp/real(2_dp*i+1_dp,kind = dp))
-    end do
-    
-    if (use_mp) then
-       
-       !$OMP PARALLEL PRIVATE(i,l,m,m1,m2,sym_const_m1,pm1_slice,nm1_slice) SHARED(f_ml,f_lm,g_ml,g_lm,self,sym_array,wig_norm)
-
-       ! "Transpose" input coefficient layout to be adapted to the wigner memory layout (l contiguous)   
-       !$OMP DO 
-       do i=1,bw**2
-          call flat_to_pyramid_index(l,m,i)
-          f_ml(MLc(m,l,bw)) = f_lm(LMc(l,m))
-          g_ml(MLc(m,l,bw)) = CONJG(g_lm(LMc(l,m)))
-       end do
-       !$OMP END DO
-       
-       ! non-fft part of the SO(3) fourier transform + assembly of cc_lmn = wig_norm * f_ml_part * g_ml_part * sym_const_m1 * sym_const_m2
-       !$OMP DO
-       do i=1,(L+1)*(L+2)/2
-          call flat_to_triangular_index(m1,m2,i,L)
-          sym_const_m1 = (-1.0)**m1
-          pm1_slice = MLc_slice(m1,bw)
-          nm1_slice = MLc_slice(-m1,bw)
-          pm1_slice(1) = pm1_slice(1) + m2-m1
-          nm1_slice(1) = nm1_slice(1) + m2-m1
-          
-          call loop_body(self,f_ml,g_ml,self%fft_c2c_in,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_slice,nm1_slice)
-       end do
-       !$OMP END DO
-       !$OMP END PARALLEL
-    else
-       ! "Transpose" input coefficient layout to be adapted to the wigner memory layout (l contiguous)
-       do l=0,bw-1
-          do m=-l,l
-             f_ml(MLc(m,l,bw)) = f_lm(LMc(l,m))
-             g_ml(MLc(m,l,bw)) = CONJG(g_lm(LMc(l,m)))
-          end do
-       end do
-       
-       ! non-fft part of the SO(3) fourier transform + assembly of cc_lmn = wig_norm * f_ml_part * g_ml_part * sym_const_m1 * sym_const_m2       
-       do m1=0, lmax
-          sym_const_m1 = (-1.0)**m1
-          pm1_slice = MLc_slice(m1,bw)
-          pm1_tmp = pm1_slice
-          nm1_slice = MLc_slice(-m1,bw)
-          nm1_tmp = nm1_slice
-          !print * , pm1_slice,nm1_slice       
-          do m2=m1, lmax
-             n = m2 - m1
-             pm1_tmp(1) = pm1_slice(1) + n
-             nm1_tmp(1) = nm1_slice(1) + n 
-             call loop_body(self,f_ml,g_ml,self%fft_c2c_in,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_tmp,nm1_tmp)
-          end do
-       end do
-    end if
-
-    ! Compute inverse fft
-    call dfftw_execute_dft(self%plan_c2c_forward,self%fft_c2c_in,cc)
-    cc = cc * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)   
+    call self%cross_correlation_ylm_cmplx_(f_lm,g_lm,cc,self%fft_c2c_in,use_mp)
   end subroutine cross_correlation_ylm_cmplx
+    
+    
   subroutine cross_correlation_ylm_cmplx_3d(self,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
     ! let f,g be two square integrable functions on the $\mathbb{R}^3$ in spherical coordinates 
     ! Define CC: SO(3) ---> \mathbb{R},   R |---> <f,g \circ R> = \int_R dr r^2 \int_{S^2} dw f(r,w)*\overline{g(r,Rw)}
@@ -2973,6 +3014,7 @@ contains
     real(kind = dp), intent(in) :: radial_sampling_points(:)
     integer(kind = dp), intent(in) :: radial_limits(:)
     logical, intent(in) :: use_mp
+    complex(kind = dp), allocatable :: tmp_corr(:,:,:),fft_c2c_in(:,:,:)
     logical :: dimensions_wrong
     real(kind = dp) :: inv_radial_range,radial_step
     integer(kind=dp) :: rid
@@ -3000,20 +3042,23 @@ contains
        print *,"radial_limits out of bounds for radial_sampling points of length",size(radial_sampling_points,1)
        ERROR STOP "radial_limits contains out of bounds indices"
     end if
-    
+
     if (use_mp) then
-       call self%dealloc_fft_arrays(.False.)
-       !$OMP PARALLEL PRIVATE(rid) SHARED(f_lms,g_lms,radial_step,radial_sampling_points)
-       call self%alloc_fft_arrays(.False.)
-       !$omp DO reduction(+:cc)
+       !$OMP PARALLEL DEFAULT(SHARED) PRIVATE(rid,tmp_corr,fft_c2c_in)
+       !! Using automatic arrays for fft_c2c_in and tmp_corr caused
+       !! segfault due to stack overflow for cc of shape (64,64,64)
+       !! and 8 parallel processes. 
+       allocate(tmp_corr(self%bw*2,self%bw*2,self%bw*2))
+       allocate(fft_c2c_in(self%bw*2,self%bw*2,self%bw*2))
+       !$OMP DO REDUCTION(+:cc) SCHEDULE(STATIC)
        do rid=radial_limits(1),radial_limits(2)
-          call self%cross_correlation_ylm_cmplx(f_lms(:,rid),g_lms(:,rid),self%fft_c2c_out,.FALSE.)
-          cc = cc + self%fft_c2c_out*radial_sampling_points(rid)**2
+          call self%cross_correlation_ylm_cmplx_(f_lms(:,rid),g_lms(:,rid),tmp_corr,fft_c2c_in,.FALSE.)          
+          cc = cc + tmp_corr*radial_sampling_points(rid)**2
        end do
        !$OMP END DO
-       call self%dealloc_fft_arrays(.False.)
+       deallocate(tmp_corr)
+       deallocate(fft_c2c_in)
        !$OMP END PARALLEL
-       call self%alloc_fft_arrays(.False.)       
     else
        do rid=radial_limits(1),radial_limits(2)
           !print *, rid,radial_limits(2)

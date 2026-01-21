@@ -4,7 +4,7 @@ from math import factorial
 from pysofft import _soft
 from pysofft.soft import rotate_ylm_complex
 
-def computqe_dlml_naiv(l,m,betas):
+def compute_dlml_naiv(l,m,betas):
     # This exact formula is only good for small l !
     f = factorial
     dlml = np.sqrt((2*l+1)/2)*np.sqrt(f(2*l)/(f(l+m)*f(l-m)))*np.cos(betas/2)**(l+m)*np.sin(betas/2)**(l-m)
