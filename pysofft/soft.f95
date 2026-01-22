@@ -1259,11 +1259,14 @@ module softclass
      procedure :: integrate_over_so3_real
      procedure :: inverse_wigner_loop_body_corr_cmplx_alloc => inverse_wigner_loop_body_corr_cmplx_alloc_
      procedure :: inverse_wigner_loop_body_corr_cmplx => inverse_wigner_loop_body_corr_cmplx_
+     procedure :: inverse_wigner_trf_corr_cmplx
      procedure :: cross_correlation_ylm_cmplx
      procedure :: cross_correlation_ylm_cmplx_
      procedure :: cross_correlation_ylm_cmplx_3d
      procedure :: inverse_wigner_loop_body_corr_real_alloc => inverse_wigner_loop_body_corr_real_alloc_
      procedure :: inverse_wigner_loop_body_corr_real => inverse_wigner_loop_body_corr_real_
+     procedure :: inverse_wigner_trf_corr_real
+     procedure :: cross_correlation_ylm_real_
      procedure :: cross_correlation_ylm_real
      procedure :: cross_correlation_ylm_real_3d
 
@@ -2854,18 +2857,15 @@ contains
          & * sym_array(l_start:)
     so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m2*matmul(cc_lmn,wig_mat)
   end subroutine inverse_wigner_loop_body_corr_cmplx_
-  
-  subroutine cross_correlation_ylm_cmplx_(self,f_lm,g_lm,cc,fft_array,use_mp)
+  subroutine inverse_wigner_trf_corr_cmplx(self,f_lm,g_lm,fft_array,use_mp)
     class(so3ft),intent(inout),target :: self
     complex(kind = dp),target,intent(in) :: f_lm(:),g_lm(:)
-    complex(kind = dp), intent(inout) :: cc(:,:,:)
     complex(kind = dp), intent(inout) :: fft_array(:,:,:)
     logical, intent(in) :: use_mp
     complex(kind = dp) ::  f_ml(size(f_lm)),g_ml(size(f_lm))
     integer(kind = dp) :: i,n,m1,m2,m,l,lmax,bw,pm1_slice(2),nm1_slice(2),pm1_tmp(2),nm1_tmp(2)   
     real(kind=dp) :: sym_const_m1,sym_array(self%bw),wig_norm(self%bw)
     procedure(wigner_corr_interface),pointer :: loop_body
-
     bw = self%bw
     
     if (allocated(self%wigner_d_trsp)) then
@@ -2874,10 +2874,6 @@ contains
        loop_body => inverse_wigner_loop_body_corr_cmplx_
     end if
     
-    ! Make sure fft plans and matrices are allocated
-    if (.NOT. self%plans_allocated_c) then
-       call self%init_fft(.FALSE.)
-    end if
 
     ! zero fft array
     ! Important since not all elements will be written to before doing the fft
@@ -2942,13 +2938,24 @@ contains
           end do
        end do
     end if
+  end subroutine inverse_wigner_trf_corr_cmplx
+  subroutine cross_correlation_ylm_cmplx_(self,f_lm,g_lm,cc,fft_array,use_mp)
+    class(so3ft),intent(inout),target :: self
+    complex(kind = dp),target,intent(in) :: f_lm(:),g_lm(:)
+    complex(kind = dp), intent(inout) :: cc(:,:,:)
+    complex(kind = dp), intent(inout) :: fft_array(:,:,:)
+    logical, intent(in) :: use_mp
+    complex(kind = dp) ::  f_ml(size(f_lm)),g_ml(size(f_lm))
+    integer(kind = dp) :: i,n,m1,m2,m,l,lmax,bw,pm1_slice(2),nm1_slice(2),pm1_tmp(2),nm1_tmp(2)   
+    real(kind=dp) :: sym_const_m1,sym_array(self%bw),wig_norm(self%bw)
+    procedure(wigner_corr_interface),pointer :: loop_body
 
+    ! non-fft part of the SO(3) fourier transform + assembly of cc_lmn = wig_norm * f_ml_part * g_ml_part * sym_const_m1 * sym_const_m2
+    call self%inverse_wigner_trf_corr_cmplx(f_lm, g_lm,fft_array,use_mp)
     ! Compute inverse fft
     call dfftw_execute_dft(self%plan_c2c_forward,fft_array,cc)
     cc = cc * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)   
   end subroutine cross_correlation_ylm_cmplx_
-
-
   subroutine cross_correlation_ylm_cmplx(self,f_lm,g_lm,cc,use_mp)
     ! let f,g be two square integrable functions on the 2 sphere 
     ! Define CC: SO(3) ---> \mathbb{R},   R |---> <f,g \circ R> = \int_{S^2} dx f(x)*\overline{g(Rx)}
@@ -2978,14 +2985,13 @@ contains
     real(kind=dp) :: sym_const_m1,sym_array(self%bw),wig_norm(self%bw)
     procedure(wigner_corr_interface),pointer :: loop_body
 
+    ! Make sure fft plans and matrices are allocated
     if (.NOT. self%plans_allocated_r) then
        call self%init_fft(.TRUE.)
     end if
 
     call self%cross_correlation_ylm_cmplx_(f_lm,g_lm,cc,self%fft_c2c_in,use_mp)
   end subroutine cross_correlation_ylm_cmplx
-    
-    
   subroutine cross_correlation_ylm_cmplx_3d(self,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
     ! let f,g be two square integrable functions on the $\mathbb{R}^3$ in spherical coordinates 
     ! Define CC: SO(3) ---> \mathbb{R},   R |---> <f,g \circ R> = \int_R dr r^2 \int_{S^2} dw f(r,w)*\overline{g(r,Rw)}
@@ -3193,26 +3199,13 @@ contains
          & * sym_array(l_start:)
     so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m1*matmul(cc_lmn,wig_mat)    
   end subroutine inverse_wigner_loop_body_corr_real_
-  subroutine cross_correlation_ylm_real(self,f_ml,g_ml,cc,use_mp)
-    ! let f,g be two square integrable functions on the 2 sphere 
-    ! Define CC: SO(3) ---> \mathbb{R},   R |---> <f,g \circ R> = \int_{S^2} dx f(x)*\overline{g(Rx)}
-    ! This function calculates CC(R) for all R defined in make_SO3_grid
-    ! Spherical harmonic coefficient arrays , g_lm,f_lm, are assumed to follow the indexing conventions of the SHTNS package,
-    ! i.e. those given by the pure functions LMc LMr from above.
-    !
-    ! arguments :
-    !   f_lm: f_{l,m} spherical harmonic coefficients of f 
-    !   g_lm: g_{l,m} spherical harmonic coefficients of g 
-    !            f_coeff, g_coeff are complex numpy arrays of shape bw*(bw+1)+bw+1
-    !
-    !
-    ! output :
-    !   C_values: array of shape (2*bw,2*bw,2*bw)
-    !   The maximum in C corresponds to the Rotation that best maps f to g
-    !
-    !   The Idis of the maximum in C i_max,j_max,k_max correspond to the euler anglees beta,alpha,gamma in this order.
-    !   Somehow there is still a bug. The resulting euler angles need to be modified as follows to yield correct results
-    !   alpha,beta,gamma -----> 2*pi - alpha, beta , 2*pi-gamma
+  subroutine inverse_wigner_trf_corr_real(self,f_lm,g_lm,fft_array,use_mp)
+    class(so3ft),intent(inout),target :: self
+    complex(kind = dp),target,intent(in) :: f_lm(:),g_lm(:)
+    real(kind = dp), intent(inout) :: fft_array(:,:,:)
+    logical, intent(in) :: use_mp
+  end subroutine inverse_wigner_trf_corr_real
+  subroutine cross_correlation_ylm_real_(self,f_ml,g_ml,cc,use_mp)
     class(so3ft),intent(inout),target :: self
     complex(kind = dp),target,intent(in) :: f_ml(:),g_ml(:)
     real(kind = dp), intent(inout) :: cc(:,:,:)
@@ -3290,6 +3283,31 @@ contains
     self%fft_c2r_in = CONJG(self%fft_c2r_in)
     call dfftw_execute_dft_c2r(self%plan_c2r_backward,self%fft_c2r_in,cc)
     cc = cc * (1/(2.0_dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)   
+  end subroutine cross_correlation_ylm_real_
+  subroutine cross_correlation_ylm_real(self,f_ml,g_ml,cc,use_mp)
+    ! let f,g be two square integrable functions on the 2 sphere 
+    ! Define CC: SO(3) ---> \mathbb{R},   R |---> <f,g \circ R> = \int_{S^2} dx f(x)*\overline{g(Rx)}
+    ! This function calculates CC(R) for all R defined in make_SO3_grid
+    ! Spherical harmonic coefficient arrays , g_lm,f_lm, are assumed to follow the indexing conventions of the SHTNS package,
+    ! i.e. those given by the pure functions LMc LMr from above.
+    !
+    ! arguments :
+    !   f_lm: f_{l,m} spherical harmonic coefficients of f 
+    !   g_lm: g_{l,m} spherical harmonic coefficients of g 
+    !            f_coeff, g_coeff are complex numpy arrays of shape bw*(bw+1)+bw+1
+    !
+    !
+    ! output :
+    !   C_values: array of shape (2*bw,2*bw,2*bw)
+    !   The maximum in C corresponds to the Rotation that best maps f to g
+    !
+    !   The Idis of the maximum in C i_max,j_max,k_max correspond to the euler anglees beta,alpha,gamma in this order.
+    !   Somehow there is still a bug. The resulting euler angles need to be modified as follows to yield correct results
+    !   alpha,beta,gamma -----> 2*pi - alpha, beta , 2*pi-gamma
+    class(so3ft),intent(inout),target :: self
+    complex(kind = dp),target,intent(in) :: f_ml(:),g_ml(:)
+    real(kind = dp), intent(inout) :: cc(:,:,:)
+    logical, intent(in) :: use_mp
   end subroutine cross_correlation_ylm_real
   subroutine cross_correlation_ylm_real_3d(self,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
     ! let f,g be two square integrable functions on the $\mathbb{R}^3$ in spherical coordinates 
