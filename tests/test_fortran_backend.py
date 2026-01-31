@@ -2,7 +2,7 @@ import numpy as np
 import pysofft
 from math import factorial
 from pysofft import _soft
-from pysofft.soft import rotate_ylm_complex
+from pysofft.soft import rotate_ylm_cmplx,rotate_ylm_real
 
 def compute_dlml_naiv(l,m,betas):
     # This exact formula is only good for small l !
@@ -275,13 +275,6 @@ class TestUtils:
                 assert i==int(fi) and j==int(fj), f'Index mismatch between i,j={(i,j)} and k={k}, fi,fj={(fi,fj)}.'
 
 class TestSo3ft:    
-    # dont forget lmax setting
-    
-    # test correlation with simple example
-    # make sure the real and nthread versions
-    
-    # test ylm rotation for simple exact example
-    
     def test_init(self):
         # exhaustive test init for segfaults or similar by trying out all obtions for bandwidth below a threshold.
         # Test is passed if the program does not crash.
@@ -645,13 +638,119 @@ class TestSo3ft:
         assert np.isclose(vr,8*np.pi**2), f'Incorrect real integral, value is {vr}'
         assert np.isclose(vc.real,8*np.pi**2), f'Incorrect real integral, value is {vc}'
 
-    def test_cross_correlate(self):
+    # test correlation coputations 
+    def test_cross_correlate_cmplx(self):
+        '''
+        Complex case
+        Makes sure that cross_correlating two, with respect to each other, rotated spherical harmonic coefficients
+        gives a maximal value at precisely their relative rotation.
+        '''
         bw = 32
-        precompute_wigners = False
-        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
         coeff = np.zeros(_soft.utils.n_lmc(bw),dtype=complex)
-        coeff[_soft.utils.lmc(1,-1)]=1
-        rot_coeff = rotate_ylm_complex(coeff,(np.pi/2,0,0))
-        corr = _soft.utils.get_empty_so3func_cmplx(bw)
-        #_soft.py.py_cross_correlation_ylm_cmplx(s_int,coeff,rot_coeff,corr,False)
-        return corr
+        coeff[...] = np.random.rand(*coeff.shape)+1.j*np.random.rand(*coeff.shape)
+        betas = _soft.make_wigner.create_beta_samples(2*bw)
+        albe = _soft.make_wigner.create_alpha_gamma_samples(2*bw)
+        
+        for precomputed_wigners in [False,True]:
+            s_int = _soft.py.py_init_soft(bw,bw-1,precomputed_wigners,True,0)
+            for multiprocessing in [False,True]:                
+                for i in range(5):
+                    rotation_index = (np.random.rand(3)*len(albe)).astype(int)
+                    eulers = (albe[rotation_index[0]],betas[rotation_index[1]],albe[rotation_index[2]])
+                    rot_coeff = rotate_ylm_cmplx(coeff[None,...],eulers)
+                    so_coeff= _soft.utils.get_empty_coeff(bw).copy()
+                    corr = _soft.utils.get_empty_so3func_cmplx(bw)
+                    _soft.py.py_cross_correlation_ylm_cmplx(s_int,coeff,rot_coeff,corr,multiprocessing)
+                    found_rotation_index = np.array(np.unravel_index(np.argmax(np.abs(corr)),corr.shape))
+                    tmp = found_rotation_index[0]
+                    found_rotation_index[0] = found_rotation_index[1]
+                    found_rotation_index[1] = tmp
+                    assert np.all(rotation_index == found_rotation_index), f'Multiprocessing={multiprocessing},precomputed_wigners = {precomputed_wigners}: True rotation_index = {rotation_index} but found was {found_rotation_index}.'
+    def test_cross_correlate_real(self):
+        '''
+        Real case
+        Makes sure that cross_correlating two, with respect to each other, rotated spherical harmonic coefficients
+        gives a maximal value at precisely their relative rotation.
+        '''
+        bw = 32
+        coeff = np.zeros(_soft.utils.n_lmr(bw),dtype=complex)
+        coeff[...] = np.random.rand(*coeff.shape)
+        betas = _soft.make_wigner.create_beta_samples(2*bw)
+        albe = _soft.make_wigner.create_alpha_gamma_samples(2*bw)
+        
+        for precomputed_wigners in [False,True]:
+            s_int = _soft.py.py_init_soft(bw,bw-1,precomputed_wigners,True,0)
+            for multiprocessing in [False,True]:                
+                for i in range(5):
+                    rotation_index = (np.random.rand(3)*len(albe)).astype(int)
+                    eulers = (albe[rotation_index[0]],betas[rotation_index[1]],albe[rotation_index[2]])
+                    rot_coeff = rotate_ylm_real(coeff[None,...],eulers)
+                    so_coeff= _soft.utils.get_empty_coeff(bw).copy()
+                    corr = _soft.utils.get_empty_so3func_real(bw)
+                    _soft.py.py_cross_correlation_ylm_real(s_int,coeff,rot_coeff,corr,multiprocessing)
+                    found_rotation_index = np.array(np.unravel_index(np.argmax(np.abs(corr)),corr.shape))
+                    tmp = found_rotation_index[0]
+                    found_rotation_index[0] = found_rotation_index[1]
+                    found_rotation_index[1] = tmp
+                    assert np.all(rotation_index == found_rotation_index), f'Multiprocessing={multiprocessing},precomputed_wigners = {precomputed_wigners}: True rotation_index = {rotation_index} but found was {found_rotation_index}.'
+    def test_cross_correlate_cmplx_3d(self):
+        '''
+        Complex case
+        Makes sure that cross_correlating two, with respect to each other, rotated spherical harmonic coefficients
+        gives a maximal value at precisely their relative rotation.
+        '''
+        bw = 32
+        coeff = np.zeros((33,_soft.utils.n_lmc(bw)),dtype=complex)
+        coeff[...] = np.random.rand(*coeff.shape)
+        betas = _soft.make_wigner.create_beta_samples(2*bw)
+        albe = _soft.make_wigner.create_alpha_gamma_samples(2*bw)
+        
+        for precomputed_wigners in [False,True]:
+            s_int = _soft.py.py_init_soft(bw,bw-1,precomputed_wigners,True,0)
+            for multiprocessing in [False,True]:                
+                for i in range(5):
+                    rotation_index = (np.random.rand(3)*len(albe)).astype(int)
+                    eulers = (albe[rotation_index[0]],betas[rotation_index[1]],albe[rotation_index[2]])
+                    rot_coeff = rotate_ylm_cmplx(coeff,eulers).T
+                    coefft = coeff.T
+                    rad_points = np.arange(coefft.shape[1]).astype(float)
+                    rad_lim = np.array((1,coefft.shape[1]))
+                    
+                    corr = _soft.utils.get_empty_so3func_cmplx(bw)
+                    _soft.py.py_cross_correlation_ylm_cmplx_3d(s_int,coefft,rot_coeff,corr,rad_points,rad_lim,multiprocessing)
+                    found_rotation_index = np.array(np.unravel_index(np.argmax(np.abs(corr)),corr.shape))
+                    tmp = found_rotation_index[0]
+                    found_rotation_index[0] = found_rotation_index[1]
+                    found_rotation_index[1] = tmp
+                    assert np.all(rotation_index == found_rotation_index), f'Multiprocessing={multiprocessing},precomputed_wigners = {precomputed_wigners}: True rotation_index = {rotation_index} but found was {found_rotation_index}.'
+    def test_cross_correlate_real_3d(self):
+        '''
+        Complex case
+        Makes sure that cross_correlating two, with respect to each other, rotated spherical harmonic coefficients
+        gives a maximal value at precisely their relative rotation.
+        '''
+        bw = 32
+        coeff = np.zeros((33,_soft.utils.n_lmr(bw)),dtype=complex)
+        coeff[...] = np.random.rand(*coeff.shape)
+        betas = _soft.make_wigner.create_beta_samples(2*bw)
+        albe = _soft.make_wigner.create_alpha_gamma_samples(2*bw)
+        
+        for precomputed_wigners in [False,True]:
+            s_int = _soft.py.py_init_soft(bw,bw-1,precomputed_wigners,True,0)
+            for multiprocessing in [False,True]:                
+                for i in range(5):
+                    rotation_index = (np.random.rand(3)*len(albe)).astype(int)
+                    eulers = (albe[rotation_index[0]],betas[rotation_index[1]],albe[rotation_index[2]])
+                    rot_coeff = rotate_ylm_real(coeff,eulers).T
+                    coefft = coeff.T
+                    rad_points = np.arange(coefft.shape[1]).astype(float)
+                    rad_lim = np.array((1,coefft.shape[1]))
+                    
+                    corr = _soft.utils.get_empty_so3func_real(bw)
+                    _soft.py.py_cross_correlation_ylm_real_3d(s_int,coefft,rot_coeff,corr,rad_points,rad_lim,multiprocessing)
+                    found_rotation_index = np.array(np.unravel_index(np.argmax(np.abs(corr)),corr.shape))
+                    tmp = found_rotation_index[0]
+                    found_rotation_index[0] = found_rotation_index[1]
+                    found_rotation_index[1] = tmp
+                    assert np.all(rotation_index == found_rotation_index), f'Multiprocessing={multiprocessing},precomputed_wigners = {precomputed_wigners}: True rotation_index = {rotation_index} but found was {found_rotation_index}.'
+        

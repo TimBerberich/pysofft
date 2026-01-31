@@ -173,7 +173,7 @@ class Soft:
     def irfft(self,f1,f2):
         py.py_irfft(self._fortran_pointer,f1,f2)
 
-def rotate_ylm_complex(ylms,euler_angles):
+def rotate_ylm_cmplx(ylms,euler_angles):
     '''
     Rotates an array of spherical harmonic coefficients of a complex function
     by an array of rotations given as ZXZ euler angles.
@@ -224,6 +224,44 @@ def rotate_ylm_complex(ylms,euler_angles):
     if euler_angles.shape[0]==1 or ylms.shape[0]==1:
         ylms_rot = np.squeeze(ylms_rot)
     return ylms_rot
+
+def rotate_ylm_real(ymls,euler_angles):
+    '''
+    Terribly inefficient conveniece function.
+    Rotates an array of spherical harmonic coefficients of a complex function
+    by an array of rotations given as ZXZ euler angles.
+    Works by converting to complex representation and apply rotate_ylm_cmplx.
+
+    Input
+    ylms         : (n_ylmns,spherical_harmonic_coefficients)  : (n,(2*bw-1)**2)   : complex
+    euler_angles : (m_rotations,euler_angles)                 : (m,3)             : int
+
+    Output
+    ylns_rot     : (m_rotations,n_ylms,harmonic_coefficients) : (m,n,(2*bw-1)**2) : complex   
+    '''
+    bw = int( (np.sqrt(1+8*ymls.shape[-1])-1)/2 )
+    ymls = np.atleast_2d(ymls)
+    ylms = np.zeros((ymls.shape[:-1]+(bw**2,)),dtype = complex)
+
+    
+    for l in range(bw):
+        for m in range(l+1):
+            ml_id = _soft.utils.mlr(m,l,bw)-1
+            lm_id = _soft.utils.lmc(l,m)-1
+            lm_neg_id = _soft.utils.lmc(l,-m)-1
+            ylms[...,lm_id] = ymls[...,ml_id]
+            ylms[...,lm_neg_id] = ylms[...,lm_id].conj()*(-1)**m
+    
+    ylms_rot = rotate_ylm_cmplx(ylms,euler_angles)
+    ymls_rot = np.zeros_like(ymls)
+
+    for m in range(bw):
+        for l in range(m,bw):
+            ml_id = _soft.utils.mlr(m,l,bw)-1
+            lm_id = _soft.utils.lmc(l,m)-1
+            ymls_rot[...,ml_id] = ylms_rot[...,lm_id]
+    return ymls_rot
+
 
 # Syntactic sugar section
 class CoeffSO3(np.ndarray):

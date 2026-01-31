@@ -32,7 +32,7 @@ class TestRotate:
         y_dens_lm = sh.analys_cplx(y_dens)
         
         euler_angles = np.array([[0,0,0],[np.pi/2,0,0],[np.pi,0,0],[np.pi*3/2,0,0]])
-        res = np.squeeze(soft.rotate_ylm_complex(y_dens_lm[None,...],euler_angles))
+        res = np.squeeze(soft.rotate_ylm_cmplx(y_dens_lm[None,...],euler_angles))
         
         y_out = [sh.synth_cplx(r) for r in res]
         y_argmax = tuple(np.argmax(o.real.mean(axis = 0)) for o in y_out)
@@ -46,7 +46,7 @@ class TestRotate:
         
         z_dens_lm = sh.analys_cplx(z_dens)
         euler_angles = np.array([[0,0,0],[0,np.pi/2,0],[0,np.pi,0],[0,np.pi*3/2,0]])
-        res = np.squeeze(soft.rotate_ylm_complex(z_dens_lm[None,...],euler_angles))
+        res = np.squeeze(soft.rotate_ylm_cmplx(z_dens_lm[None,...],euler_angles))
         
         z_out = [sh.synth_cplx(r) for r in res]
         phi_ids = tuple(np.argmax(o.real.mean(axis = 0)) for o in z_out)
