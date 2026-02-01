@@ -140,37 +140,72 @@ class Soft:
     def _forward_wigner_trf_real(self,so3func,coeff,use_mp = False):
         py.py_forward_wigner_trf_real(self._fortran_pointer,so3func,coeff,use_mp)
 
-    def soft(self,so3func,coeff,use_mp=False):
-        py.py_soft(self._fortran_pointer,so3func,coeff,use_mp)
-    def isoft(self,coeff,so3func,use_mp=False):
-        py.py_isoft(self._fortran_pointer,coeff,so3func,use_mp)
-    def rsoft(self,so3func,coeff,use_mp=False):
-        py.py_rsoft(self._fortran_pointer,so3func,coeff,use_mp)
-    def irsoft(self,coeff,so3func,use_mp=False):
-        py.py_irsoft(self._fortran_pointer,coeff,so3func,use_mp)
-    def soft_many(self,so3funcs,coeffs,use_mp=False):
-        py.py_soft_many(self._fortran_pointer,so3funcs,coeffs,use_mp)
-    def isoft_many(self,coeffs,so3funcs,use_mp=False):
-        py.py_isoft_many(self._fortran_pointer,coeffs,so3funcs,use_mp)
-    def rsoft_many(self,so3funcs,coeffs,use_mp=False):
-        py.py_rsoft_many(self._fortran_pointer,so3funcs,coeffs,use_mp)
-    def irsoft_many(self,coeffs,so3funcs,use_mp=False):
-        py.py_irsoft_many(self._fortran_pointer,coeffs,so3funcs,use_mp)
-    def cross_correlation_ylm_cmplx(self,f_lm,g_lm,cc,use_mp=False):
-        py.py_cross_correlation_ylm_cmplx(self._fortran_pointer,f_lm,g_lm,cc,use_mp)
+    
+    def soft(self,so3func,out=None,use_mp=False):
+        if out is None:
+            out=self.get_coeff()
+        py.py_soft(self._fortran_pointer,so3func,out,use_mp)
+        return out
+    def isoft(self,coeff,out=None,use_mp=False):
+        if out is None:
+            out=self.get_so3func()
+        py.py_isoft(self._fortran_pointer,coeff,out,use_mp)
+        return out
+    def rsoft(self,so3func,out=None,use_mp=False):
+        if out is None:
+            out=self.get_coeff(real=True)
+        py.py_rsoft(self._fortran_pointer,so3func,out,use_mp)
+        return out
+    def irsoft(self,coeff,out=None,use_mp=False):
+        if out is None:
+            out=self.get_so3func(real=True)
+        py.py_irsoft(self._fortran_pointer,coeff,out,use_mp)
+        return out
+    def soft_many(self,so3funcs,out=None,use_mp=False):
+        if out is None:
+            out=self.get_coeff(howmany=so3funcs.shape[-1])
+        py.py_soft_many(self._fortran_pointer,so3funcs,out,use_mp)
+        return out
+    def isoft_many(self,coeffs,out=None,use_mp=False):
+        if out is None:
+            out=self.get_so3func(howmany=coeffs.shape[-1])
+        py.py_isoft_many(self._fortran_pointer,coeffs,out,use_mp)
+        return out
+    def rsoft_many(self,so3funcs,out=None,use_mp=False):
+        if out is None:
+            out=self.get_coeff(real=True,howmany=so3funcs.shape[-1])
+        py.py_rsoft_many(self._fortran_pointer,so3funcs,out,use_mp)
+        return out
+    def irsoft_many(self,coeffs,out=None,use_mp=False):
+        if out is None:
+            out=self.get_so3func(real=True,howmany=coeffs.shape[-1])
+        py.py_irsoft_many(self._fortran_pointer,coeffs,out,use_mp)
+        return out
+    def integrate_over_so3_cmplx(self,f):
+        return py.py_integrate_over_so3_cmplx(self._fortran_pointer,f)
+    def integrate_over_so3_real(self,f):
+        return py.py_integrate_over_so3_real(self._fortran_pointer,f)
+    def cross_correlation_ylm_cmplx(self,f_lm,g_lm,out=None,use_mp=False):
+        if out is None:
+            out=self.get_so3func(real=False)
+        py.py_cross_correlation_ylm_cmplx(self._fortran_pointer,f_lm,g_lm,out,use_mp)
+        return out
     def corss_correlation_ylm_cmplx_3d(self,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp=False):
         py.py_cross_correlation_ylm_cmplx_3d(self._fortran_pointer,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
-    def cross_correlation_ylm_real(self_int,f_lm,g_lm,cc,use_mp=False):
-        py.py_cross_correlation_ylm_real(self._fortran_pointer,f_lm,g_lm,cc,use_mp)
-    def corss_correlation_ylm_real_3d(self_int,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp=False):
+    def cross_correlation_ylm_real(self,f_lm,g_lm,out=None,use_mp=False):
+        if out is None:
+            out=self.get_so3func(real=True)
+        py.py_cross_correlation_ylm_real(self._fortran_pointer,f_lm,g_lm,out,use_mp)
+        return out
+    def corss_correlation_ylm_real_3d(self,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp=False):
         py.py_cross_correlation_ylm_real_3d(self._fortran_pointer,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
-    def fft(self,f1,f2):
+    def _fft(self,f1,f2):
         py.py_fft(self._fortran_pointer,f1,f2)
-    def ifft(self,f1,f2):
+    def _ifft(self,f1,f2):
         py.py_ifft(self._fortran_pointer,f1,f2)
-    def rfft(self,f1,f2):
+    def _rfft(self,f1,f2):
         py.py_rfft(self._fortran_pointer,f1,f2)
-    def irfft(self,f1,f2):
+    def _irfft(self,f1,f2):
         py.py_irfft(self._fortran_pointer,f1,f2)
 
 def rotate_ylm_cmplx(ylms,euler_angles):
@@ -224,7 +259,6 @@ def rotate_ylm_cmplx(ylms,euler_angles):
     if euler_angles.shape[0]==1 or ylms.shape[0]==1:
         ylms_rot = np.squeeze(ylms_rot)
     return ylms_rot
-
 def rotate_ylm_real(ymls,euler_angles):
     '''
     Terribly inefficient conveniece function.
