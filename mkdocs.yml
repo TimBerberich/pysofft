@@ -3,7 +3,12 @@ repo_url: https://github.com/TimBerberich/pysofft
 
 docs_dir: docs/
 nav:
-  - Home: index.md
+  - Home:
+      - index.md
+      - wigner.md
+      - coeff.md
+      - cross_correlation.md
+      - speed.md
   - API Reference:
       - utils/triangular_to_flat_index.md
       - pysofft/annotated.md
@@ -140,10 +145,10 @@ extra:
       link: https://discord.gg/TWs8Tgr
 
 extra_javascript:
-  - javascripts/config.js
-  #- https://unpkg.com/mermaid@9.4.0/dist/mermaid.min.js
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
   - https://polyfill.io/v3/polyfill.min.js?features=es6
-  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
 
 
 plugins:
