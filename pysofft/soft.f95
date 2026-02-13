@@ -498,32 +498,58 @@ contains
 
 end module utils
 
-! Start of routine code
+!> --------
+!! @brief Module containing code to compute Wigner-D matrices 
+!!
+!! 
 module make_wigner
   use precision
   use math_constants
   use utils
   implicit none
 contains
+  !> ------
+  !! @brief Number of all non-symmetric Wigner-d matrix elements, $l<\\mathrm{bw}$.
+  !!
+  !! $\\frac{\\mathrm{bw}^2(2+3\\mathrm{bw}+\\mathrm{bw}^2)}{3}$
   function size_wigner_d(bw) result(wsize)
     integer(kind = dp), intent(in) :: bw
     integer(kind = dp) :: wsize
     wsize = bw*bw * int(2_dp + 3_dp*bw + bw*bw,dp)/3_dp
   end function size_wigner_d
+  
+  !> ------
+  !! @brief Shape of all non-symmetric wigner-d matrix elements, $l<\\mathrm{bw}$.
+  !!
+  !! $\\left[2\\,\\mathrm{bw},\\frac{\\mathrm{bw}(2+3\\mathrm{bw}+\\mathrm{bw}^2)}{6}\\right]$
   function wigner_d_shape(bw) result(d_shape)
     integer(kind = dp), intent(in) :: bw
     integer(kind = dp) :: d_shape(2)
     d_shape = [2_dp*bw,(bw*(2_dp + 3_dp*bw + bw*bw))/6_dp]
   end function wigner_d_shape
-  
+
+  !> ------
+  !! @brief Returns n uniformly sampled angles in $(0,\\pi)$
+  !!
+  !! $\frac{(2 i + 1) \pi}{2 n}$ for $i=0,\\ldots,n-1$
+  !! Note: These are angles used in Chebyshev nodes of the first kind.
   function create_beta_samples(n) result(betas)
-    ! returns n uniformly sampled angles in (0,pi)
-    ! Note: These are angles used in Chebyshev nodes of the first kind.
     integer(kind = dp) :: n,i
     real(kind = dp) :: betas(n),factor
     factor = pi / real(2_dp * n, dp)
     betas = [(real(2_dp * i - 1_dp, dp) * factor, i = 1, n)]
   end function create_beta_samples
+
+  !> -------
+  !! @brief Returns trig samples for Wigner-d computations.
+  !! 
+  !! Does the following:
+  !! ```fortran
+  !!  betas = create_beta_samples(2*bw)
+  !!  trig_samples(:,1) = cos(betas)                      ! <= Chebyshev nodes
+  !!  trig_samples(:,2) = cos(betas/2_dp)*sin(betas/2_dp) ! <= needed for d^l_ml computation
+  !!  trig_samples(:,3) = cos(betas/2_dp)**2              ! <= needed for d^l_ml computation
+  !! ```
   function create_trig_samples(bw) result(trig_samples)
     integer(kind=dp) :: bw
     real(kind = dp) :: trig_samples(2*bw,3),betas(2*bw)
@@ -532,65 +558,26 @@ contains
     trig_samples(:,2) = cos(betas/2_dp)*sin(betas/2_dp) ! <= needed for d^l_ml computation
     trig_samples(:,3) = cos(betas/2_dp)**2              ! <= needed for d^l_ml computation
   end function create_trig_samples
+  
+  !> ------
+  !! @brief Returns n uniformly sampled angles in $[0,2 \\pi)$
+  !!
+  !! $\frac{i 2 \\pi}{n}$ for $i=0,\ldots,n-1$
   function create_alpha_gamma_samples(n) result(alpha)
-    ! returns n uniformly sampled angles in (0,pi)
-    ! Note: These are angles used in Chebyshev nodes of the first kind.
+    ! Note: These are angles nodes of an FFT
     integer(kind = dp) :: n,i
     real(kind = dp) :: alpha(n),factor
     factor = 2._dp*pi / real(n, dp)
     alpha = [(real(i-1_dp, dp) * factor, i = 1, n)]
   end function create_alpha_gamma_samples
 
-  function compute_dlml(l,m,sincos,cos2,normalized) result(dlml)
-    !! Computes the Wigner little d_lmn(beta) for n=l
-    !! using their exact expression
-    !! $$d^l_{m,l}(\beta) = \Sqrt{\frac{2l+1}{2}} \sqrt{\frac{2l!}{(l+m)!(l-m)!}} \cos(\frac{\beta}{2})^{l+m} \sin(\frac{\beta}{2})^{l-m} $$
-    !!
-    !! as well as the following recursion relationships
-    !!
-    !!  $$d^{l+1}_{m,l+1}(\beta) = d^l_{m,l}*\sqrt{\frac{(2l+2)(2l+3)}{(l+m+1)(l-m+1)}} \cos(\frac{\beta}{2}) \sin(\frac{\beta}{2})$$
-    !!  $$d^{l+1}_{m,l+1}(\beta) = d^l_{m,l}*\sqrt{\frac{(2l+2)(2l+3)}{(l+ m+1)(l+m+2)}} \cos(\frac{\beta}{2})^2 $$
-    !!
-    !! Note the normalization factor $\Sqrt{\frac{2l+1}{2}}$ in the above equations, for unormalized dlml the equations wold change slightly
-    !!
-    !! Using the recurrence relations remains stable to higher l than using the direct relation.
-    !! This is because while d^l_ml(beta) remains relatively bounded, the values for the SQRT factor explode at large l which is compensated
-    !! by the strongly decreasing sin,cos part. In contrast the multiplication coefficients listed above are bounded between (0,4) for all l,m,beta.
-    !!
-    !! It seems that iterating between the two recurrences is the most stable computation approach. No overflow/underflow occurs at least till bw=5000.
-
-    !! Indices $l,m$ at which to compute d^l_{m,l}
-    integer(kind = dp),intent(in) :: l,m
-    !! Arrays containing $sin(\frac{\beta}{2})*cos(\frac{\beta}{2})$ and $cos(\frac{\beta}{2})**2$
-    real(kind = dp),intent(in) :: sincos(:),cos2(:)
-    logical,intent(in) :: normalized
-    !f2py logical :: normalized = TRUE
-    !! Array of output Wigner small d values 
-    real(kind = dp) :: dlml(size(cos2,1))
-    integer(kind = dp) :: i,j,ll,mm,nc1,nc2
-
-    dlml = MERGE(SQRT(0.5_dp),1._dp,normalized) ! In agreement with our normalization $\sqrt{\frac{2l+1}{2}}$ at l=0
-    !Normalization defining constants
-    nc1 = MERGE(2_dp,1_dp,normalized)
-    nc2 = nc1+1_dp
-    
-    ll=0_dp
-    mm=0_dp
-    do i=0,l-1       
-       if ((ll<l) .AND. (l-m+mm-ll>0)) then
-          ! l -> l+1 at m=0 starting from l = 0
-          dlml = dlml * SQRT(real((2_dp*ll+nc1)*(2_dp*ll+nc2),kind=dp)/real((ll+mm+1_dp)*(ll-mm+1_dp),kind=dp))*sincos
-          ll = ll + 1_dp
-       end if
-       if ((mm<m) .AND. (ll<l)) then
-          ! l,m -> l+1 m+1
-          dlml = dlml * SQRT(real((2_dp*ll+nc1)*(2_dp*ll+nc2),kind=dp)/real((ll+mm+1_dp)*(ll+mm+2_dp),kind=dp))*cos2
-          ll = ll + 1_dp
-          mm = mm + 1_dp 
-       end if
-       if ((ll==l) .AND. (mm==m)) exit
-    end do
-  end function compute_dlml
+  !> -----
+  !! @brief Recoursively computes $d^l\\_{m\\_1,l}(\beta)$ at fixed $m\\_1$
+  !!
+  !! Computes
+  !! $d^l\\_{m,l}(\\beta) = \\sqrt{\\frac{2l+1}{2}} \\sqrt{\\frac{2l!}{(l+m)!(l-m)!}} \\cos(\\frac{\\beta}{2})^{l+m} \\sin(\\frac{\\beta}{2})^{l-m} $
+  !! Using the recurrence relations:
+  !!
   subroutine dlml_recursion_l_contiguous(dlml,m,bw,sincos,cos2,normalized)
     !! dlml for all l at fixed m. Has to be of size [Size(sincos,1),bw]
     real(kind = dp),intent(inout) :: dlml(:,:)
@@ -619,20 +606,24 @@ contains
        dlml(:,i+1) = dlml(:,i) * SQRT(real((2_dp*l+nc1)*(2_dp*l+nc2),kind=dp)/real((l+m+1_dp)*(l-m+1_dp),kind=dp))*sincos
     end do
   end subroutine dlml_recursion_l_contiguous
+
+  !> ----------
+  !! @brief Computes $d^l\\_{m\\_1,m\\_2}(\beta)$ for $l=m\\_2$, stored l-contiguous.
+  !!
+  !! Computes all Wigner little d coefficients of the form d_lml(beta) with l<bw and stores the values in an l contiguous way.
+  !! That is dlml is stored at triangular_to_flat_index(m,l,bw)
+  !! 
+  !! $$d^l_{m,l}(\beta) = \Sqrt{\frac{2l+1}{2}} \sqrt{\frac{2l!}{(l+m)!(l-m)!}} \cos(\frac{\beta}{2})^{l+m} \sin(\frac{\beta}{2})^{l-m} $$
+  !!
+  !! as well as the following recursion relationships
+  !!
+  !!  $$d^{l+1}_{m,l+1}(\beta) = d^l_{m,l}*\sqrt{\frac{(2l+2)(2l+3)}{(l+m+1)(l-m+1)}} \cos(\frac{\beta}{2}) \sin(\frac{\beta}{2})$$
+  !!  $$d^{l+1}_{m,l+1}(\beta) = d^l_{m,l}*\sqrt{\frac{(2l+2)(2l+3)}{(l+m+1)(l+m+2)}} \cos(\frac{\beta}{2})^2 $$
+  !!
+  !! Note the normalization factor $\Sqrt{\frac{2l+1}{2}}$ in the above equations, for unormalized dlml the equations wold change slightly
+  !!
+  !! It seems that iterating between the two recurrences is the most stable computation approach. No overflow/underflow occurs at least till bw=5000.
   function compute_all_dlml_l_contiguous(bw,sincos,cos2,normalized) result(dlml)
-    !! Computes all Wigner little d coefficients of the form d_lml(beta) with l<bw and stores the values in an l contiguous way.
-    !! That is dlml is stored at triangular_to_flat_index(m,l,bw)
-    !! 
-    !! $$d^l_{m,l}(\beta) = \Sqrt{\frac{2l+1}{2}} \sqrt{\frac{2l!}{(l+m)!(l-m)!}} \cos(\frac{\beta}{2})^{l+m} \sin(\frac{\beta}{2})^{l-m} $$
-    !!
-    !! as well as the following recursion relationships
-    !!
-    !!  $$d^{l+1}_{m,l+1}(\beta) = d^l_{m,l}*\sqrt{\frac{(2l+2)(2l+3)}{(l+m+1)(l-m+1)}} \cos(\frac{\beta}{2}) \sin(\frac{\beta}{2})$$
-    !!  $$d^{l+1}_{m,l+1}(\beta) = d^l_{m,l}*\sqrt{\frac{(2l+2)(2l+3)}{(l+m+1)(l+m+2)}} \cos(\frac{\beta}{2})^2 $$
-    !!
-    !! Note the normalization factor $\Sqrt{\frac{2l+1}{2}}$ in the above equations, for unormalized dlml the equations wold change slightly
-    !!
-    !! It seems that iterating between the two recurrences is the most stable computation approach. No overflow/underflow occurs at least till bw=5000.
 
     !! bandwidth 0<=l<bw
     integer(kind=dp),intent(in) :: bw
@@ -657,6 +648,11 @@ contains
        dlml(:,lm_id:next_lm_id) = dlml_tmp(:,:bw-m)
     end do
   end function compute_all_dlml_l_contiguous
+
+  !> -------
+  !! @brief Computes $d^l\\_{m\\_1,m\\_2}(\beta)$ for $l=m\\_2$ l-contiguous.
+  !!
+  !! Up to array order same as `compute_all_dlml_m_contiguous`
   subroutine dlml_recursion_m_contiguous(dlml,l,bw,sincos,cos2,normalized)
     !! dlml for all m at fixed l. Has to be of size [Size(sincos,1),bw]
     real(kind = dp),intent(inout) :: dlml(:,:)
@@ -683,21 +679,25 @@ contains
     end do
     
   end subroutine dlml_recursion_m_contiguous
-  function compute_all_dlml_m_contiguous(bw,sincos,cos2,normalized) result(dlml)
-    !! Computes all Wigner little d coefficients of the form d_lml(beta) with l<bw and stores the values in an m contiguous way.
-    !! That is dlml is stored at triangular_to_flat_index_reversed(l,m,bw)
-    !! 
-    !! Computation is done via the exact expression
-    !! $$d^l_{m,l}(\beta) = \Sqrt{\frac{2l+1}{2}} \sqrt{\frac{2l!}{(l+m)!(l-m)!}} \cos(\frac{\beta}{2})^{l+m} \sin(\frac{\beta}{2})^{l-m} $$
-    !! using the following recursion relationships
-    !!
-    !!  $$d^{l+1}_{m,l+1}(\beta) = d^l_{m,l}*\sqrt{\frac{(2l+2)(2l+3)}{(l+m+1)(l-m+1)}} \cos(\frac{\beta}{2}) \sin(\frac{\beta}{2})$$
-    !!  $$d^{l+1}_{m,l+1}(\beta) = d^l_{m,l}*\sqrt{\frac{(2l+2)(2l+3)}{(l+m+1)(l+m+2)}} \cos(\frac{\beta}{2})^2 $$
-    !!
-    !! Note the normalization factor $\Sqrt{\frac{2l+1}{2}}$ in the above equations, for unormalized dlml the equations wold change slightly
-    !!
-    !! It seems that iterating between the two recurrences is the most stable computation approach. No overflow/underflow occurs at least till bw=5000.
 
+  
+  !> --------------
+  !! @brief Computes $d^l\\_{m\\_1,m\\_2}(\beta)$ for $l=m\\_2$, stored m-contiguous.
+  !!
+  !! Computes all Wigner little d coefficients of the form d_lml(beta) with l<bw and stores the values in an m contiguous way.
+  !! That is dlml is stored at triangular_to_flat_index_reversed(l,m,bw)
+  !! 
+  !! Computation is done via the exact expression
+  !! $$d^l_{m,l}(\beta) = \Sqrt{\frac{2l+1}{2}} \sqrt{\frac{2l!}{(l+m)!(l-m)!}} \cos(\frac{\beta}{2})^{l+m} \sin(\frac{\beta}{2})^{l-m} $$
+  !! using the following recursion relationships
+  !!
+  !!  $$d^{l+1}_{m,l+1}(\beta) = d^l_{m,l}*\sqrt{\frac{(2l+2)(2l+3)}{(l+m+1)(l-m+1)}} \cos(\frac{\beta}{2}) \sin(\frac{\beta}{2})$$
+  !!  $$d^{l+1}_{m,l+1}(\beta) = d^l_{m,l}*\sqrt{\frac{(2l+2)(2l+3)}{(l+m+1)(l+m+2)}} \cos(\frac{\beta}{2})^2 $$
+  !!
+  !! Note the normalization factor $\Sqrt{\frac{2l+1}{2}}$ in the above equations, for unormalized dlml the equations wold change slightly
+  !!
+  !! It seems that iterating between the two recurrences is the most stable computation approach. No overflow/underflow occurs at least till bw=5000.
+  function compute_all_dlml_m_contiguous(bw,sincos,cos2,normalized) result(dlml)
     !! bandwidth 0<=l<bw
     integer(kind=dp),intent(in) :: bw
     !! Arrays containing $sin(\frac{\beta}{2})*cos(\frac{\beta}{2})$ and $cos(\frac{\beta}{2})**2$
@@ -722,7 +722,11 @@ contains
        dlml(:,lm_id:next_lm_id) = dlml_tmp(:,:l+2)
     end do
   end function compute_all_dlml_m_contiguous
-
+  
+  !> --------
+  !! @brief three term recurrence relation
+  !!
+  !!
   subroutine wig_l_recurrence_kostelec(workspace,cos,l,m1,m2,normalized)
     !
     integer(kind = dp), intent(in) :: l,m1,m2
@@ -754,59 +758,52 @@ contains
        c_l_1 = SQRT(real((l**2-m1**2)*(l**2-m2**2),kind = dp))/real(l,kind = dp)
        c_l_1 = MERGE(c_l_1/SQRT(real(2_dp*l-1_dp,kind = dp)),c_l_1,normalized)
        workspace(:,o) = workspace(:,o) - c_common*c_l_1*workspace(:,dl_1id)
-       !do j=1,Size(workspace,1)
-       !   if (workspace(j,o)>1._dp) then
-       !      print *, 'l',l
-       !      print *, 'm1',m1
-       !      print *, 'm2',m2
-       !      print *, c_common*c_l,c_common*c_l_1
-       !      print *, workspace(j,o)
-       !      print *, 'beta',acos(cos(j))
-       !      print *
-       !   end if
-       !end do
     end if
     
   end subroutine wig_l_recurrence_kostelec
-  function genWig_L2(m1,m2,bw,cos,dlml) result(wigners_m1m2)
-    !  Given orders 0<=m1<=m2<=bw, and a bandwidth bw, this function will
-    !  generate all the Wigner little d functions whose orders
-    !  are (m1, m2) and degrees are j = max(|m1|, |m2|) = m2 through j = bw - 1
-    !  using the 3-term recurrence. 
-    !  
-    !  All of these Wigners will have L2 norm = 1
-    !  
-    !  
-    !  let j = max(|m1|, |m2|)
-    !  
-    !  The functions generated will be
-    !  
-    !  d_{m1,m2}^j, d_{m1,m2}^{j+1}, ..., d_{m1,m2}^{bw-1}
-    !  
-    !  Each of these functions will be evaluated at the n = 2*bw-many
-    !  points
-    !  
-    !  pi*(2 * [0..n-1] + 1) / ( 2 * n )
-    !  
-    !  If beta(k) = pi*(2*k+1)/(2*n), then what's returned will be the
-    !  array
-    !  
-    !  d_{m1,m2}^j(beta(0)) ... d_{m1,m2}^{bw-1}(beta(0))
-    !  d_{m1,m2}^j(beta(1)) ... d_{m1,m2}^{bw-1}(beta(1))
-    !  d_{m1,m2}^j(beta(2)) ... d_{m1,m2}^{bw-1}(beta(2)) ...
-    !  d_{m1,m2}^j(beta(n-1)) ... d_{m1,m2}^{bw-1}(beta(n-1))
-    !  
-    !  arguments: m1, m2 = orders of the functions
-    !             bw = bandwidth
-    !             trig_samples = array containing cos(beta),cos(beta/2) and sine(beta) values
-    !               
-    !             result = array to store result, length (bw-m)*n   (as (n,bw-m) matrix)
-    !                      where m = max( |m1|, |m2| ); 
-    !  
-    !  The routine won't be efficient, but it'll work.
-    !  NOTE: compared to the python/c version the arrays are transposed:
-    !        As mentioned before, here we compute the small wigner d matrices as
-    !        (n,bw-m) where as in the C/python version they have the shape (bw-m,n)
+
+  !> --------------
+  !!  @brief Computes $d^l\\_{m\\_1,m\\_2}(\beta)$ for $m\\_2 \\leq l \\leq \\mathrm{bw}$ using kostelec recursion.
+  !!
+  !!  Given orders 0<=m1<=m2<=bw, and a bandwidth bw, this function will
+  !!  generate all the Wigner little d functions whose orders
+  !!  are (m1, m2) and degrees are j = max(|m1|, |m2|) = m2 through j = bw - 1
+  !!  using the 3-term recurrence. 
+  !!  
+  !!  All of these Wigners will have L2 norm = 1
+  !!  
+  !!  
+  !!  let j = max(|m1|, |m2|)
+  !!  
+  !!  The functions generated will be
+  !!  
+  !!  d_{m1,m2}^j, d_{m1,m2}^{j+1}, ..., d_{m1,m2}^{bw-1}
+  !!  
+  !!  Each of these functions will be evaluated at the n = 2*bw-many
+  !!  points
+  !!  
+  !!  pi*(2 * [0..n-1] + 1) / ( 2 * n )
+  !!  
+  !!  If beta(k) = pi*(2*k+1)/(2*n), then what's returned will be the
+  !!  array
+  !!  
+  !!  d_{m1,m2}^j(beta(0)) ... d_{m1,m2}^{bw-1}(beta(0))
+  !!  d_{m1,m2}^j(beta(1)) ... d_{m1,m2}^{bw-1}(beta(1))
+  !!  d_{m1,m2}^j(beta(2)) ... d_{m1,m2}^{bw-1}(beta(2)) ...
+  !!  d_{m1,m2}^j(beta(n-1)) ... d_{m1,m2}^{bw-1}(beta(n-1))
+  !!  
+  !!  arguments: m1, m2 = orders of the functions
+  !!             bw = bandwidth
+  !!             trig_samples = array containing cos(beta),cos(beta/2) and sine(beta) values
+  !!               
+  !!             result = array to store result, length (bw-m)*n   (as (n,bw-m) matrix)
+  !!                      where m = max( |m1|, |m2| ); 
+  !!  
+  !!  The routine won't be efficient, but it'll work.
+  !!  NOTE: compared to the python/c version the arrays are transposed:
+  !!        As mentioned before, here we compute the small wigner d matrices as
+  !!        (n,bw-m) where as in the C/python version they have the shape (bw-m,n)
+  function genwig_l2(m1,m2,bw,cos,dlml) result(wigners_m1m2)
     integer(kind = dp) :: m1,m2,bw
     real(kind = dp) :: cos(:),dlml(:)
     real(kind = dp) :: wigners_m1m2(Size(cos,1),(bw-max(abs(m1),abs(m2))))
@@ -831,10 +828,13 @@ contains
        o = MODULO(i+1_dp,3)+1_dp
        wigners_m1m2(:,i+1) = workspace(:,o)
     end do
-  end function genWig_L2
-  function genWig_L2_trsp(m1,m2,bw,cos,dlml) result(wigners_m1m2)
-    !! Same as genWig_L2 but computes the transposed wigners_m1m2 array
-    !! This is faster than Transpose(genWig_L2)
+  end function genwig_l2
+
+  !> ---------
+  !! @brief Same as genwig_l2 but transposed 
+  !!
+  !! This routine is faster than calling genwig_l2 and then transposing.
+  function genwig_l2_trsp(m1,m2,bw,cos,dlml) result(wigners_m1m2)
     integer(kind = dp) :: m1,m2,bw
     real(kind = dp) :: cos(:),dlml(:)
     real(kind = dp) :: wigners_m1m2((bw-max(abs(m1),abs(m2))),Size(cos,1))
@@ -860,14 +860,16 @@ contains
        o = MODULO(i+1_dp,3)+1_dp
        wigners_m1m2(i+1,:) = workspace(:,o)
     end do
-  end function genWig_L2_trsp
+  end function genwig_l2_trsp
 
   !> ---------
   !! @brief Computes the small Wigner d matrix $d^l\\_{m,n}(\beta)$ for fixed $l$.
   !!
+  !! DO NOT use for performace criticlal tasks!
+  !!
   !! Convenience function to compute the small Wigner d matrix $d^l\\_{m,n}(\beta)$ for fixed $l$.
-  !! It uses the three recurrence realtion in l from \ref wig_l_recurrence() .
-  !! This implies that it has to compute all small wigner $d^k\\_{m,n}$ matrices as well.
+  !! It uses the three recurrence realtion from `wig_l_recurrence`.
+  !! This implies that it has to compute ALL small wigner $d^k\\_{m,n}$ matrices with $k<l$ as well. 
   function wigner_dl_kostelec(l,betas,normalized) result(dl)
     !! compute the small wigner-d matrix $d^l_{m_1,m_2}(\beta)$ for fixed l
     integer(kind = dp),intent(in) :: l
@@ -933,7 +935,13 @@ contains
     end do
   end function wigner_dl_kostelec
 
-  function genWigAll(bw) result(wigners)
+  !> -------
+  !! @brief Computes all $d^l\\_{m,n}$ for $0 \\leq m \\leq n \leq l < bw$.
+  !! 
+  !! Computes all independent small Wigner d-matrix elements d^l\\_{m,n}(\beta), i.e. those  
+  !! for $0 \\leq m \\leq n \\leq l <bw$.
+  !! This routine uses the three term recurrence `wig_l_recurrence_kostelec`.
+  function genwig_all(bw) result(wigners)
     ! Computes all independent small wigner d-matrix elements
     ! upto a n order of l=bw-1.
     !
@@ -968,13 +976,18 @@ contains
        do m2=m1, bw-1
           slize = mnl_to_flat_l_slice(m1,m2,bw)
           !print*, m1,m2
-          !print*, genWig_L2(m1,m2,bw,trig_samples)
-          wigners(:,slize(1):slize(2)) = genWig_L2(m1,m2,bw,trig_samples(:,1),dlml_workspace(:,1+m2-m1))
+          !print*, genwig_l2(m1,m2,bw,trig_samples)
+          wigners(:,slize(1):slize(2)) = genwig_l2(m1,m2,bw,trig_samples(:,1),dlml_workspace(:,1+m2-m1))
        end do
     end do
-  end function genWigAll
-  subroutine genWigAll_preallocated(bw,wigners)
-    ! Same as genWigAll but writes the wigner d matricies into the provided wigners array
+  end function genwig_all
+
+  !> -----
+  !! @brief Same as genwig_all but writes into a given array
+  !!
+  !! Computes all non-symmetry equivalent Wigner-d matrix values and stores them in the input array `wigners`.
+  subroutine genwig_all_preallocated(bw,wigners)
+    ! Same as genwig_all but writes the wigner d matricies into the provided wigners array
     ! instead of creating a new array
     !
     ! Computes all independent small wigner d-matrix elements
@@ -1009,11 +1022,11 @@ contains
        do m2=m1, bw-1
           slize = mnl_to_flat_l_slice(m1,m2,bw)
           !print*, m1,m2
-          !print*, genWig_L2(m1,m2,bw,trig_samples)
-          wigners(:,slize(1):slize(2)) = genWig_L2(m1,m2,bw,trig_samples(:,1),dlml_workspace(:,m2-m1+1))
+          !print*, genwig_l2(m1,m2,bw,trig_samples)
+          wigners(:,slize(1):slize(2)) = genwig_l2(m1,m2,bw,trig_samples(:,1),dlml_workspace(:,m2-m1+1))
        end do
     end do
-  end subroutine genWigAll_preallocated
+  end subroutine genwig_all_preallocated
 
   !> ----------
   !!
@@ -1108,6 +1121,12 @@ contains
        end do
     end if
   end function wigner_mn_recurrence_risbo
+
+
+  !> ---------
+  !! @brief Computes the small Wigner d matrix $d^l\\_{m,n}(\beta)$ for fixed $l$.
+  !!
+  !! This function uses the recurrence by Risbo et. al. from function `wigner_mn_recurrence_risbo`.
   function wigner_dl_risbo(l,betas,normalized) result(dl)
     integer(kind = dp),intent(in) :: l
     real(kind = dp),intent(in) :: betas(:)
@@ -1305,7 +1324,7 @@ contains
     bw = self%bw
     d_shape = wigner_d_shape(bw)
     allocate(self%wigner_d(d_shape(1),d_shape(2)))
-    call genWigAll_preallocated(bw,self%wigner_d)
+    call genwig_all_preallocated(bw,self%wigner_d)
     
     allocate(self%wigner_d_trsp(d_shape(1)*d_shape(2)))
     
@@ -1632,7 +1651,7 @@ contains
 
     ! get wigner matrix
     dlml_id = triangular_to_flat_index(m1,m2,bw)
-    wig_mat = genWig_L2_trsp(m1,m2,bw,self%trig_samples(:,1),self%wigner_dlml(:,dlml_id))
+    wig_mat = genwig_l2_trsp(m1,m2,bw,self%trig_samples(:,1),self%wigner_dlml(:,dlml_id))
     
     !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
     !! use of symmetries does not cause a change in d_{m1,m2}^l(beta) !!
@@ -1865,7 +1884,7 @@ contains
 
     ! get wigner matrix
     dlml_id = triangular_to_flat_index(m1,m2,bw)
-    wig_mat = genWig_L2(m1,m2,bw,self%trig_samples(:,1),self%wigner_dlml(:,dlml_id))
+    wig_mat = genwig_l2(m1,m2,bw,self%trig_samples(:,1),self%wigner_dlml(:,dlml_id))
 
     !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
     !! use of symmetries does not cause a change in d_{m1,m2}^l(beta) !!
@@ -2051,7 +2070,7 @@ contains
     bw2 = 2_dp*bw
 
     dlml_id = triangular_to_flat_index(m1,m2,bw)
-    wig_mat = genWig_L2_trsp(m1,m2,bw,self%trig_samples(:,1),self%wigner_dlml(:,dlml_id))
+    wig_mat = genwig_l2_trsp(m1,m2,bw,self%trig_samples(:,1),self%wigner_dlml(:,dlml_id))
     
     !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
     !! m1,m2 !!
@@ -2257,7 +2276,7 @@ contains
     
     ! get wigner matrix
     dlml_id = triangular_to_flat_index(m1,m2,bw)
-    wig_mat = genWig_L2(m1,m2,bw,self%trig_samples(:,1),self%wigner_dlml(:,dlml_id))
+    wig_mat = genwig_l2(m1,m2,bw,self%trig_samples(:,1),self%wigner_dlml(:,dlml_id))
 
     !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
     !! m1,m2 !!
@@ -2738,7 +2757,7 @@ contains
 
     ! get wigner matrix
     dlml_id = triangular_to_flat_index(m1,m2,bw)
-    wig_mat = genWig_L2_trsp(m1,m2,bw,self%trig_samples(:,1),self%wigner_dlml(:,dlml_id))
+    wig_mat = genwig_l2_trsp(m1,m2,bw,self%trig_samples(:,1),self%wigner_dlml(:,dlml_id))
     
     !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
     !! use of symmetries does not cause a change in d_{m1,m2}^l(beta) !!
@@ -3122,7 +3141,7 @@ contains
 
     ! get wigner matrix
     dlml_id = triangular_to_flat_index(m1,m2,bw)
-    wig_mat = genWig_L2_trsp(m1,m2,bw,self%trig_samples(:,1),self%wigner_dlml(:,dlml_id))
+    wig_mat = genwig_l2_trsp(m1,m2,bw,self%trig_samples(:,1),self%wigner_dlml(:,dlml_id))
     
     !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
     !! m1,m2 !!
@@ -3441,7 +3460,16 @@ contains
   
 end module softclass
 
-!f2py compatible wrappers for class so3ft in softclass module
+!> --------
+!! @brief Hack: Object oriented Fortran in f2py  
+!!
+!! f2py compatible wrappers for class `so3ft` in `softclass` module.
+!! 
+!! The problem is that custom types as well as newer object oriented features of Fortran are not supported by f2py.
+!! We thus have to exclued the relevate code parts from beeing wraped by f2py using the `skip::` commandline option.
+!!
+!! Instead this module provides wrappers that expose a pointer to `so3ft` istances as integer to python.
+!! Any call to a method first converts the provided integer into a `so3ft` pointer which allows access to the class methods from python since the wrapper function are f2py compatible.
 module py
   !! Contains versions of the type bound procedures of so3ft that can be wrapped with f2py.
   use precision

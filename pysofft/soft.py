@@ -8,7 +8,10 @@ utils = _soft.utils
 #Temporary untill propper logging is implemented
 def log(txt):
     print(txt)
-        
+
+#> ---
+## @brief fubar
+##
 class Soft:
     _fortran_pointer = None
     _wisdom_path = os.path.expanduser('~/.config/pysofft/fftw_wisdom.dat')
@@ -68,7 +71,7 @@ class Soft:
         beta = _soft.make_wigner.create_beta_samples(self.bw*2)
         alpha = _soft.make_wigner.create_alpha_gamma_samples(self.bw*2)
         gamma = alpha.copy()
-        return {'alpha':alpha,'gamma':gamma,'beta':beta}
+        return {'gamma':gamma,'alpha':alpha,'beta':beta}
     def reset(self,
               bw,
               lmax=None,
@@ -96,7 +99,7 @@ class Soft:
 
     def get_coeff(self, real=False, random = False, seed=12345, raw=False, howmany=0):
         if howmany>0:
-            coeff = utils.get_empty_coeff_many(self.bw,howmany)
+            coeff = utils.get_empty_coeff_many(self.bw,howmany).T #Transpose to go from F_CONTIGUOUS to C_CONTIGUOUS array
         else:
             coeff = utils.get_empty_coeff(self.bw)
         if random:
@@ -120,16 +123,8 @@ class Soft:
                 func = utils.get_empty_so3func_cmplx(self.bw)
         if random:
             func = self._fill_random(func,seed=seed)
-        return func
-
-    def get_so3func_halfcmplx(self,random=False,seed=12345,howmany=0):
-        if howmany>0:
-            func = utils.get_empty_so3func_halfcmplx_many(self.bw,howmany)
-        else:
-            func = utils.get_empty_so3func_halfcmplx(self.bw)
-        if random:
-            func = self._fill_random(func,seed=seed)
-        
+        return func.T #Transpose to go from F_CONTIGUOUS to C_CONTIGUOUS array
+    
     # Transforms
     def _inverse_wigner_trf_cmplx(self,coeff,so3func,use_mp = False):
         py.py_inverse_wigner_trf_cmplx(self._fortran_pointer,coeff,so3func,use_mp)
@@ -144,61 +139,78 @@ class Soft:
     def soft(self,so3func,out=None,use_mp=False):
         if out is None:
             out=self.get_coeff()
-        py.py_soft(self._fortran_pointer,so3func,out,use_mp)
+        py.py_soft(self._fortran_pointer,(so3func.T),out,use_mp)
         return out
     def isoft(self,coeff,out=None,use_mp=False):
         if out is None:
             out=self.get_so3func()
-        py.py_isoft(self._fortran_pointer,coeff,out,use_mp)
+        py.py_isoft(self._fortran_pointer,coeff,out.T,use_mp)
         return out
     def rsoft(self,so3func,out=None,use_mp=False):
         if out is None:
             out=self.get_coeff(real=True)
-        py.py_rsoft(self._fortran_pointer,so3func,out,use_mp)
+        py.py_rsoft(self._fortran_pointer,so3func.T,out,use_mp)
         return out
     def irsoft(self,coeff,out=None,use_mp=False):
         if out is None:
             out=self.get_so3func(real=True)
-        py.py_irsoft(self._fortran_pointer,coeff,out,use_mp)
+        py.py_irsoft(self._fortran_pointer,coeff,out.T,use_mp)
         return out
     def soft_many(self,so3funcs,out=None,use_mp=False):
         if out is None:
             out=self.get_coeff(howmany=so3funcs.shape[-1])
-        py.py_soft_many(self._fortran_pointer,so3funcs,out,use_mp)
+        py.py_soft_many(self._fortran_pointer,so3funcs.T,out.T,use_mp)
         return out
     def isoft_many(self,coeffs,out=None,use_mp=False):
         if out is None:
             out=self.get_so3func(howmany=coeffs.shape[-1])
-        py.py_isoft_many(self._fortran_pointer,coeffs,out,use_mp)
+        py.py_isoft_many(self._fortran_pointer,coeffs.T,out.T,use_mp)
         return out
     def rsoft_many(self,so3funcs,out=None,use_mp=False):
         if out is None:
             out=self.get_coeff(real=True,howmany=so3funcs.shape[-1])
-        py.py_rsoft_many(self._fortran_pointer,so3funcs,out,use_mp)
+        py.py_rsoft_many(self._fortran_pointer,so3funcs.T,out.T,use_mp)
         return out
     def irsoft_many(self,coeffs,out=None,use_mp=False):
         if out is None:
             out=self.get_so3func(real=True,howmany=coeffs.shape[-1])
-        py.py_irsoft_many(self._fortran_pointer,coeffs,out,use_mp)
+        py.py_irsoft_many(self._fortran_pointer,coeffs.T,out.T,use_mp)
         return out
     def integrate_over_so3_cmplx(self,f):
-        return py.py_integrate_over_so3_cmplx(self._fortran_pointer,f)
+        return py.py_integrate_over_so3_cmplx(self._fortran_pointer,f.T)
     def integrate_over_so3_real(self,f):
-        return py.py_integrate_over_so3_real(self._fortran_pointer,f)
+        return py.py_integrate_over_so3_real(self._fortran_pointer,f.T)
     def cross_correlation_ylm_cmplx(self,f_lm,g_lm,out=None,use_mp=False):
         if out is None:
             out=self.get_so3func(real=False)
-        py.py_cross_correlation_ylm_cmplx(self._fortran_pointer,f_lm,g_lm,out,use_mp)
+        py.py_cross_correlation_ylm_cmplx(self._fortran_pointer,f_lm,g_lm,out.T,use_mp)
         return out
-    def corss_correlation_ylm_cmplx_3d(self,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp=False):
-        py.py_cross_correlation_ylm_cmplx_3d(self._fortran_pointer,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+    def corss_correlation_ylm_cmplx_3d(self,f_lms,g_lms,out = None,radial_sampling_points=None,radial_limits=None,use_mp=False):
+        if out is None:
+            out=self.get_so3func(howmany=len(f_lms))
+        if radial_sampling_points is None:
+            radial_sampling_points = np.linspace(0,1,len(f_lmns))
+        if radial_limits == None:
+            radial_limits = [0,len(f_lms)]
+        fortran_rlims = [radial_limits[0]+1,radial_limits[1]]
+            
+        py.py_cross_correlation_ylm_cmplx_3d(self._fortran_pointer,f_lms.T,g_lms.T,out.T,radial_sampling_points,fortran_rlims,use_mp)
+        return out
     def cross_correlation_ylm_real(self,f_lm,g_lm,out=None,use_mp=False):
         if out is None:
-            out=self.get_so3func(real=True)
+            out=self.get_so3func(real=True)            
         py.py_cross_correlation_ylm_real(self._fortran_pointer,f_lm,g_lm,out,use_mp)
         return out
-    def corss_correlation_ylm_real_3d(self,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp=False):
-        py.py_cross_correlation_ylm_real_3d(self._fortran_pointer,f_lms,g_lms,cc,radial_sampling_points,radial_limits,use_mp)
+    def corss_correlation_ylm_real_3d(self,f_lms,g_lms,out=None,radial_sampling_points=None,radial_limits=None,use_mp=False):
+        if out is None:
+            out=self.get_so3func(real=True,howmany=len(f_lms))
+        if radial_sampling_points is None:
+            radial_sampling_points = np.linspace(0,1,len(f_lmns))
+        if radial_limits == None:
+            radial_limits = [0,len(f_lms)]
+        fortran_rlims = [radial_limits[0]+1,radial_limits[1]]
+        py.py_cross_correlation_ylm_real_3d(self._fortran_pointer,f_lms.T,g_lms.T,out.T,radial_sampling_points,radial_limits,use_mp)
+        return out
     def _fft(self,f1,f2):
         py.py_fft(self._fortran_pointer,f1,f2)
     def _ifft(self,f1,f2):

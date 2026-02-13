@@ -18,14 +18,26 @@ $$
 
 where $\mu=|m-n|,\ \nu=|m+n|,\ s=l-\frac{\mu+\nu}{2},\quad  P^{\mu,\nu}_s$ are [Jacobi polynomials](https://en.wikipedia.org/wiki/Jacobi_polynomials){target="_blank"} and $A_l=\sqrt{\frac{2l+1}{2}}$ is an optional normalization term.
 
+## Symmetries
+Not all of the values of $d^l_{m,n}(\beta)$ are independent. PySOFFT uses the following symmeries to reduce the number of elements to compute by a factor of 8!
+
+$$
+\begin{aligned}
+1&=1\\
+2&=2
+\end{aligned}
+$$
+
 ## Computation via Recurrence
 PySOFFT implements two different recursion based computation routines for Wigner small-d matrices.
 ### Kostelec recurrence
 See []()
-Starting from 
+The starting point for the recursion is an analytic expression for matrix elements of the form d^n_{m,n}(\beta) with $0\leq m \leq n$:
 
 $$
-d^n_{m,n}(\beta) = \sqrt{\frac{2n+1}{2}} \sqrt{\frac{2n!}{(n+m)!(n-m)!}} \cos(\frac{\beta}{2})^{n+m} \sin(\frac{\beta}{2})^{n-m} $$
+d^n_{m,n}(\beta) = \sqrt{\frac{2n+1}{2}} \sqrt{\frac{2n!}{(n+m)!(n-m)!}} \cos\left(\frac{\beta}{2}\right)^{n+m} \sin\left(\frac{\beta}{2}\right)^{n-m} $$
+
+Based on these vales we can use a three-term recurrence formulat to sucessively increas the order and compute all remaining values for 
 
 for $0\leq m \leq n$, the following recurrence is used to compute all $d^l_{mn}$ for $m \leq n \leq l<bw$.
 

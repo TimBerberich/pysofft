@@ -10,11 +10,8 @@
 See [{{node.name_long}}]({{node.url}})
 {%- endif %}
 
-??? note arstu
-	arionto anrsiot
-
 | Type | Name | Description |
-| ---: | :--- | :---        |
+| ---: | :--- | :---	    |
 {% for member in node.query(visibility, kinds, static) -%}
 {%- if member.is_group -%}
 | module | [**{{member.title}}**]({{member.url}}) {{member.suffix}}<br>{{member.brief}} ||
@@ -29,7 +26,7 @@ See [{{node.name_long}}]({{node.url}})
 {%- elif member.is_enum or member.is_variable or member.is_union or member.is_typedef -%}
 | {{member.prefix}} {{member.type}} | [**{{member.name_long if node.is_group else member.name_short}}**]({%- if parent %}{{member.url}}{%- else -%}#{{member.anchor}}{%- endif -%}) {{member.params}} {{member.suffix}}<br>{{member.brief}} ||
 {%- elif member.is_function -%}
-|  {{member.type}} | [**{{member.name_short}}**]({%- if parent %}{{member.url}}{%- else -%}#{{member.anchor}} {%- endif -%}) {{member.suffix}} |{{member.brief}}|
+|  {{member.type.split(',')[0]}} | [**{{member.name_short}}**]({%- if parent %}{{member.url}}{%- else -%}#{{member.anchor}} {%- endif -%}) {{member.suffix}} |{{member.brief}}|
 {%- else -%}
 | {{member.prefix}} {{member.type}} | [**{{member.name_long if node.is_group else member.name_short}}**]({{member.url}}) {{member.params}} {{member.suffix}}<br>{{member.brief}} ||
 {%- endif %}

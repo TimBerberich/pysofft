@@ -6,12 +6,12 @@ f:\mathrm{SO}(3) \rightarrow \mathbb{C} \quad \overset{\mathrm{PySOFFT}}{\longle
 $$
 
 ## Some applications:
-* Statistical analysis over SO(3).
 * Rotational alignment of datasets given by their spherical harmonic coefficients.
+* Statistical analysis over SO(3).
 * X-ray scattering simulations of randomly oriented particles.
 
 ## Main features:
-* __Fast__
+* [__Fast__](speed.md)
 * __OpenMP__ routines to speed up single transforms or compute many in parallel. 
 * Dedicated faster transforms for real data.
 * Compute __rotational cross-correlations__.
@@ -34,11 +34,35 @@ The easiest installation option is via pip.
 	
 	pip install pysofft
 	
-Non-python dependencies are __fftw__ and __gfortran__.
 The only python dependency is __numpy__.
+Non-python dependencies are __fftw__, __openmp__, __meson__, __gcc__ and __gfortran__.
 
-Compiling the fortran code only can be done via
-
+??? info "pixi"
+	If you use [pixi](https://pixi.prefix.dev/latest/) you can use the following pixi.toml for installation.
+	``` toml
+	[project]
+    channels = ["conda-forge"]
+    description = "Add a short description here"
+    name = "temp"
+    platforms = ["linux-64"]
+    version = "0.1.0"
+    
+    [tasks]
+    
+    [dependencies]
+    gfortran = ">=15.2,<15.5.0"
+    gcc = ">=15.2,<15.5.0"
+    cpython = ">=3.13.11,<4"
+    python = ">=3.13.11,<3.14"
+    pip = ">=26.0.1,<27"
+    numpy = ">=2.2.6,<2.2.7"
+    meson = ">=1.8.1,<1.9.0"
+    meson-python = ">=0.19.0,<0.20"
+    fftw = ">=3.3.10,<4"
+    openmp = ">=8.0.1,<9"
+	pysofft = ">=0.9.0,<2"
+	```
+	
 ## Basic Usage Python
 	
 Forward and inverse transforms

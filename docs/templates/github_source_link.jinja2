@@ -1,0 +1,32 @@
+{# docs/mkdoxy-templates/github_source_link.jinja2 #}
+
+{% macro _get(mapping_or_obj, key) -%}
+  {%- if mapping_or_obj is mapping -%}
+    {{- mapping_or_obj.get(key) -}}
+  {%- else -%}
+    {{- attribute(mapping_or_obj, key) if mapping_or_obj is not none and (mapping_or_obj|attr(key) is defined) else "" -}}
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro github_source_link(node,
+                            repo_url="https://github.com/TimBerberich/pysofft",
+                            ref="fortran",
+                            text="source") -%}
+  {# Doxygen location fields: file/line, and often bodyfile/bodystart #}
+  {%- set file = "" -%}
+  {%- set line = "" -%}
+
+  {%- if node is not none -%}
+    {%- set file = node.location -%}
+    {%- set line = node.location_bodystart -%}
+  {%- endif -%}
+
+  {%- if file -%}
+    {%- set file = file | replace("\\", "/") -%}
+    {%- if line -%}
+[{{ text }}]({{ repo_url }}/blob/{{ ref }}/{{ file }}#L{{ line }})
+    {%- else -%}
+[{{ text }}]({{ repo_url }}/blob/{{ ref }}/{{ file }})
+    {%- endif -%}
+  {%- endif -%}
+{%- endmacro %}

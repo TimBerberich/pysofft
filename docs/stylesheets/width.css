@@ -1,0 +1,6 @@
+/* Wider content area on large screens */
+@media (min-width: 1200px) {
+  .md-grid {
+    max-width: 1440px; /* pick what you like */
+  }
+} 
