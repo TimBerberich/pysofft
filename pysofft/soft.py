@@ -139,6 +139,7 @@ class Soft:
     def soft(self,so3func,out=None,use_mp=False):
         if out is None:
             out=self.get_coeff()
+        
         py.py_soft(self._fortran_pointer,(so3func.T),out,use_mp)
         return out
     def isoft(self,coeff,out=None,use_mp=False):
