@@ -6,3 +6,12 @@ code {
 	max-width: 1600px; /* pick what you like */
 }
 
+/* Applies to collapsible admonitions (??? / details) */
+.md-typeset details {
+  font-size: 0.8rem;
+}
+
+/* Applies to collapsible admonitions (??? / details) */
+.md-typeset .admonition {
+  font-size: 0.8rem;
+}

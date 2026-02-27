@@ -6,6 +6,7 @@ nav:
   - Home:
       - index.md
       - speed.md
+      - accuracy.md
   - Usage:
       - usage/simple.md
       - usage/multi.md
@@ -16,6 +17,7 @@ nav:
       - array.md
       - wigner.md
   - API:
+      - api_structure.md
       - pysofft/classpysofft_1_1soft_1_1Soft.md
       - pysofft/namespacemake__wigner.md
       - pysofft/namespaceutils.md
@@ -119,12 +121,9 @@ markdown_extensions:
   - pymdownx.arithmatex:
       generic: true
       block_tag: 'pre'
-  - pymdownx.mark:
-  - pymdownx.details:
-#  - pymdownx.tabbed:
-#      alternate_style: true
+  - pymdownx.mark:  
   - pymdownx.saneheaders:
-  - pymdownx.blocks.admonition:
+  - pymdownx.blocks.details:
       types:
       - new
       - settings
@@ -140,7 +139,6 @@ markdown_extensions:
       - bug
       - example
       - quote
-  - pymdownx.blocks.details:
   - pymdownx.blocks.html:
   - pymdownx.blocks.definition:
     
@@ -180,6 +178,8 @@ plugins:
         pysofft:
           src-dirs: ./pysofft
           template-dir: ./docs/templates
+          full-doc: true
+          enable_sorting: false
           doxy-cfg:
             EXTRACT_ALL: True
             RECURSIVE: False
@@ -190,3 +190,6 @@ plugins:
       
 extra_css:
   - style.css
+
+hooks:
+  - docs/hooks/unescape_pipe_in_pymdownx_details.py

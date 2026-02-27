@@ -2,9 +2,10 @@
 
 PySOFFT uses Euler-angles in the ZYZ-convention as coordinates for rotation group $\mathrm{SO}(3)$.
 
-??? warning "Euler angles are disgusting!"
-	To the true connoisseurs among you, especially those coming over from [spherical.readthedocs.io](https://spherical.readthedocs.io/){target="_blank"}.  
-	I know, I share your pain ... euler angles are utterly disgusting and indeed quaternions,matrices ,or the axis-angle form are way better. Buuuut Euler angles bribed me ... with FFTs ... and I could not resist, for now at least. 
+/// warning | Euler angles are disgusting!
+To the true connoisseurs among you, especially those coming over from [spherical.readthedocs.io](https://spherical.readthedocs.io/){target="_blank"}.  
+I know, I share your pain ... euler angles are utterly disgusting and indeed quaternions,matrices ,or the axis-angle form are way better. Buuuut Euler angles bribed me ... with FFTs ... and I could not resist, for now at least. 
+///
 
 ![Single core execution times](images/eulerangles.png){ width="400" align=left } Using the corotation reference picture a rotation $(\alpha,\beta,\gamma)\in\mathrm{SO}(3)$ acts via:
 

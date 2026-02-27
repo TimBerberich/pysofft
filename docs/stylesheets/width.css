@@ -4,3 +4,9 @@
     max-width: 1440px; /* pick what you like */
   }
 } 
+
+
+/* Applies to collapsible admonitions (??? / details) */
+.md-typeset details {
+  font-size: 10.95rem;
+}

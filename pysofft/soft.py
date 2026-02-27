@@ -127,19 +127,22 @@ class Soft:
     
     # Transforms
     def _inverse_wigner_trf_cmplx(self,coeff,so3func,use_mp = False):
-        py.py_inverse_wigner_trf_cmplx(self._fortran_pointer,coeff,so3func,use_mp)
+        py.py_inverse_wigner_trf_cmplx(self._fortran_pointer,coeff,(so3func.T),use_mp)
+    def _inverse_wigner_trf_cmplx_risbo(self,coeff,so3func,use_mp = False):
+        py.py_inverse_wigner_trf_cmplx_risbo(self._fortran_pointer,coeff,(so3func.T),use_mp)
     def _forward_wigner_trf_cmplx(self,so3func,coeff,use_mp = False):
-        py.py_forward_wigner_trf_cmplx(self._fortran_pointer,so3func,coeff,use_mp)
+        py.py_forward_wigner_trf_cmplx(self._fortran_pointer,(so3func.T),coeff,use_mp)
+    def _forward_wigner_trf_cmplx_risbo(self,so3func,coeff,use_mp = False):
+        py.py_forward_wigner_trf_cmplx_risbo(self._fortran_pointer,(so3func.T),coeff,use_mp)
     def _inverse_wigner_trf_real(self,coeff,so3func,use_mp = False):
-        py.py_inverse_wigner_trf_real(self._fortran_pointer,coeff,so3func,use_mp)
+        py.py_inverse_wigner_trf_real(self._fortran_pointer,coeff,(so3func.T),use_mp)
     def _forward_wigner_trf_real(self,so3func,coeff,use_mp = False):
-        py.py_forward_wigner_trf_real(self._fortran_pointer,so3func,coeff,use_mp)
+        py.py_forward_wigner_trf_real(self._fortran_pointer,(so3func.T),coeff,use_mp)
 
     
     def soft(self,so3func,out=None,use_mp=False):
         if out is None:
             out=self.get_coeff()
-        
         py.py_soft(self._fortran_pointer,(so3func.T),out,use_mp)
         return out
     def isoft(self,coeff,out=None,use_mp=False):
@@ -159,22 +162,22 @@ class Soft:
         return out
     def soft_many(self,so3funcs,out=None,use_mp=False):
         if out is None:
-            out=self.get_coeff(howmany=so3funcs.shape[-1])
+            out=self.get_coeff(howmany=so3funcs.shape[0])
         py.py_soft_many(self._fortran_pointer,so3funcs.T,out.T,use_mp)
         return out
     def isoft_many(self,coeffs,out=None,use_mp=False):
         if out is None:
-            out=self.get_so3func(howmany=coeffs.shape[-1])
+            out=self.get_so3func(howmany=coeffs.shape[0])
         py.py_isoft_many(self._fortran_pointer,coeffs.T,out.T,use_mp)
         return out
     def rsoft_many(self,so3funcs,out=None,use_mp=False):
         if out is None:
-            out=self.get_coeff(real=True,howmany=so3funcs.shape[-1])
+            out=self.get_coeff(real=True,howmany=so3funcs.shape[0])
         py.py_rsoft_many(self._fortran_pointer,so3funcs.T,out.T,use_mp)
         return out
     def irsoft_many(self,coeffs,out=None,use_mp=False):
         if out is None:
-            out=self.get_so3func(real=True,howmany=coeffs.shape[-1])
+            out=self.get_so3func(real=True,howmany=coeffs.shape[0])
         py.py_irsoft_many(self._fortran_pointer,coeffs.T,out.T,use_mp)
         return out
     def integrate_over_so3_cmplx(self,f):
