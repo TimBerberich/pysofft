@@ -2120,7 +2120,6 @@ contains
     end if
   end subroutine inverse_wigner_trf_cmplx
 
-
   subroutine inverse_wigner_loop_body_cmplx_risbo_(self,coeff,so3func,dlmn,l,m1,m2,sym_const_l,sym_const_m1)
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(in) :: coeff(:)
@@ -2129,7 +2128,7 @@ contains
     real(kind=dp),intent(in) :: sym_const_l,sym_const_m1
     real(kind=dp),intent(in) :: dlmn(:)
     real(kind = dp) :: sym_const_m2
-    integer(kind=dp) :: s_ids(2),c_loc,c_slice(2),bw,bw2,dlml_id,o
+    integer(kind=dp) :: s_ids(2),c_loc,c_slice(2),bw,bw2,dlml_id,o,i
 
     sym_const_m2 = (-1.0)**m2
     bw = self%bw
@@ -2143,13 +2142,23 @@ contains
     !! use of symmetries does not cause a change in d_{m1,m2}^l(beta) !!
     !! m1,m2 !!
     !s_slice = sample_slice(m1,m2,bw)
-    so3func(:,m1+1,m2+1) = so3func(:,m1+1,m2+1) + coeff(c_loc)*dlmn(:)
+
+    !$OMP SIMD 
+    do i=1,bw2
+       so3func(i,m1+1,m2+1) = so3func(i,m1+1,m2+1) + coeff(c_loc)*dlmn(i)
+    end do
+    !$OMP END SIMD
+
     if (m1 ==0 .AND. m2 ==0) return    ! prevents m1=m2=0 from beeing evaluated twice
     
     !! -m2,-m1 !!
     !s_slice = sample_slice(-m2,-m1,bw)
     s_ids = order_to_ids(-m2,-m1,bw)
-    so3func(:,s_ids(1),s_ids(2)) = so3func(:,s_ids(1),s_ids(2)) + coeff(c_loc+1)*dlmn(:)
+    !$OMP SIMD
+    do i=1,bw2
+       so3func(i,s_ids(1),s_ids(2)) = so3func(i,s_ids(1),s_ids(2)) + coeff(c_loc+1)*dlmn(i)
+    end do
+    !$OMP END SIMD
     
     !! branch for m1>m2 and sgn(m1)==sgn(m2)                         !!
     !! uses the symmetries:                                          !!
@@ -2159,13 +2168,22 @@ contains
     if (.NOT. m1==m2) then
        !!  m2,m1  !!
        s_ids=order_to_ids(m2,m1,bw)
-       so3func(:,s_ids(1),s_ids(2)) = so3func(:,s_ids(1),s_ids(2)) + (sym_const_m1*sym_const_m2*coeff(c_loc+2_dp))*dlmn(:)
+       !$OMP SIMD
+       do i=1,bw2
+          so3func(i,s_ids(1),s_ids(2)) = so3func(i,s_ids(1),s_ids(2)) + (sym_const_m1*sym_const_m2*coeff(c_loc+2_dp))*dlmn(i)
+       end do
+       !$OMP END SIMD
+
        !! -m1,-m2 !!
        s_ids=order_to_ids(-m1,-m2,bw)
-       so3func(:,s_ids(1),s_ids(2)) = so3func(:,s_ids(1),s_ids(2)) + (sym_const_m1*sym_const_m2*coeff(c_loc+3_dp))*dlmn(:)
+       !$OMP SIMD
+       do i=1,bw2
+          so3func(i,s_ids(1),s_ids(2)) = so3func(i,s_ids(1),s_ids(2)) + (sym_const_m1*sym_const_m2*coeff(c_loc+3_dp))*dlmn(i)
+       end do
+       !$OMP END SIMD
     end if
 
-     !! branch for sgn(m1)!=sgn(m2)                                   !!
+    !! branch for sgn(m1)!=sgn(m2)                                   !!
     !! uses the symmetries:                                          !!
     !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{m2,m1}^l(\beta)          !!
     !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{-m1,-m2}^l(\beta)        !!
@@ -2175,25 +2193,40 @@ contains
     !!    a l dependent sign swap by (-1)^l                          !!
     !!    an inversion of the \beta coordinate axis                  !!
     if (m1==0 .or. m2==0) return       ! prevents sign swaps on 0 ids which are already covered
-    o = MERGE(2_dp,0_dp,(m1/=0))
+    o = MERGE(2_dp,0_dp,(m1/=m2))
     !! m1,-m2 !!
     s_ids=order_to_ids(m1,-m2,bw)
-    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = so3func(bw2:1:-1, s_ids(1),s_ids(2)) + (sym_const_l*sym_const_m1*coeff(c_loc+o+2_dp))*dlmn(:)
-        
+    !$OMP SIMD
+    do i=1,bw2
+       so3func(bw2+1_dp-i, s_ids(1),s_ids(2)) = so3func(bw2+1_dp-i, s_ids(1),s_ids(2)) + (sym_const_l*sym_const_m1*coeff(c_loc+o+2_dp))*dlmn(i)
+    end do
+    !$OMP END SIMD
+
     !! -m1,m2 !!
     s_ids=order_to_ids(-m1,m2,bw)
-    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = so3func(bw2:1:-1, s_ids(1),s_ids(2)) + (sym_const_l*sym_const_m2*coeff(c_loc+o+3_dp))*dlmn(:)
+    !$OMP SIMD
+    do i=1,bw2
+       so3func(bw2+1_dp-i, s_ids(1),s_ids(2)) = so3func(bw2+1_dp-i, s_ids(1),s_ids(2)) + (sym_const_l*sym_const_m2*coeff(c_loc+o+3_dp))*dlmn(i)
+    end do
+    !$OMP END SIMD
         
     if (m1 == m2) return               ! prevents duplicates due to swapping equal numbers
     
     !! m2,-m1 !!
     s_ids=order_to_ids(m2,-m1,bw)
-    so3func(bw2:1:-1,s_ids(1),s_ids(2)) = so3func(bw2:1:-1,s_ids(1),s_ids(2)) + (sym_const_l*sym_const_m1*coeff(c_loc+6_dp))*dlmn(:)
-
+    !$OMP SIMD
+    do i=1,bw2
+       so3func(bw2+1_dp-i,s_ids(1),s_ids(2)) = so3func(bw2+1_dp-i,s_ids(1),s_ids(2)) + (sym_const_l*sym_const_m1*coeff(c_loc+6_dp))*dlmn(i)
+    end do
+    !$OMP END SIMD
 
     !! -m2,m1 !!
     s_ids=order_to_ids(-m2,m1,bw)
-    so3func(bw2:1:-1,s_ids(1),s_ids(2)) = so3func(bw2:1:-1,s_ids(1),s_ids(2)) + (sym_const_l*sym_const_m2*coeff(c_loc + 7_dp))*dlmn(:)
+    !$OMP SIMD
+    do i=1,bw2
+       so3func(bw2+1_dp-i,s_ids(1),s_ids(2)) = so3func(bw2+1_dp-i,s_ids(1),s_ids(2)) + (sym_const_l*sym_const_m2*coeff(c_loc + 7_dp))*dlmn(i)
+    end do
+    !$OMP END SIMD
   end subroutine inverse_wigner_loop_body_cmplx_risbo_
   
   subroutine inverse_wigner_trf_cmplx_risbo(self,coeff,so3func,use_mp)
@@ -2454,8 +2487,8 @@ contains
     real(kind = dp), intent(in) :: dlmn(:)
     integer(kind=dp), intent(in) ::l,m1,m2
     real(kind=dp),intent(in) :: sym_const_l,sym_const_m1
-    real(kind = dp) :: sym_const_m2
-    integer(kind=dp) :: i,s_ids(2),c_slice(2),c_loc,bw,bw2,dlml_id
+    real(kind = dp) :: sym_const_m2,sym_tmp
+    integer(kind=dp) :: i,s_ids(2),c_slice(2),c_loc,bw,bw2,dlml_id,o
     complex(kind = dp) :: tmp
 
     sym_const_m2 = (-1.0)**m2
@@ -2472,21 +2505,69 @@ contains
     !! m1,m2 !!
 
     tmp = 0._dp
-    !$OMP SIMD REDUCTION(+:tmp)
-    do i = 1, bw2
-       tmp = tmp + self%legendre_weights(i)*so3func(i,m1+1,m2+1)*dlmn(i)
-    end do
-    !$OMP END SIMD
-    coeff(c_loc) = tmp
+    coeff(c_loc) = DOT_PRODUCT(dlmn,so3func(:,m1+1,m2+1))
+
+    if (m1 ==0 .AND. m2 ==0) return    ! prevents m1=m2=0 from beeing evaluated twice
+
+    !! -m2,-m1 !!
+    s_ids = order_to_ids(-m2,-m1,bw)
+    coeff(c_loc+1_dp) = DOT_PRODUCT(dlmn,so3func(:,s_ids(1),s_ids(2)))
+   
+
+    !! branch for m1>m2 and sgn(m1)==sgn(m2)                         !!
+    !! uses the symmetries:                                          !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{m2,m1}^l(\beta)          !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{-m1,-m2}^l(\beta)        !!
+    !! They cause a constant sign swap by (-1)^(m1-m2)               !!
+    if (.NOT. m1==m2) then
+       !!  m2,m1  !!
+       s_ids = order_to_ids(m2,m1,bw)
+       coeff(c_loc + 2_dp) = DOT_PRODUCT(dlmn,so3func(:,s_ids(1),s_ids(2)))*sym_const_m1*sym_const_m2
+       
+       !! -m1,-m2 !!
+       s_ids = order_to_ids(-m1,-m2,bw)       
+       coeff(c_loc + 3_dp) = DOT_PRODUCT(dlmn,so3func(:,s_ids(1),s_ids(2)))*sym_const_m1*sym_const_m2
+    end if
+
+    !! branch for sgn(m1)!=sgn(m2)                                   !!
+    !! uses the symmetries:                                          !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{m2,m1}^l(\beta)          !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{-m1,-m2}^l(\beta)        !!
+    !! d_{m1,m2}^l(\beta) = (-1)^(l+m1)*d_{m1,-m2}^l(\pi-\beta)      !!
+    !! They cause:                                                   !!
+    !!    a constant sign swap by (-1)^M , M=m1 or m2                !!
+    !!    a l dependent sign swap by (-1)^l                          !!
+    !!    an inversion of the \beta coordinate axis                  !!
+    if (m1==0 .or. m2==0) return       ! prevents sign swaps on 0 ids which are already covered
+    o=MERGE(2_dp,0_dp,(m1/=m2))
+    
+    !! m1,-m2 !!
+    s_ids = order_to_ids(m1,-m2,bw)
+    coeff(c_loc + o + 2_dp) = DOT_PRODUCT(dlmn,so3func(bw2:1:-1,s_ids(1),s_ids(2)))*sym_const_m1*sym_const_l
+    
+    !! -m1,m2 !!
+    s_ids = order_to_ids(-m1,m2,bw)
+    coeff(c_loc + o + 3_dp) = DOT_PRODUCT(dlmn,so3func(bw2:1:-1,s_ids(1),s_ids(2)))*sym_const_m2*sym_const_l
+
+    if (m1 == m2) return               ! prevents duplicates due to swapping equal numbers
+
+    !! m2,-m1 !!
+    s_ids = order_to_ids(m2,-m1,bw)
+    coeff(c_loc + 6_dp) = DOT_PRODUCT(dlmn,so3func(bw2:1:-1,s_ids(1),s_ids(2))) *sym_const_m1*sym_const_l
+    
+    !! -m2,m1 !!
+    s_ids = order_to_ids(-m2,m1,bw)
+    coeff(c_loc + 7_dp) = DOT_PRODUCT(dlmn,so3func(bw2:1:-1,s_ids(1),s_ids(2)))*sym_const_m2*sym_const_l
 
   end subroutine forward_wigner_loop_body_cmplx_risbo_
+  
   subroutine forward_wigner_trf_cmplx_risbo(self,so3func,coeff,use_mp)
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(inout) :: coeff(:)
     complex(kind = dp), intent(in) :: so3func(:,:,:)
     logical, intent(in) :: use_mp
     integer(kind = dp) :: i,m1,m2,L,mnid
-    real(kind=dp) :: sym_const_m1,sym_const_l,dl(2*self%bw,(self%bw*(self%bw+1))/2)
+    real(kind=dp) :: sym_const_m1,sym_const_l,dl(2*self%bw,(self%bw*(self%bw+1))/2),dl_tmp(2_dp*self%bw)
 
        
     ! initiallizing some constants
@@ -2497,9 +2578,10 @@ contains
        sym_const_l = (-1._dp)**l
        do m1=0, l
           sym_const_m1 = (-1.0)**m1
-          do m2=m1, L
-             mnid = triangular_to_flat_index(m1,m2,l+1_dp)     
-             call forward_wigner_loop_body_cmplx_risbo_(self,so3func,coeff,dl(:,mnid),l,m1,m2,sym_const_l,sym_const_m1)
+          do m2=m1, l
+             mnid = triangular_to_flat_index(m1,m2,l+1_dp)
+             dl_tmp = dl(:,mnid)*self%legendre_weights
+             call forward_wigner_loop_body_cmplx_risbo_(self,so3func,coeff,dl_tmp,l,m1,m2,sym_const_l,sym_const_m1)
           end do
        end do
     end do
