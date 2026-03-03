@@ -2371,18 +2371,35 @@ contains
     ! zeroing so3func needed since it will be populated by +=
     so3func = 0
 
-    ! non-fft part of the SO(3) fourier transform
-    do l=0,self%lmax
-       dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
-       sym_const_l = (-1._dp)**l
-       do m1=0, l
-          sym_const_m1 = (-1.0)**m1
-          do m2=m1, l
-             mnid = triangular_to_flat_index(m1,m2,l+1_dp)     
+    if (use_mp) then
+       ! non-fft part of the SO(3) fourier transform
+       do l=0,self%lmax
+          dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
+          sym_const_l = (-1._dp)**l
+          !$OMP PARALLEL PRIVATE(mnid,m1,m2,sym_const_m1) SHARED(so3func,coeff,dl,sym_const_l,l)
+          !$OMP DO
+          do mnid=1_dp,((l+1_dp)*(l+2_dp))/2_dp
+             call flat_to_triangular_index(m1,m2,mnid,l)
+             sym_const_m1 = (-1.0)**m1 
              call inverse_wigner_loop_body_cmplx_risbo(self,coeff,so3func,dl(:,mnid),l,m1,m2,sym_const_l,sym_const_m1)
           end do
+          !$OMP END DO
+          !$OMP END PARALLEL
        end do
-    end do
+    else
+       ! non-fft part of the SO(3) fourier transform
+       do l=0,self%lmax
+          dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
+          sym_const_l = (-1._dp)**l
+          do m1=0, l
+             sym_const_m1 = (-1.0)**m1
+             do m2=m1, l
+                mnid = triangular_to_flat_index(m1,m2,l+1_dp)     
+                call inverse_wigner_loop_body_cmplx_risbo(self,coeff,so3func,dl(:,mnid),l,m1,m2,sym_const_l,sym_const_m1)
+             end do
+          end do
+       end do
+    end if
   end subroutine inverse_wigner_trf_cmplx_risbo
   subroutine inverse_wigner_trf_cmplx(self,coeff,so3func,use_mp)
     !f2py threadsafe
@@ -2709,19 +2726,37 @@ contains
     logical, intent(in) :: use_mp
     integer(kind = dp) :: m1,m2,l,mnid
     real(kind=dp) :: sym_const_m1,sym_const_l,dl(2*self%bw,(self%bw*(self%bw+1))/2),dl_tmp(2_dp*self%bw)
-    
-    do l=0,self%lmax
-       dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
-       sym_const_l = (-1._dp)**l
-       do m1=0, l
-          sym_const_m1 = (-1.0)**m1
-          do m2=m1, l
-             mnid = triangular_to_flat_index(m1,m2,l+1_dp)
+
+      
+    if (use_mp) then
+       do l=0,self%lmax
+          dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
+          sym_const_l = (-1._dp)**l
+          !$OMP PARALLEL PRIVATE(mnid,m1,m2,sym_const_m1,dl_tmp) SHARED(so3func,coeff,dl,sym_const_l,l)
+          !$OMP DO
+          do mnid=1_dp,((l+1_dp)*(l+2_dp))/2_dp
+             call flat_to_triangular_index(m1,m2,mnid,l)
+             sym_const_m1 = (-1.0)**m1
              dl_tmp = dl(:,mnid)*self%legendre_weights
              call forward_wigner_loop_body_cmplx_risbo(self,so3func,coeff,dl_tmp,l,m1,m2,sym_const_l,sym_const_m1)
           end do
+          !$OMP END DO
+          !$OMP END PARALLEL
        end do
-    end do
+    else
+       do l=0,self%lmax
+          dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
+          sym_const_l = (-1._dp)**l
+          do m1=0, l
+             sym_const_m1 = (-1.0)**m1
+             do m2=m1, l
+                mnid = triangular_to_flat_index(m1,m2,l+1_dp)
+                dl_tmp = dl(:,mnid)*self%legendre_weights
+                call forward_wigner_loop_body_cmplx_risbo(self,so3func,coeff,dl_tmp,l,m1,m2,sym_const_l,sym_const_m1)
+             end do
+          end do
+       end do
+    end if
   end subroutine forward_wigner_trf_cmplx_risbo
   subroutine forward_wigner_trf_cmplx(self,so3func,coeff,use_mp)
     !f2py threadsafe
@@ -2990,34 +3025,64 @@ contains
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
     complex(kind = dp), intent(in) :: coeff(:)
     logical, intent(in) :: use_mp
-    integer(kind = dp) :: i,m1,m2,l,mnid,s_ids(2),s_ids_sym(2),bw,bw2
+    integer(kind = dp) :: j,i,m1,m2,l,mnid,s_ids(2),s_ids_sym(2),bw,bw2
     real(kind=dp) :: sym_const_m1,sym_const_l,dl(2*self%bw,(self%bw*(self%bw+1))/2)
 
     bw  = self%bw
     bw2  = 2_dp*bw
-    
-    ! non-fft part of the SO(3) fourier transform
-    do l=0,self%lmax
-       dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
-       sym_const_l = (-1._dp)**l
-       do m1=0, l
-          sym_const_m1 = (-1.0)**m1
-          do m2=m1, l
-             mnid = triangular_to_flat_index(m1,m2,l+1_dp)
+
+    if (use_mp) then
+       ! non-fft part of the SO(3) fourier transform
+       do l=0,self%lmax
+          dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
+          sym_const_l = (-1._dp)**l
+          !$OMP PARALLEL PRIVATE(mnid,m1,m2,sym_const_m1,s_ids,s_ids_sym,i,j) SHARED(so3func,coeff,dl,sym_const_l,l,bw,bw2)
+          !$OMP DO
+          do mnid=1_dp,((l+1_dp)*(l+2_dp))/2_dp
+             call flat_to_triangular_index(m1,m2,mnid,l)
+             sym_const_m1 = (-1.0)**m1 
              call inverse_wigner_loop_body_real_risbo(self,coeff,so3func,dl(:,mnid),l,m1,m2,sym_const_l,sym_const_m1)
           end do
+          !$OMP END DO
+          !$OMP END PARALLEL
        end do
-    end do
 
-    ! fill remaining 2d real fft symmetry values using f_{0,m1}=f_{0,-m1}^*
-    do m2=1,self%lmax
-       s_ids = order_to_ids(0_dp,m2,bw)
-       s_ids_sym = order_to_ids(0_dp,-m2,bw)
-       do i=1,bw2
+       ! fill remaining 2d real fft symmetry values using f_{0,m1}=f_{0,-m1}^*
+       !$OMP PARALLEL PRIVATE(m2,s_ids,s_ids_sym,i,j) SHARED(so3func,bw,bw2)
+       !$OMP DO
+       do j=1,(self%lmax+1_dp)*bw2
+          m2 = ((j-1_dp)/bw2)
+          i = MOD(j,bw2)+1_dp
+          !print *, self%lmax,m2,i
+          s_ids = order_to_ids(0_dp,m2,bw)
+          s_ids_sym = order_to_ids(0_dp,-m2,bw)
           so3func(i,s_ids_sym(1),s_ids_sym(2)) = CONJG(so3func(i,s_ids(1),s_ids(2)))
        end do
-    end do
+       !$OMP END DO
+       !$OMP END PARALLEL
+    else
+       ! non-fft part of the SO(3) fourier transform
+       do l=0,self%lmax
+          dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
+          sym_const_l = (-1._dp)**l
+          do m1=0, l
+             sym_const_m1 = (-1.0)**m1
+             do m2=m1, l
+                mnid = triangular_to_flat_index(m1,m2,l+1_dp)
+                call inverse_wigner_loop_body_real_risbo(self,coeff,so3func,dl(:,mnid),l,m1,m2,sym_const_l,sym_const_m1)
+             end do
+          end do
+       end do
 
+       ! fill remaining 2d real fft symmetry values using f_{0,m1}=f_{0,-m1}^*
+       do m2=1,self%lmax
+          s_ids = order_to_ids(0_dp,m2,bw)
+          s_ids_sym = order_to_ids(0_dp,-m2,bw)
+          do i=1,bw2
+             so3func(i,s_ids_sym(1),s_ids_sym(2)) = CONJG(so3func(i,s_ids(1),s_ids(2)))
+          end do
+       end do
+    end if
   end subroutine inverse_wigner_trf_real_risbo
   subroutine inverse_wigner_trf_real(self,coeff,so3func,use_mp)
     !f2py threadsafe

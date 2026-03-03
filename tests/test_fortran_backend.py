@@ -222,14 +222,24 @@ class TestMakeWigner:
         betas = np.array([np.pi*5/11])
         for l in range(2,Lmax+1):
             dl = _soft.make_wigner.wigner_dl_risbo(l,betas,False)[0]
-            assert np.allclose(dl@dl.T,np.eye(2*l+1)), f'wigner matrix of degree {l} is not orthogonal'    
+            assert np.allclose(dl@dl.T,np.eye(2*l+1)), f'wigner matrix of degree {l} is not orthogonal'
+    def test_wigner_dl_risbo_reduced(self):
+        Lmax = 128
+        betas = np.array([np.pi*5/11,np.pi-np.pi*5/11])
+        for l in range(2,Lmax+1):
+            dl_red = _soft.make_wigner.wigner_dl_risbo_reduced(l,betas,False)
+            dl = _soft.make_wigner.sym_reduced_to_full_wigner(dl_red,l)[0]
+            assert np.allclose(dl@dl.T,np.eye(2*l+1)), f'wigner matrix of degree {l} is not orthogonal'
     def test_wigner_dl_comparative(self):
         Lmax = 128
-        betas = np.array([np.pi*5/11])
+        betas = np.array([np.pi*5/11,np.pi-np.pi*5/11])
         for l in range(2,Lmax+1):
-            dl_risbo = _soft.make_wigner.wigner_dl_risbo(l,betas,False)
+            dl_risbo = _soft.make_wigner.wigner_dl_risbo(l,betas,False)[0]
+            dl_tmp = _soft.make_wigner.wigner_dl_risbo_reduced(l,betas,False)
+            dl_risbo_reduced = _soft.make_wigner.sym_reduced_to_full_wigner(dl_tmp,l)[0]
             dl_kostelec = _soft.make_wigner.wigner_dl_kostelec(l,betas,False)[0]
-            assert np.allclose(dl_risbo,dl_kostelec), f'Missmatch between risbo an kosteleic in wigner matrix of degree {l}.' 
+            assert np.allclose(dl_risbo,dl_kostelec), f'Missmatch between risbo and kostelec in wigner matrix of degree {l}.'
+            assert np.allclose(dl_risbo_reduced,dl_kostelec), f'Missmatch between risbo reduced and kostelec in wigner matrix of degree {l}.' 
         
 class TestUtils:
     bw = 16
@@ -476,7 +486,10 @@ class TestSo3ft:
                 d2 = _soft.utils.get_empty_so3func_real(bw)
                 d3 = _soft.utils.get_empty_so3func_real(bw)            
                 coeff[...] = np.random.rand(*coeff.shape) + 1.j*np.random.rand(*coeff.shape)
-                _soft.utils.enforce_real_sym(coeff,bw)
+                if recurrence_type==0:
+                    _soft.utils.enforce_real_sym(coeff,bw)
+                else:
+                    _soft.utils.enforce_real_sym_lmn(coeff,bw)
                 
                 _soft.py.py_isoft(s_int,coeff,d,False)
                 _soft.py.py_irsoft(s_int,coeff,d2,False)
@@ -501,13 +514,16 @@ class TestSo3ft:
                 d2 = _soft.utils.get_empty_so3func_real(bw)
                 
                 coeff[...] = np.random.rand(*coeff.shape) + 1.j*np.random.rand(*coeff.shape)
-                _soft.utils.enforce_real_sym(coeff,bw)
+                if recurrence_type==0:
+                    _soft.utils.enforce_real_sym(coeff,bw)
+                else:
+                    _soft.utils.enforce_real_sym_lmn(coeff,bw)
                 _soft.py.py_irsoft(s_int,coeff,d,False)
                 _soft.py.py_rsoft(s_int,d,coeff2,False)
-                assert np.allclose(coeff,coeff2), f'isoft soft not identity for bw = {bw}'
+                assert np.allclose(coeff,coeff2), f'isoft soft not identity for bw = {bw} and recurrence_type={recurrence_type}'
                 
                 _soft.py.py_irsoft(s_int,coeff2,d2,False)
-                assert np.allclose(d,d2), f'soft isoft not identity for bw = {bw}'
+                assert np.allclose(d,d2), f'soft isoft not identity for bw = {bw} and recurrence_type={recurrence_type}'
                 
                 _soft.py.py_destroy(s_int)                        
 
