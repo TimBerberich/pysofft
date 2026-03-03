@@ -16,15 +16,20 @@ class Soft:
     _fortran_pointer = None
     _wisdom_path = os.path.expanduser('~/.config/pysofft/fftw_wisdom.dat')
     enable_fftw_wisdom = False
+    _kostelec_recurrence = _soft.softclass.kostelec_recurrence
+    _risbo_recurrence = _soft.softclass.risbo_recurrence
     
     def __init__(self,
                  bw,
                  lmax=None,
                  precompute_wigners = False,
+                 recurrence_type = None,
                  init_ffts=False,
                  fftw_flags = 0,
                  enable_fftw_wisdom=False,
                  fftw_wisdom_path=None):
+        if recurrence_type is None:
+            recurrence_type = self._kostelec_recurrence
         if lmax is None:
             lmax = bw-1
         self.enable_fftw_wisdom = enable_fftw_wisdom
@@ -35,7 +40,7 @@ class Soft:
             if not os.path.exists(wisdom_dir):
                 os.makedirs(wisdom_dir)
             softclass.import_fftw_wisdom(self._wisdom_path)
-        self._fortran_pointer = py.py_init_soft(bw,lmax,precompute_wigners,init_ffts,fftw_flags)
+        self._fortran_pointer = py.py_init_soft(bw,lmax,precompute_wigners,init_ffts,recurrence_type,fftw_flags)
         if enable_fftw_wisdom:
             softclass.export_fftw_wisdom(self._wisdom_path)
         self._lmns = None
@@ -128,12 +133,8 @@ class Soft:
     # Transforms
     def _inverse_wigner_trf_cmplx(self,coeff,so3func,use_mp = False):
         py.py_inverse_wigner_trf_cmplx(self._fortran_pointer,coeff,(so3func.T),use_mp)
-    def _inverse_wigner_trf_cmplx_risbo(self,coeff,so3func,use_mp = False):
-        py.py_inverse_wigner_trf_cmplx_risbo(self._fortran_pointer,coeff,(so3func.T),use_mp)
     def _forward_wigner_trf_cmplx(self,so3func,coeff,use_mp = False):
         py.py_forward_wigner_trf_cmplx(self._fortran_pointer,(so3func.T),coeff,use_mp)
-    def _forward_wigner_trf_cmplx_risbo(self,so3func,coeff,use_mp = False):
-        py.py_forward_wigner_trf_cmplx_risbo(self._fortran_pointer,(so3func.T),coeff,use_mp)
     def _inverse_wigner_trf_real(self,coeff,so3func,use_mp = False):
         py.py_inverse_wigner_trf_real(self._fortran_pointer,coeff,(so3func.T),use_mp)
     def _forward_wigner_trf_real(self,so3func,coeff,use_mp = False):
@@ -341,8 +342,16 @@ class CoeffSO3(np.ndarray):
 
     def __array_finalize__(self, obj):
         # see InfoArray.__array_finalize__ for comments
-        if obj is None: return
-        self.info = getattr(obj, 'info', None)
+        if obj is None:
+            return
+        
+        self._lmns = getattr(obj, '_lmns', None)
+        if self._lmns is None:
+            self.lmn = None
+            self.bw = None
+        else:
+            self.lmn = CoeffView(self,self._lmns)
+            self.bw = obj.lmn.bw
 
     def __array_ufunc__(self, ufunc, method, *inputs, out=None, **kwargs):
         # Enables ufuncs like +,-,*,/ to preserve the additional attributes _lmns,lmn,bw

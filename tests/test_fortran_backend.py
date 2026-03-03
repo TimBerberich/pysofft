@@ -158,25 +158,6 @@ class TestMakeWigner:
             dlml = dlmls[:,start:stop]
             dlml_naiv = np.array([compute_dlml_naiv(l,m,betas) for l in range(m,Lmax+1)]).T
             assert np.allclose(dlml,dlml_naiv), f'dlml are not correct at m={m}'            
-    def test_compute_all_dlml_m_contiguous(self):
-        # Makes sure that the computed dlml agree with its exact formula.
-        Lmax = 10
-        n_beta = 2*(Lmax+1)
-        ks = np.arange(n_beta)
-        betas = (2*ks+1)*np.pi/(2*n_beta)
-        trigs = np.zeros((n_beta,3),order='F')
-        trigs[:,0] = np.cos(betas)
-        trigs[:,1] = np.sin(betas/2)*np.cos(betas/2)
-        trigs[:,2] = np.cos(betas/2)**2
-
-        dlmls = _soft.make_wigner.compute_all_dlml_m_contiguous(Lmax+1,trigs[:,1],trigs[:,2],True)
-        for l in range(Lmax+1):
-            start = _soft.utils.triangular_to_flat_index_reversed(l,0)-1
-            stop = _soft.utils.triangular_to_flat_index_reversed(l,l)
-            dlml = dlmls[:,start:stop]
-            dlml_naiv = np.array([compute_dlml_naiv(l,m,betas) for m in range(0,l+1)]).T
-            assert np.allclose(dlml,dlml_naiv), f'dlml are not correct at m={l}'
-
 
     def _get_dl0n(self,l,n,betas):
         from scipy.special import assoc_legendre_p
@@ -282,8 +263,9 @@ class TestSo3ft:
         init_ffts = [True,False]
         precompute_wigners = [True,False]
         bandwidth = np.arange(1,30)
+        recurrence_types = [0,1]
         
-        grid = np.meshgrid(*[bandwidth,precompute_wigners,init_ffts,fft_flags])
+        grid = np.meshgrid(*[bandwidth,precompute_wigners,init_ffts,recurrence_types,fft_flags])
         grid = [g.flatten() for g in grid]
         
         for i in np.arange(len(grid[0])):
@@ -291,7 +273,8 @@ class TestSo3ft:
                                         grid[0][i],
                                         grid[1][i],
                                         grid[2][i],
-                                        grid[3][i])
+                                        grid[3][i],
+                                        grid[4][i])
             _soft.py.py_destroy(s_int)
             
     # test_soft and test_isoft are the important tests all other tests
@@ -309,7 +292,7 @@ class TestSo3ft:
         '''
         bw = 32
         precompute_wigners = False
-        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
+        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0,0)
         
         coeff = _soft.utils.get_empty_coeff(bw)
         beta = _soft.make_wigner.create_beta_samples(2*bw)
@@ -375,7 +358,7 @@ class TestSo3ft:
         '''
         bw = 32
         precompute_wigners = False
-        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
+        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0,0)
         
         coeff = _soft.utils.get_empty_coeff(bw)
         beta = _soft.make_wigner.create_beta_samples(2*bw)
@@ -435,93 +418,98 @@ class TestSo3ft:
         '''
         bw = 32
         precompute_wigners = False
-        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
-        for bw in range(1,32):
-            precompute_wigners = False
-            s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
-            coeff = _soft.utils.get_empty_coeff(bw)
-            coeff2 = _soft.utils.get_empty_coeff(bw)
-            d = _soft.utils.get_empty_so3func_cmplx(bw)
-            d2 = _soft.utils.get_empty_so3func_cmplx(bw)
-            
-            coeff[...] = np.random.rand(*coeff.shape) + 1.j*np.random.rand(*coeff.shape)
-            _soft.py.py_isoft(s_int,coeff,d,False)
-            _soft.py.py_soft(s_int,d,coeff2,False)
-            assert np.allclose(coeff,coeff2), f'isoft soft not identity for bw = {bw}'
-            
-            _soft.py.py_isoft(s_int,coeff2,d2,False)
-            assert np.allclose(d,d2), f'soft isoft not identity for bw = {bw}'
-            
-            _soft.py.py_destroy(s_int)            
+        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0,0)
+        for recurrence_type in [0,1]:
+            for bw in range(1,32):
+                precompute_wigners = False
+                s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,recurrence_type,0)
+                coeff = _soft.utils.get_empty_coeff(bw)
+                coeff2 = _soft.utils.get_empty_coeff(bw)
+                d = _soft.utils.get_empty_so3func_cmplx(bw)
+                d2 = _soft.utils.get_empty_so3func_cmplx(bw)
+                
+                coeff[...] = np.random.rand(*coeff.shape) + 1.j*np.random.rand(*coeff.shape)
+                _soft.py.py_isoft(s_int,coeff,d,False)
+                _soft.py.py_soft(s_int,d,coeff2,False)
+                assert np.allclose(coeff,coeff2), f'isoft soft not identity for bw = {bw}'
+                
+                _soft.py.py_isoft(s_int,coeff2,d2,False)
+                assert np.allclose(d,d2), f'soft isoft not identity for bw = {bw}'
+                
+                _soft.py.py_destroy(s_int)
+        
     def test_rsoft_same_as_soft(self):
         '''
         Tests that the complex transform soft, restricted to real inputs, gives the same result as the real version rsoft.
         '''
         bw = 32
         precompute_wigners = False
-        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
-        for bw in range(1,32):        
-            s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
-            d = _soft.utils.get_empty_so3func_cmplx(bw)            
-            coeff = _soft.utils.get_empty_coeff(bw)
-            coeff2 = _soft.utils.get_empty_coeff(bw)
-            coeff3 = _soft.utils.get_empty_coeff(bw)
-            d[...] = np.random.rand(*d.shape)
-            _soft.py.py_soft(s_int,d,coeff,False)
-            _soft.py.py_rsoft(s_int,d.real,coeff2,False)
-            assert np.allclose(coeff,coeff2),f'rsoft,soft mismatch for bw={bw}'
-            _soft.py.omp_set_num_threads_(4)
-            _soft.py.py_rsoft(s_int,d.real,coeff3,True)
-            assert np.allclose(coeff,coeff3),f'rsoft OMP,soft mismatch for bw={bw}'
-            _soft.py.omp_set_num_threads_(1)
-            _soft.py.py_destroy(s_int)            
+        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0,0)
+        for recurrence_type in [0,1]:
+            for bw in range(1,32):        
+                s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,recurrence_type,0)
+                d = _soft.utils.get_empty_so3func_cmplx(bw)            
+                coeff = _soft.utils.get_empty_coeff(bw)
+                coeff2 = _soft.utils.get_empty_coeff(bw)
+                coeff3 = _soft.utils.get_empty_coeff(bw)
+                d[...] = np.random.rand(*d.shape)
+                _soft.py.py_soft(s_int,d,coeff,False)
+                _soft.py.py_rsoft(s_int,d.real,coeff2,False)
+                assert np.allclose(coeff,coeff2),f'rsoft,soft mismatch for bw={bw}'
+                _soft.py.omp_set_num_threads_(4)
+                _soft.py.py_rsoft(s_int,d.real,coeff3,True)
+                assert np.allclose(coeff,coeff3),f'rsoft OMP,soft mismatch for bw={bw}'
+                _soft.py.omp_set_num_threads_(1)
+                _soft.py.py_destroy(s_int)            
     def test_irsoft_same_as_isoft(self):
         '''
         Tests that the complex transform soft, restricted to real inputs, gives the same result as the real version rsoft.
         '''
         bw = 32
         precompute_wigners = False
-        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
-        for bw in range(1,32):        
-            s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
-            coeff = _soft.utils.get_empty_coeff(bw)
-            d = _soft.utils.get_empty_so3func_cmplx(bw)
-            d2 = _soft.utils.get_empty_so3func_real(bw)
-            d3 = _soft.utils.get_empty_so3func_real(bw)            
-            coeff[...] = np.random.rand(*coeff.shape) + 1.j*np.random.rand(*coeff.shape)
-            _soft.utils.enforce_real_sym(coeff,bw)
-            
-            _soft.py.py_isoft(s_int,coeff,d,False)
-            _soft.py.py_irsoft(s_int,coeff,d2,False)
-            assert np.allclose(d.real,d2),f'irsoft,isoft mismatch for bw={bw}'
-            _soft.py.omp_set_num_threads_(4)
-            _soft.py.py_irsoft(s_int,coeff,d3,True)
-            assert np.allclose(d.real,d3),f'irsoft OMP,isoft  mismatch for bw={bw}'
-            _soft.py.omp_set_num_threads_(1)
-            _soft.py.py_destroy(s_int)            
+        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0,0)
+        for recurrence_type in [0,1]:
+            for bw in range(1,32):        
+                s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,recurrence_type,0)
+                coeff = _soft.utils.get_empty_coeff(bw)
+                d = _soft.utils.get_empty_so3func_cmplx(bw)
+                d2 = _soft.utils.get_empty_so3func_real(bw)
+                d3 = _soft.utils.get_empty_so3func_real(bw)            
+                coeff[...] = np.random.rand(*coeff.shape) + 1.j*np.random.rand(*coeff.shape)
+                _soft.utils.enforce_real_sym(coeff,bw)
+                
+                _soft.py.py_isoft(s_int,coeff,d,False)
+                _soft.py.py_irsoft(s_int,coeff,d2,False)
+                assert np.allclose(d.real,d2),f'irsoft,isoft mismatch for bw={bw} and recurrence_type = {recurrence_type}'
+                _soft.py.omp_set_num_threads_(4)
+                _soft.py.py_irsoft(s_int,coeff,d3,True)
+                assert np.allclose(d.real,d3),f'irsoft OMP,isoft  mismatch for bw={bw} and recurrence_type = {recurrence_type}'
+                _soft.py.omp_set_num_threads_(1)
+                _soft.py.py_destroy(s_int)         
     def test_rsoft_irsoft_invertible(self):
         '''
         Tests invertability of the real rsoft and irsoft routines
         '''
         bw = 32
         precompute_wigners = False
-        for bw in range(1,32):        
-            s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
-            coeff = _soft.utils.get_empty_coeff(bw)
-            coeff2 = _soft.utils.get_empty_coeff(bw)
-            d = _soft.utils.get_empty_so3func_real(bw)
-            d2 = _soft.utils.get_empty_so3func_real(bw)
-            
-            coeff[...] = np.random.rand(*coeff.shape) + 1.j*np.random.rand(*coeff.shape)
-            _soft.utils.enforce_real_sym(coeff,bw)
-            _soft.py.py_irsoft(s_int,coeff,d,False)
-            _soft.py.py_rsoft(s_int,d,coeff2,False)
-            assert np.allclose(coeff,coeff2), f'isoft soft not identity for bw = {bw}'
-            
-            _soft.py.py_irsoft(s_int,coeff2,d2,False)
-            assert np.allclose(d,d2), f'soft isoft not identity for bw = {bw}'
-            
-            _soft.py.py_destroy(s_int)                        
+        for recurrence_type in [0,1]:
+            for bw in range(1,32):        
+                s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,recurrence_type,0)
+                coeff = _soft.utils.get_empty_coeff(bw)
+                coeff2 = _soft.utils.get_empty_coeff(bw)
+                d = _soft.utils.get_empty_so3func_real(bw)
+                d2 = _soft.utils.get_empty_so3func_real(bw)
+                
+                coeff[...] = np.random.rand(*coeff.shape) + 1.j*np.random.rand(*coeff.shape)
+                _soft.utils.enforce_real_sym(coeff,bw)
+                _soft.py.py_irsoft(s_int,coeff,d,False)
+                _soft.py.py_rsoft(s_int,d,coeff2,False)
+                assert np.allclose(coeff,coeff2), f'isoft soft not identity for bw = {bw}'
+                
+                _soft.py.py_irsoft(s_int,coeff2,d2,False)
+                assert np.allclose(d,d2), f'soft isoft not identity for bw = {bw}'
+                
+                _soft.py.py_destroy(s_int)                        
 
     # test _many versions of all transforms
     def test_soft_many_same_as_soft(self):
@@ -531,21 +519,22 @@ class TestSo3ft:
         bw = 32
         howmany=10
         precompute_wigners = False
-        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
-        d = _soft.utils.get_empty_so3func_cmplx_many(bw,howmany)
-        coeff = _soft.utils.get_empty_coeff_many(bw,howmany)
-        coeff2 = _soft.utils.get_empty_coeff_many(bw,howmany)
-        coeff3 = _soft.utils.get_empty_coeff_many(bw,howmany)
-        d[:]=np.random.rand(*d.shape)
-        for i in range(howmany):
-            _soft.py.py_soft(s_int,d[...,i],coeff[:,i],False)
-        _soft.py.py_soft_many(s_int,d,coeff2,False)
-        assert np.allclose(coeff,coeff2),'Mismatch between soft and soft_many'
-        _soft.py.omp_set_num_threads_(4)
-        _soft.py.py_soft_many(s_int,d,coeff3,True)
-        assert np.allclose(coeff,coeff3),'Mismatch between soft and soft_many using OMP'        
-        _soft.py.py_destroy(s_int)
-        _soft.py.omp_set_num_threads_(1)
+        for recurrence_type in [0,1]:
+            s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,recurrence_type,0)
+            d = _soft.utils.get_empty_so3func_cmplx_many(bw,howmany)
+            coeff = _soft.utils.get_empty_coeff_many(bw,howmany)
+            coeff2 = _soft.utils.get_empty_coeff_many(bw,howmany)
+            coeff3 = _soft.utils.get_empty_coeff_many(bw,howmany)
+            d[:]=np.random.rand(*d.shape)
+            for i in range(howmany):
+                _soft.py.py_soft(s_int,d[...,i],coeff[:,i],False)
+            _soft.py.py_soft_many(s_int,d,coeff2,False)
+            assert np.allclose(coeff,coeff2),'Mismatch between soft and soft_many'
+            _soft.py.omp_set_num_threads_(4)
+            _soft.py.py_soft_many(s_int,d,coeff3,True)
+            assert np.allclose(coeff,coeff3),'Mismatch between soft and soft_many using OMP'        
+            _soft.py.py_destroy(s_int)
+            _soft.py.omp_set_num_threads_(1)
     def test_rsoft_many_same_as_rsoft(self):
         '''
         Tests invertability of the real rsoft and irsoft routines
@@ -553,73 +542,77 @@ class TestSo3ft:
         bw = 31
         howmany=10
         precompute_wigners = False
-        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
-        d = _soft.utils.get_empty_so3func_real_many(bw,howmany)
-        d2 = _soft.utils.get_empty_so3func_real_many(bw,howmany)
-        d3 = _soft.utils.get_empty_so3func_real_many(bw,howmany)
-        coeff = _soft.utils.get_empty_coeff_many(bw,howmany)
-        coeff2 = _soft.utils.get_empty_coeff_many(bw,howmany)
-        coeff3 = _soft.utils.get_empty_coeff_many(bw,howmany)
-        d[:]=np.random.rand(*d.shape)
-        d2[:] = d
-        d3[:] = d
-        for i in range(howmany):
-            _soft.py.py_rsoft(s_int,d[...,i],coeff[:,i],False)
-        _soft.py.py_rsoft_many(s_int,d2,coeff2,False)
-        assert np.allclose(coeff,coeff2),'Mismatch between rsoft and rsoft_many'
-        _soft.py.omp_set_num_threads_(4)
-        _soft.py.py_rsoft_many(s_int,d2,coeff3,True)
-        assert np.allclose(coeff,coeff3),'Mismatch between rsoft and rsoft_many using OMP'        
-        _soft.py.py_destroy(s_int)
-        _soft.py.omp_set_num_threads_(1)
+        for recurrence_type in [0,1]:
+            s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,recurrence_type,0)
+            d = _soft.utils.get_empty_so3func_real_many(bw,howmany)
+            d2 = _soft.utils.get_empty_so3func_real_many(bw,howmany)
+            d3 = _soft.utils.get_empty_so3func_real_many(bw,howmany)
+            coeff = _soft.utils.get_empty_coeff_many(bw,howmany)
+            coeff2 = _soft.utils.get_empty_coeff_many(bw,howmany)
+            coeff3 = _soft.utils.get_empty_coeff_many(bw,howmany)
+            d[:]=np.random.rand(*d.shape)
+            d2[:] = d
+            d3[:] = d
+            for i in range(howmany):
+                _soft.py.py_rsoft(s_int,d[...,i],coeff[:,i],False)
+            _soft.py.py_rsoft_many(s_int,d2,coeff2,False)
+            assert np.allclose(coeff,coeff2),'Mismatch between rsoft and rsoft_many'
+            _soft.py.omp_set_num_threads_(4)
+            _soft.py.py_rsoft_many(s_int,d2,coeff3,True)
+            assert np.allclose(coeff,coeff3),'Mismatch between rsoft and rsoft_many using OMP'        
+            _soft.py.py_destroy(s_int)
+            _soft.py.omp_set_num_threads_(1)
+            
     def test_isoft_many_same_as_isoft(self):
         '''
         Tests invertability of the real rsoft and irsoft routines
         '''
         bw = 33
         howmany=9
-        precompute_wigners = True
-        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
-        coeff = _soft.utils.get_empty_coeff_many(bw,howmany)
-        d = _soft.utils.get_empty_so3func_cmplx_many(bw,howmany)
-        d2 = _soft.utils.get_empty_so3func_cmplx_many(bw,howmany)
-        d3 = _soft.utils.get_empty_so3func_cmplx_many(bw,howmany)
-        coeff[:]=np.random.rand(*coeff.shape)+1.j*np.random.rand(*coeff.shape)
-        for i in range(howmany):
-            _soft.py.py_isoft(s_int,coeff[:,i],d[...,i],False)
-        _soft.py.py_isoft_many(s_int,coeff,d2,False)
-        assert np.allclose(d,d2),'Mismatch between rsoft and rsoft_many'
-        _soft.py.omp_set_num_threads_(4)
-        _soft.py.py_isoft_many(s_int,coeff,d3,True)
-        assert np.allclose(d,d3),'Mismatch between isoft and isoft_many using OMP'        
-        _soft.py.py_destroy(s_int)
-        _soft.py.omp_set_num_threads_(1)
+        precompute_wigners = False
+        for recurrence_type in [0,1]:
+            s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,recurrence_type,0)
+            coeff = _soft.utils.get_empty_coeff_many(bw,howmany)
+            d = _soft.utils.get_empty_so3func_cmplx_many(bw,howmany)
+            d2 = _soft.utils.get_empty_so3func_cmplx_many(bw,howmany)
+            d3 = _soft.utils.get_empty_so3func_cmplx_many(bw,howmany)
+            coeff[:]=np.random.rand(*coeff.shape)+1.j*np.random.rand(*coeff.shape)
+            for i in range(howmany):
+                _soft.py.py_isoft(s_int,coeff[:,i],d[...,i],False)
+            _soft.py.py_isoft_many(s_int,coeff,d2,False)
+            assert np.allclose(d,d2),'Mismatch between rsoft and rsoft_many'
+            _soft.py.omp_set_num_threads_(4)
+            _soft.py.py_isoft_many(s_int,coeff,d3,True)
+            assert np.allclose(d,d3),'Mismatch between isoft and isoft_many using OMP'        
+            _soft.py.py_destroy(s_int)
+            _soft.py.omp_set_num_threads_(1)
     def test_irsoft_many_same_as_irsoft(self):
         '''
         Tests invertability of the real rsoft and irsoft routines
         '''
         bw = 27
         howmany=11
-        precompute_wigners = True
-        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0)
-        coeff = _soft.utils.get_empty_coeff_many(bw,howmany)
-        coeff2 = _soft.utils.get_empty_coeff_many(bw,howmany)
-        d = _soft.utils.get_empty_so3func_real_many(bw,howmany)        
-        d2 = _soft.utils.get_empty_so3func_real_many(bw,howmany)
-        d3 = _soft.utils.get_empty_so3func_real_many(bw,howmany)
-        coeff[:]=np.random.rand(*coeff.shape)+1.j*np.random.rand(*coeff.shape)
-        _soft.utils.enforce_real_sym(coeff,bw)
-        coeff2[:] = coeff
-        for i in range(howmany):
-            _soft.py.py_irsoft(s_int,coeff[:,i],d[...,i],False)
-        _soft.py.py_irsoft_many(s_int,coeff2,d2,False)
-        #assert np.allclose(d,d2),'Mismatch between rsoft and rsoft_many'
-        #assert((d3==0).all())
-        _soft.py.omp_set_num_threads_(4)
-        _soft.py.py_irsoft_many(s_int,coeff2,d3,True)
-        assert np.allclose(d,d3),'Mismatch between irsoft and irsoft_many using OMP'        
-        _soft.py.py_destroy(s_int)
-        _soft.py.omp_set_num_threads_(1)
+        precompute_wigners = False
+        for recurrence_type in [0,1]:
+            s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,recurrence_type,0)
+            coeff = _soft.utils.get_empty_coeff_many(bw,howmany)
+            coeff2 = _soft.utils.get_empty_coeff_many(bw,howmany)
+            d = _soft.utils.get_empty_so3func_real_many(bw,howmany)        
+            d2 = _soft.utils.get_empty_so3func_real_many(bw,howmany)
+            d3 = _soft.utils.get_empty_so3func_real_many(bw,howmany)
+            coeff[:]=np.random.rand(*coeff.shape)+1.j*np.random.rand(*coeff.shape)
+            _soft.utils.enforce_real_sym(coeff,bw)
+            coeff2[:] = coeff
+            for i in range(howmany):
+                _soft.py.py_irsoft(s_int,coeff[:,i],d[...,i],False)
+            _soft.py.py_irsoft_many(s_int,coeff2,d2,False)
+            #assert np.allclose(d,d2),'Mismatch between rsoft and rsoft_many'
+            #assert((d3==0).all())
+            _soft.py.omp_set_num_threads_(4)
+            _soft.py.py_irsoft_many(s_int,coeff2,d3,True)
+            assert np.allclose(d,d3),'Mismatch between irsoft and irsoft_many using OMP'        
+            _soft.py.py_destroy(s_int)
+            _soft.py.omp_set_num_threads_(1)
         
     def test_integrate_over_so3(self):
         r'''Tests that integral of a constant 1 functions returns the volume of SO(3),
@@ -627,7 +620,7 @@ class TestSo3ft:
         '''
         bw = 64
         precompute_wigners = False
-        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,False,0)
+        s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,False,0,0)
         dr = _soft.utils.get_empty_so3func_real(bw)
         dc = _soft.utils.get_empty_so3func_cmplx(bw)
         dr[:]=1
@@ -652,7 +645,7 @@ class TestSo3ft:
         albe = _soft.make_wigner.create_alpha_gamma_samples(2*bw)
         
         for precomputed_wigners in [False,True]:
-            s_int = _soft.py.py_init_soft(bw,bw-1,precomputed_wigners,True,0)
+            s_int = _soft.py.py_init_soft(bw,bw-1,precomputed_wigners,True,0,0)
             for multiprocessing in [False,True]:                
                 for i in range(5):
                     rotation_index = (np.random.rand(3)*len(albe)).astype(int)
@@ -679,7 +672,7 @@ class TestSo3ft:
         albe = _soft.make_wigner.create_alpha_gamma_samples(2*bw)
         
         for precomputed_wigners in [False,True]:
-            s_int = _soft.py.py_init_soft(bw,bw-1,precomputed_wigners,True,0)
+            s_int = _soft.py.py_init_soft(bw,bw-1,precomputed_wigners,True,0,0)
             for multiprocessing in [False,True]:                
                 for i in range(5):
                     rotation_index = (np.random.rand(3)*len(albe)).astype(int)
@@ -706,7 +699,7 @@ class TestSo3ft:
         albe = _soft.make_wigner.create_alpha_gamma_samples(2*bw)
         
         for precomputed_wigners in [False,True]:
-            s_int = _soft.py.py_init_soft(bw,bw-1,precomputed_wigners,True,0)
+            s_int = _soft.py.py_init_soft(bw,bw-1,precomputed_wigners,True,0,0)
             for multiprocessing in [False,True]:                
                 for i in range(5):
                     rotation_index = (np.random.rand(3)*len(albe)).astype(int)
@@ -736,7 +729,7 @@ class TestSo3ft:
         albe = _soft.make_wigner.create_alpha_gamma_samples(2*bw)
         
         for precomputed_wigners in [False,True]:
-            s_int = _soft.py.py_init_soft(bw,bw-1,precomputed_wigners,True,0)
+            s_int = _soft.py.py_init_soft(bw,bw-1,precomputed_wigners,True,0,0)
             for multiprocessing in [False,True]:                
                 for i in range(5):
                     rotation_index = (np.random.rand(3)*len(albe)).astype(int)
