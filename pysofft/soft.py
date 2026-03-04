@@ -185,6 +185,17 @@ class Soft:
         return py.py_integrate_over_so3_cmplx(self._fortran_pointer,f.T)
     def integrate_over_so3_real(self,f):
         return py.py_integrate_over_so3_real(self._fortran_pointer,f.T)
+
+    def _inverse_wigner_trf_corr_cmplx(self,f_lm,g_lm,out=None,use_mp=False):
+        if out is None:
+            out=self.get_so3func(real=False)
+        py.py_inverse_wigner_trf_corr_cmplx(self._fortran_pointer,f_lm,g_lm,out.T,use_mp)
+        return out
+    def _inverse_wigner_trf_corr_real(self,f_lm,g_lm,out=None,use_mp=False):
+        if out is None:
+            out=self.get_so3func(real=False)
+        py.py_inverse_wigner_trf_corr_cmplx(self._fortran_pointer,f_lm,g_lm,out.T,use_mp)
+        return out
     def cross_correlation_ylm_cmplx(self,f_lm,g_lm,out=None,use_mp=False):
         if out is None:
             out=self.get_so3func(real=False)
