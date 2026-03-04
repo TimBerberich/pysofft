@@ -661,20 +661,21 @@ class TestSo3ft:
         albe = _soft.make_wigner.create_alpha_gamma_samples(2*bw)
         
         for precomputed_wigners in [False,True]:
-            s_int = _soft.py.py_init_soft(bw,bw-1,precomputed_wigners,True,0,0)
-            for multiprocessing in [False,True]:                
-                for i in range(5):
-                    rotation_index = (np.random.rand(3)*len(albe)).astype(int)
-                    eulers = (albe[rotation_index[0]],betas[rotation_index[1]],albe[rotation_index[2]])
-                    rot_coeff = rotate_ylm_cmplx(coeff[None,...],eulers)
-                    so_coeff= _soft.utils.get_empty_coeff(bw).copy()
-                    corr = _soft.utils.get_empty_so3func_cmplx(bw)
-                    _soft.py.py_cross_correlation_ylm_cmplx(s_int,coeff,rot_coeff,corr,multiprocessing)
-                    found_rotation_index = np.array(np.unravel_index(np.argmax(np.abs(corr)),corr.shape))
-                    tmp = found_rotation_index[0]
-                    found_rotation_index[0] = found_rotation_index[1]
-                    found_rotation_index[1] = tmp
-                    assert np.all(rotation_index == found_rotation_index), f'Multiprocessing={multiprocessing},precomputed_wigners = {precomputed_wigners}: True rotation_index = {rotation_index} but found was {found_rotation_index}.'
+            for recurrence_type in [0,1]:
+                s_int = _soft.py.py_init_soft(bw,bw-1,precomputed_wigners,True,recurrence_type,0)
+                for multiprocessing in [False,True]:                
+                    for i in range(5):
+                        rotation_index = (np.random.rand(3)*len(albe)).astype(int)
+                        eulers = (albe[rotation_index[0]],betas[rotation_index[1]],albe[rotation_index[2]])
+                        rot_coeff = rotate_ylm_cmplx(coeff[None,...],eulers)
+                        so_coeff= _soft.utils.get_empty_coeff(bw).copy()
+                        corr = _soft.utils.get_empty_so3func_cmplx(bw)
+                        _soft.py.py_cross_correlation_ylm_cmplx(s_int,coeff,rot_coeff,corr,multiprocessing)
+                        found_rotation_index = np.array(np.unravel_index(np.argmax(np.abs(corr)),corr.shape))
+                        tmp = found_rotation_index[0]
+                        found_rotation_index[0] = found_rotation_index[1]
+                        found_rotation_index[1] = tmp
+                        assert np.all(rotation_index == found_rotation_index), f'Multiprocessing={multiprocessing},precomputed_wigners = {precomputed_wigners},recurrence_type{recurrence_type}: True rotation_index = {rotation_index} but found was {found_rotation_index}.'
     def test_cross_correlate_real(self):
         '''
         Real case
@@ -688,20 +689,21 @@ class TestSo3ft:
         albe = _soft.make_wigner.create_alpha_gamma_samples(2*bw)
         
         for precomputed_wigners in [False,True]:
-            s_int = _soft.py.py_init_soft(bw,bw-1,precomputed_wigners,True,0,0)
-            for multiprocessing in [False,True]:                
-                for i in range(5):
-                    rotation_index = (np.random.rand(3)*len(albe)).astype(int)
-                    eulers = (albe[rotation_index[0]],betas[rotation_index[1]],albe[rotation_index[2]])
-                    rot_coeff = rotate_ylm_real(coeff[None,...],eulers)
-                    so_coeff= _soft.utils.get_empty_coeff(bw).copy()
-                    corr = _soft.utils.get_empty_so3func_real(bw)
-                    _soft.py.py_cross_correlation_ylm_real(s_int,coeff,rot_coeff,corr,multiprocessing)
-                    found_rotation_index = np.array(np.unravel_index(np.argmax(np.abs(corr)),corr.shape))
-                    tmp = found_rotation_index[0]
-                    found_rotation_index[0] = found_rotation_index[1]
-                    found_rotation_index[1] = tmp
-                    assert np.all(rotation_index == found_rotation_index), f'Multiprocessing={multiprocessing},precomputed_wigners = {precomputed_wigners}: True rotation_index = {rotation_index} but found was {found_rotation_index}.'
+            for recurrence_type in [0,1]:
+                s_int = _soft.py.py_init_soft(bw,bw-1,precomputed_wigners,True,recurrence_type,0)
+                for multiprocessing in [False,True]:                
+                    for i in range(5):
+                        rotation_index = (np.random.rand(3)*len(albe)).astype(int)
+                        eulers = (albe[rotation_index[0]],betas[rotation_index[1]],albe[rotation_index[2]])
+                        rot_coeff = rotate_ylm_real(coeff[None,...],eulers)
+                        so_coeff= _soft.utils.get_empty_coeff(bw).copy()
+                        corr = _soft.utils.get_empty_so3func_real(bw)
+                        _soft.py.py_cross_correlation_ylm_real(s_int,coeff,rot_coeff,corr,multiprocessing)
+                        found_rotation_index = np.array(np.unravel_index(np.argmax(np.abs(corr)),corr.shape))
+                        tmp = found_rotation_index[0]
+                        found_rotation_index[0] = found_rotation_index[1]
+                        found_rotation_index[1] = tmp
+                        assert np.all(rotation_index == found_rotation_index), f'Multiprocessing={multiprocessing},precomputed_wigners = {precomputed_wigners},recurrence_type{recurrence_type}: True rotation_index = {rotation_index} but found was {found_rotation_index}.'
     def test_cross_correlate_cmplx_3d(self):
         '''
         Complex case
@@ -715,23 +717,24 @@ class TestSo3ft:
         albe = _soft.make_wigner.create_alpha_gamma_samples(2*bw)
         
         for precomputed_wigners in [False,True]:
-            s_int = _soft.py.py_init_soft(bw,bw-1,precomputed_wigners,True,0,0)
-            for multiprocessing in [False,True]:                
-                for i in range(5):
-                    rotation_index = (np.random.rand(3)*len(albe)).astype(int)
-                    eulers = (albe[rotation_index[0]],betas[rotation_index[1]],albe[rotation_index[2]])
-                    rot_coeff = rotate_ylm_cmplx(coeff,eulers).T
-                    coefft = coeff.T
-                    rad_points = np.arange(coefft.shape[1]).astype(float)
-                    rad_lim = np.array((1,coefft.shape[1]))
+            for recurrence_type in [0,1]:
+                s_int = _soft.py.py_init_soft(bw,bw-1,precomputed_wigners,True,recurrence_type,0)
+                for multiprocessing in [False,True]:                
+                    for i in range(5):
+                        rotation_index = (np.random.rand(3)*len(albe)).astype(int)
+                        eulers = (albe[rotation_index[0]],betas[rotation_index[1]],albe[rotation_index[2]])
+                        rot_coeff = rotate_ylm_cmplx(coeff,eulers).T
+                        coefft = coeff.T
+                        rad_points = np.arange(coefft.shape[1]).astype(float)
+                        rad_lim = np.array((1,coefft.shape[1]))
                     
-                    corr = _soft.utils.get_empty_so3func_cmplx(bw)
-                    _soft.py.py_cross_correlation_ylm_cmplx_3d(s_int,coefft,rot_coeff,corr,rad_points,rad_lim,multiprocessing)
-                    found_rotation_index = np.array(np.unravel_index(np.argmax(np.abs(corr)),corr.shape))
-                    tmp = found_rotation_index[0]
-                    found_rotation_index[0] = found_rotation_index[1]
-                    found_rotation_index[1] = tmp
-                    assert np.all(rotation_index == found_rotation_index), f'Multiprocessing={multiprocessing},precomputed_wigners = {precomputed_wigners}: True rotation_index = {rotation_index} but found was {found_rotation_index}.'
+                        corr = _soft.utils.get_empty_so3func_cmplx(bw)
+                        _soft.py.py_cross_correlation_ylm_cmplx_3d(s_int,coefft,rot_coeff,corr,rad_points,rad_lim,multiprocessing)
+                        found_rotation_index = np.array(np.unravel_index(np.argmax(np.abs(corr)),corr.shape))
+                        tmp = found_rotation_index[0]
+                        found_rotation_index[0] = found_rotation_index[1]
+                        found_rotation_index[1] = tmp
+                        assert np.all(rotation_index == found_rotation_index), f'Multiprocessing={multiprocessing},precomputed_wigners = {precomputed_wigners},recurrence_type{recurrence_type}: True rotation_index = {rotation_index} but found was {found_rotation_index}.'
     def test_cross_correlate_real_3d(self):
         '''
         Complex case
@@ -745,21 +748,22 @@ class TestSo3ft:
         albe = _soft.make_wigner.create_alpha_gamma_samples(2*bw)
         
         for precomputed_wigners in [False,True]:
-            s_int = _soft.py.py_init_soft(bw,bw-1,precomputed_wigners,True,0,0)
-            for multiprocessing in [False,True]:                
-                for i in range(5):
-                    rotation_index = (np.random.rand(3)*len(albe)).astype(int)
-                    eulers = (albe[rotation_index[0]],betas[rotation_index[1]],albe[rotation_index[2]])
-                    rot_coeff = rotate_ylm_real(coeff,eulers).T
-                    coefft = coeff.T
-                    rad_points = np.arange(coefft.shape[1]).astype(float)
-                    rad_lim = np.array((1,coefft.shape[1]))
+            for recurrence_type in [0,1]:
+                s_int = _soft.py.py_init_soft(bw,bw-1,precomputed_wigners,True,recurrence_type,0)
+                for multiprocessing in [False,True]:                
+                    for i in range(5):
+                        rotation_index = (np.random.rand(3)*len(albe)).astype(int)
+                        eulers = (albe[rotation_index[0]],betas[rotation_index[1]],albe[rotation_index[2]])
+                        rot_coeff = rotate_ylm_real(coeff,eulers).T
+                        coefft = coeff.T
+                        rad_points = np.arange(coefft.shape[1]).astype(float)
+                        rad_lim = np.array((1,coefft.shape[1]))
                     
-                    corr = _soft.utils.get_empty_so3func_real(bw)
-                    _soft.py.py_cross_correlation_ylm_real_3d(s_int,coefft,rot_coeff,corr,rad_points,rad_lim,multiprocessing)
-                    found_rotation_index = np.array(np.unravel_index(np.argmax(np.abs(corr)),corr.shape))
-                    tmp = found_rotation_index[0]
-                    found_rotation_index[0] = found_rotation_index[1]
-                    found_rotation_index[1] = tmp
-                    assert np.all(rotation_index == found_rotation_index), f'Multiprocessing={multiprocessing},precomputed_wigners = {precomputed_wigners}: True rotation_index = {rotation_index} but found was {found_rotation_index}.'
+                        corr = _soft.utils.get_empty_so3func_real(bw)
+                        _soft.py.py_cross_correlation_ylm_real_3d(s_int,coefft,rot_coeff,corr,rad_points,rad_lim,multiprocessing)
+                        found_rotation_index = np.array(np.unravel_index(np.argmax(np.abs(corr)),corr.shape))
+                        tmp = found_rotation_index[0]
+                        found_rotation_index[0] = found_rotation_index[1]
+                        found_rotation_index[1] = tmp
+                        assert np.all(rotation_index == found_rotation_index), f'Multiprocessing={multiprocessing},precomputed_wigners = {precomputed_wigners},recurrence_type{recurrence_type}: True rotation_index = {rotation_index} but found was {found_rotation_index}.'
         

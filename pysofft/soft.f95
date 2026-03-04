@@ -3814,7 +3814,12 @@ contains
     !! use of symmetries does not cause a change in d_{m1,m2}^l(beta) !!
     !! m1,m2 !!
     !s_slice = sample_slice(m1,m2,bw)
+    !print *, 'wig_norm',wig_norm(l_start:)
+    !print *, 'sym_const',sym_const_m1m2
+    !print *, 'flm',f_ml(pm1_slice(1):pm1_slice(2))
+    !print *, 'glm', g_ml(pm2_slice(1):pm2_slice(2))
     cc_lmn = wig_norm(l_start:) * f_ml(pm1_slice(1):pm1_slice(2)) * g_ml(pm2_slice(1):pm2_slice(2)) * sym_const_m1m2
+    !print *, 'cc_lmn',cc_lmn
     so3func(:,m1+1,m2+1) = matmul(cc_lmn,wig_mat)
     
     if (m1==0 .AND. m2==0) return    ! prevents m1=m2=0 from beeing evaluated twice
@@ -3903,7 +3908,7 @@ contains
     lmax = self%lmax
     do i=0,lmax
        sym_array(i+1) = (-1.0)**i
-       wig_norm = 2._dp*pi*SQRT(2._dp/real(2_dp*i+1_dp,kind = dp))
+       wig_norm(i+1_dp) = 2._dp*pi*SQRT(2._dp/real(2_dp*i+1_dp,kind = dp))
     end do
     if (use_mp) then
        
@@ -3986,8 +3991,13 @@ contains
     !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
     !! use of symmetries does not cause a change in d_{m1,m2}^l(beta) !!
     !! m1,m2 !!
+    !print *, 'wig_norm',wig_norm
+    !print *, 'sym_const',sym_const_m1m2
+    !print *, 'flm',f_lm(pm1)
+    !print *, 'glm', CONJG(g_lm(pm2))
     cc_lmn = wig_norm * f_lm(pm1) * CONJG(g_lm(pm2)) * sym_const_m1m2
-     !$OMP SIMD 
+    !print *, 'cc_lmn',cc_lmn
+    !$OMP SIMD 
     do i=1,bw2
        so3func(i,m1+1,m2+1) = so3func(i,m1+1,m2+1) + cc_lmn*dlmn(i)
     end do
@@ -4009,7 +4019,7 @@ contains
     !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{m2,m1}^l(\beta)          !!
     !! d_{m1,m2}^l(\beta) = (-1)^(m1-m2)*d_{-m1,-m2}^l(\beta)        !!
     !! They cause a constant sign swap by (-1)^(m1-m2)               !!
-    if (.NOT. m1==m2) then
+    if (m1/=m2) then
        !!  m2,m1  !!
        s_ids=order_to_ids(m2,m1,bw)
        cc_lmn = wig_norm * f_lm(pm2) * CONJG(g_lm(pm1))
@@ -4039,7 +4049,7 @@ contains
     !!    a constant sign swap by (-1)^M , M=m1 or m2                !!
     !!    a l dependent sign swap by (-1)^l                          !!
     !!    an inversion of the \beta coordinate axis                  !!
-    if (m1==0 .or. m2==0) return       ! prevents sign swaps on 0 ids which are already covered
+    if (m1==0) return       ! prevents sign swaps on 0 ids which are already covered
     
     !! m1,-m2 !!
     s_ids=order_to_ids(m1,-m2,bw)
