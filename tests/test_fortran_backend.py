@@ -280,7 +280,7 @@ class TestSo3ft:
         
         for i in np.arange(len(grid[0])):
             s_int=_soft.py.py_init_soft(grid[0][i],
-                                        grid[0][i],
+                                        grid[0][i]-1,
                                         grid[1][i],
                                         grid[2][i],
                                         grid[3][i],
@@ -711,7 +711,7 @@ class TestSo3ft:
         gives a maximal value at precisely their relative rotation.
         '''
         bw = 32
-        coeff = np.zeros((33,_soft.utils.n_lmc(bw)),dtype=complex)
+        coeff = np.zeros((bw,_soft.utils.n_lmc(bw)),dtype=complex)
         coeff[...] = np.random.rand(*coeff.shape)
         betas = _soft.make_wigner.create_beta_samples(2*bw)
         albe = _soft.make_wigner.create_alpha_gamma_samples(2*bw)
@@ -742,7 +742,7 @@ class TestSo3ft:
         gives a maximal value at precisely their relative rotation.
         '''
         bw = 32
-        coeff = np.zeros((33,_soft.utils.n_lmr(bw)),dtype=complex)
+        coeff = np.zeros((bw,_soft.utils.n_lmr(bw)),dtype=complex)
         coeff[...] = np.random.rand(*coeff.shape)
         betas = _soft.make_wigner.create_beta_samples(2*bw)
         albe = _soft.make_wigner.create_alpha_gamma_samples(2*bw)

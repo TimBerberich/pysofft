@@ -4314,11 +4314,13 @@ contains
     
     if (m1 ==0 .AND. m2 ==0) return    ! prevents m1=m2=0 from beeing evaluated twice
 
-    !! -m2,-m1 !!
-    s_ids = order_to_ids(m2,m1,bw)
-    ! conjugation to go from m2,m1 to -m2,-m1 => this also multiplies another sym_const_m1m2 thus cancelling the already present sym_const_m1m2
-    cc_lmn = wig_norm(l_start:) * CONJG(f_ml(pm2_slice(1):pm2_slice(2))) * g_ml(pm1_slice(1):pm1_slice(2))
-    so3func(:,s_ids(1),s_ids(2))=CONJG(matmul(cc_lmn,wig_mat))
+    if (m1/=m2) then
+       !! m2,m1 !!
+       s_ids = order_to_ids(m2,m1,bw)
+       cc_lmn = wig_norm(l_start:) * f_ml(pm2_slice(1):pm2_slice(2)) * CONJG(g_ml(pm1_slice(1):pm1_slice(2)))
+       
+       so3func(:,s_ids(1),s_ids(2))=matmul(cc_lmn,wig_mat)
+    end if
 
     !! branch for sgn(m1)!=sgn(m2)                                   !!
     !! uses the symmetries:                                          !!
@@ -4376,11 +4378,18 @@ contains
     
     if (m1 ==0 .AND. m2 ==0) return    ! prevents m1=m2=0 from beeing evaluated twice
 
+    if (m1/=m2) then
+       !! m2,m1 !!
+       s_ids = order_to_ids(m2,m1,bw)
+       cc_lmn = wig_norm(l_start:) * f_ml(pm2_slice(1):pm2_slice(2)) * CONJG(g_ml(pm1_slice(1):pm1_slice(2)))
+       
+       so3func(:,s_ids(1),s_ids(2))=matmul(cc_lmn,wig_mat)
+    end if
+    
     !! -m2,-m1 !!
-    s_ids = order_to_ids(m2,m1,bw)
-    ! conjugation to go from m2,m1 to -m2,-m1 => this also multiplies another sym_const_m1m2 thus cancelling the already present sym_const_m1m2
-    cc_lmn = wig_norm(l_start:) * CONJG(f_ml(pm2_slice(1):pm2_slice(2))) * g_ml(pm1_slice(1):pm1_slice(2))
-    so3func(:,s_ids(1),s_ids(2))=CONJG(matmul(cc_lmn,wig_mat))
+    !s_ids = order_to_ids(m2,m1,bw)
+    !cc_lmn = wig_norm(l_start:) * CONJG(f_ml(pm2_slice(1):pm2_slice(2))) * g_ml(pm1_slice(1):pm1_slice(2))
+    !so3func(:,s_ids(1),s_ids(2))=CONJG(matmul(cc_lmn,wig_mat))
 
     !! branch for sgn(m1)!=sgn(m2)                                   !!
     !! uses the symmetries:                                          !!
@@ -4502,28 +4511,35 @@ contains
     bw2 = 2_dp*bw
     pm1 = MLr(m1,l,bw)
     pm2 = MLr(m2,l,bw)
-
+        
     !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
     !! m1,m2 !!
     cc_lmn = wig_norm * f_ml(pm1) * CONJG(g_ml(pm2)) * sym_const_m1m2
+    !print *, "wig_norm",wig_norm
+    !print *, "sym_const_m1m2",sym_const_m1m2
+    !print *, "f_ml",f_ml(pm1),pm1
+    !print *, "g_ml",CONJG(g_ml(pm2)),pm2
+    !print *, "cc_lmn",cc_lmn
     !$OMP SIMD 
     do i=1,bw2
        so3func(i,m1+1,m2+1) = so3func(i,m1+1,m2+1) + cc_lmn*dlmn(i)
     end do
     !$OMP END SIMD
+
     
     if (m1 ==0 .AND. m2 ==0) return    ! prevents m1=m2=0 from beeing evaluated twice
 
-    !! -m2,-m1 !!
-    s_ids = order_to_ids(m2,m1,bw)
-    ! conjugation to go from m2,m1 to -m2,-m1 => this also multiplies another sym_const_m1m2 thus cancelling the already present sym_const_m1m2
-    cc_lmn = wig_norm * f_ml(pm2) * CONJG(g_ml(pm1))
-    !cc_lmn = wig_norm * CONJG(f_ml(pm2)) * g_ml(pm1)
-    !$OMP SIMD
-    do i=1,bw2
-       so3func(i,s_ids(1),s_ids(2)) = so3func(i,s_ids(1),s_ids(2)) + cc_lmn*dlmn(i)
-    end do
-    !so3func(:,s_ids(1),s_ids(2))=CONJG(matmul(cc_lmn,wig_mat))
+    if (m1/=m2) then
+       !! m2,m1 !!
+       s_ids = order_to_ids(m2,m1,bw)
+       cc_lmn = wig_norm * f_ml(pm2) * CONJG(g_ml(pm1))
+       !$OMP SIMD
+       do i=1,bw2
+          so3func(i,s_ids(1),s_ids(2)) = so3func(i,s_ids(1),s_ids(2)) +cc_lmn*dlmn(i)
+       end do
+       !$OMP END SIMD
+    end if
+    
 
     !! branch for sgn(m1)!=sgn(m2)                                   !!
     !! uses the symmetries:                                          !!
@@ -4557,7 +4573,7 @@ contains
     !$OMP END SIMD
   end subroutine inverse_wigner_loop_body_corr_real_risbo
   subroutine inverse_wigner_trf_corr_real_risbo(self,f_ml,g_ml,fft_array,use_mp)
-     class(so3ft),intent(inout),target :: self
+    class(so3ft),intent(inout),target :: self
     complex(kind = dp),target,intent(in) :: f_ml(:),g_ml(:)
     complex(kind = dp), intent(inout) :: fft_array(:,:,:)
     logical, intent(in) :: use_mp
@@ -4576,7 +4592,8 @@ contains
        do l=0,self%lmax
           dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
           sym_const_l = (-1._dp)**l
-          !$OMP PARALLEL PRIVATE(mnid,m1,m2,sym_const_m1) SHARED(fft_array,f_ml,g_ml,dl,sym_const_l,l)
+          wig_norm = 2._dp*pi*SQRT(2._dp/real(2_dp*l+1_dp,kind = dp))
+          !$OMP PARALLEL PRIVATE(mnid,m1,m2,sym_const_m1) SHARED(fft_array,f_ml,g_ml,dl,sym_const_l,l,wig_norm)
           !$OMP DO
           do mnid=1_dp,((l+1_dp)*(l+2_dp))/2_dp
              call flat_to_triangular_index(m1,m2,mnid,l)
@@ -4603,6 +4620,7 @@ contains
        do l=0,self%lmax
           dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
           sym_const_l = (-1._dp)**l
+          wig_norm = 2._dp*pi*SQRT(2._dp/real(2_dp*l+1_dp,kind = dp))
           do m1=0, l
              sym_const_m1 = (-1.0)**m1
              do m2=m1, l
@@ -4631,7 +4649,6 @@ contains
     complex(kind = dp),target,intent(in) :: f_ml(:),g_ml(:)
     complex(kind = dp), intent(inout) :: fft_array(:,:,:)
     logical, intent(in) :: use_mp
-
     if (self%recurrence_type == kostelec_recurrence) then
        call self%inverse_wigner_trf_corr_real_kostelec(f_ml,g_ml, fft_array, use_mp)
     else
@@ -4733,6 +4750,8 @@ contains
     cc = 0._dp
     radial_step = radial_sampling_points(2)-radial_sampling_points(1)
     inv_radial_range = 1._dp/(radial_sampling_points(radial_limits(2))-radial_sampling_points(radial_limits(1)) + radial_step)
+    !print *, "step",radial_step
+    !print *, "inv_range",inv_radial_range
 
     !make sure array dimensions are correct
     dimensions_wrong = (size(radial_sampling_points,1)/=size(f_mls,2)) .OR. (size(radial_sampling_points,1)/=size(g_mls,2))
@@ -4767,6 +4786,11 @@ contains
        !$OMP END PARALLEL
     else
        do rid=radial_limits(1),radial_limits(2)
+          !print *, 'rid',rid
+          !print *, 'f_mls',f_mls(:,rid)
+          !print *, 'g_mls',g_mls(:,rid)
+          !print *, 'fft_array', SHAPE(self%fft_r2c_out)
+          !print *, 'fft_array', radial_sampling_points(rid)**2
           call self%cross_correlation_ylm_real(f_mls(:,rid),g_mls(:,rid),self%fft_r2c_out,.FALSE.)
           cc = cc+self%fft_r2c_out*radial_sampling_points(rid)**2
        end do
@@ -5131,16 +5155,16 @@ contains
     call int_to_soft_pointer(self_int,self_ptr,self)
     call self%inverse_wigner_trf_corr_cmplx(f_lm,g_lm,fft_array,use_mp)
   end subroutine py_inverse_wigner_trf_corr_cmplx
-  subroutine py_inverse_wigner_trf_corr_real(self_int,f_lm,g_lm,fft_array,use_mp)
+  subroutine py_inverse_wigner_trf_corr_real(self_int,f_ml,g_ml,fft_array,use_mp)
     !f2py threadsafe
     integer(kind = dp),intent(in) :: self_int
-    complex(kind = dp),target,intent(in) :: f_lm(:),g_lm(:)
+    complex(kind = dp),target,intent(in) :: f_ml(:),g_ml(:)
     complex(kind = dp), intent(inout) :: fft_array(:,:,:)
     logical, intent(in) :: use_mp
     type(so3ft_ptr) :: self_ptr
     type(so3ft),pointer :: self
     call int_to_soft_pointer(self_int,self_ptr,self)
-    call self%inverse_wigner_trf_corr_real(f_lm,g_lm,fft_array,use_mp)
+    call self%inverse_wigner_trf_corr_real(f_ml,g_ml,fft_array,use_mp)
   end subroutine py_inverse_wigner_trf_corr_real
   subroutine py_cross_correlation_ylm_cmplx(self_int,f_lm,g_lm,cc,use_mp)
     !f2py threadsafe

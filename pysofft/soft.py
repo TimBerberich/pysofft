@@ -191,17 +191,18 @@ class Soft:
             out=self.get_so3func(real=False)
         py.py_inverse_wigner_trf_corr_cmplx(self._fortran_pointer,f_lm,g_lm,out.T,use_mp)
         return out
-    def _inverse_wigner_trf_corr_real(self,f_lm,g_lm,out=None,use_mp=False):
+    
+    def _inverse_wigner_trf_corr_real(self,f_ml,g_ml,out=None,use_mp=False):
         if out is None:
             out=self.get_so3func(real=False)
-        py.py_inverse_wigner_trf_corr_cmplx(self._fortran_pointer,f_lm,g_lm,out.T,use_mp)
+        py.py_inverse_wigner_trf_corr_real(self._fortran_pointer,f_ml,g_ml,out.T,use_mp)
         return out
     def cross_correlation_ylm_cmplx(self,f_lm,g_lm,out=None,use_mp=False):
         if out is None:
             out=self.get_so3func(real=False)
         py.py_cross_correlation_ylm_cmplx(self._fortran_pointer,f_lm,g_lm,out.T,use_mp)
         return out
-    def corss_correlation_ylm_cmplx_3d(self,f_lms,g_lms,out = None,radial_sampling_points=None,radial_limits=None,use_mp=False):
+    def cross_correlation_ylm_cmplx_3d(self,f_lms,g_lms,out = None,radial_sampling_points=None,radial_limits=None,use_mp=False):
         if out is None:
             out=self.get_so3func(howmany=len(f_lms))
         if radial_sampling_points is None:
@@ -215,17 +216,17 @@ class Soft:
     def cross_correlation_ylm_real(self,f_lm,g_lm,out=None,use_mp=False):
         if out is None:
             out=self.get_so3func(real=True)            
-        py.py_cross_correlation_ylm_real(self._fortran_pointer,f_lm,g_lm,out,use_mp)
+        py.py_cross_correlation_ylm_real(self._fortran_pointer,f_lm,g_lm,out.T,use_mp)
         return out
-    def corss_correlation_ylm_real_3d(self,f_lms,g_lms,out=None,radial_sampling_points=None,radial_limits=None,use_mp=False):
+    def cross_correlation_ylm_real_3d(self,f_lms,g_lms,out=None,radial_sampling_points=None,radial_limits=None,use_mp=False):
         if out is None:
             out=self.get_so3func(real=True,howmany=len(f_lms))
         if radial_sampling_points is None:
-            radial_sampling_points = np.linspace(0,1,len(f_lmns))
+            radial_sampling_points = np.linspace(0,1,len(f_lms))
         if radial_limits == None:
             radial_limits = [0,len(f_lms)]
         fortran_rlims = [radial_limits[0]+1,radial_limits[1]]
-        py.py_cross_correlation_ylm_real_3d(self._fortran_pointer,f_lms.T,g_lms.T,out.T,radial_sampling_points,radial_limits,use_mp)
+        py.py_cross_correlation_ylm_real_3d(self._fortran_pointer,f_lms.T,g_lms.T,out.T,radial_sampling_points,fortran_rlims,use_mp)
         return out
     def _fft(self,f1,f2):
         py.py_fft(self._fortran_pointer,f1,f2)
