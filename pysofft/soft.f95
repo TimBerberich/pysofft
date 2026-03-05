@@ -3055,7 +3055,6 @@ contains
        do j=1,(self%lmax+1_dp)*bw2
           m2 = ((j-1_dp)/bw2)
           i = MOD(j,bw2)+1_dp
-          !print *, self%lmax,m2,i
           s_ids = order_to_ids(0_dp,m2,bw)
           s_ids_sym = order_to_ids(0_dp,-m2,bw)
           so3func(i,s_ids_sym(1),s_ids_sym(2)) = CONJG(so3func(i,s_ids(1),s_ids(2)))
@@ -4096,7 +4095,7 @@ contains
     complex(kind = dp), intent(inout) :: fft_array(:,:,:)
     logical, intent(in) :: use_mp
     complex(kind = dp) ::  f_ml(size(f_lm)),g_ml(size(f_lm))
-    integer(kind = dp) :: mnid,m1,m2,l,lmax,bw
+    integer(kind = dp) :: mnid,m1,m2,l,bw
     real(kind=dp) :: sym_const_m1,sym_const_l,wig_norm,dl(2*self%bw,(self%bw*(self%bw+1))/2)
         
     bw = self%bw
@@ -4104,9 +4103,6 @@ contains
     ! zero fft array
     ! Important since not all elements will be written to before doing the fft
     fft_array = 0._dp
-
-    ! initiallizing some constants
-    lmax = self%lmax
 
     if (use_mp) then
        ! non-fft part of the SO(3) fourier transform
@@ -4435,7 +4431,7 @@ contains
     lmax = self%lmax
     do i=0,lmax
        sym_array(i+1) = (-1.0)**i
-       wig_norm = 2._dp*pi*SQRT(2._dp/real(2_dp*i+1_dp,kind = dp))
+       wig_norm(i+1) = 2._dp*pi*SQRT(2._dp/real(2_dp*i+1_dp,kind = dp))
     end do
 
     if (use_mp) then
@@ -4484,42 +4480,50 @@ contains
        end do
     end if
   end subroutine inverse_wigner_trf_corr_real_kostelec
-  subroutine inverse_wigner_loop_body_corr_real_risbo(self,f_ml,g_ml,so3func,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_slice)
+  subroutine inverse_wigner_loop_body_corr_real_risbo(self,f_ml,g_ml,so3func,dlmn,l,m1,m2,wig_norm,sym_const_l,sym_const_m1)
     ! This subroutine assumes 0<=m1<=m2<=bw
     ! which also means m = max(abs(m1),abs(m2)) = m2
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(in) :: f_ml(:),g_ml(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
-    integer(kind=dp), intent(in) :: m1,m2,pm1_slice(:)
-    real(kind=dp),intent(in) :: sym_array(:),wig_norm(:),sym_const_m1
+    integer(kind=dp), intent(in) :: l,m1,m2
+    real(kind=dp),intent(in) :: wig_norm,sym_const_l,sym_const_m1
+    real(kind=dp),intent(in) :: dlmn(:)
     real(kind = dp) :: wig_mat(self%bw-m2,2*self%bw)
     real(kind = dp) :: sym_const_m2,sym_const_m1m2
-    complex(kind = dp) :: cc_lmn(self%bw-m2)
-    integer(kind=dp) :: s_ids(2),bw,bw2,pm2_slice(2),l_start,dlml_id
+    complex(kind = dp) :: cc_lmn
+    integer(kind=dp) :: s_ids(2),bw,bw2,l_start,dlml_id,i,pm1,pm2
+
 
     sym_const_m2 = (-1.0_dp)**m2
     sym_const_m1m2 = sym_const_m1*sym_const_m2
     l_start = m2+1_dp
     bw = self%bw
     bw2 = 2_dp*bw
-    pm2_slice = MLr_slice(m2,bw)
+    pm1 = MLr(m1,l,bw)
+    pm2 = MLr(m2,l,bw)
 
-    ! get wigner matrix
-    dlml_id = triangular_to_flat_index(m1,m2,bw)
-    wig_mat = genwig_l2_trsp(m1,m2,bw,self%trig_samples(:,1),self%wigner_dlml(:,dlml_id),.True.)
-    
     !! normal branch for m1<=m2 and sgn(m1)==sgn(m2)                  !!
     !! m1,m2 !!
-    cc_lmn = wig_norm(l_start:) * f_ml(pm1_slice(1):pm1_slice(2)) * CONJG(g_ml(pm2_slice(1):pm2_slice(2))) * sym_const_m1m2
-    so3func(:,m1+1,m2+1) = matmul(cc_lmn,wig_mat)    
+    cc_lmn = wig_norm * f_ml(pm1) * CONJG(g_ml(pm2)) * sym_const_m1m2
+    !$OMP SIMD 
+    do i=1,bw2
+       so3func(i,m1+1,m2+1) = so3func(i,m1+1,m2+1) + cc_lmn*dlmn(i)
+    end do
+    !$OMP END SIMD
     
     if (m1 ==0 .AND. m2 ==0) return    ! prevents m1=m2=0 from beeing evaluated twice
 
     !! -m2,-m1 !!
     s_ids = order_to_ids(m2,m1,bw)
     ! conjugation to go from m2,m1 to -m2,-m1 => this also multiplies another sym_const_m1m2 thus cancelling the already present sym_const_m1m2
-    cc_lmn = wig_norm(l_start:) * CONJG(f_ml(pm2_slice(1):pm2_slice(2))) * g_ml(pm1_slice(1):pm1_slice(2))
-    so3func(:,s_ids(1),s_ids(2))=CONJG(matmul(cc_lmn,wig_mat))
+    cc_lmn = wig_norm * f_ml(pm2) * CONJG(g_ml(pm1))
+    !cc_lmn = wig_norm * CONJG(f_ml(pm2)) * g_ml(pm1)
+    !$OMP SIMD
+    do i=1,bw2
+       so3func(i,s_ids(1),s_ids(2)) = so3func(i,s_ids(1),s_ids(2)) + cc_lmn*dlmn(i)
+    end do
+    !so3func(:,s_ids(1),s_ids(2))=CONJG(matmul(cc_lmn,wig_mat))
 
     !! branch for sgn(m1)!=sgn(m2)                                   !!
     !! uses the symmetries:                                          !!
@@ -4530,93 +4534,95 @@ contains
     !!    a constant sign swap by (-1)^M , M=m1 or m2                !!
     !!    a l dependent sign swap by (-1)^l                          !!
     !!    an inversion of the \beta coordinate axis                  !!
-    if (m1==0 .or. m2==0) return       ! prevents sign swaps on 0 ids which are already covered
+    if (m1==0) return       ! prevents sign swaps on 0 ids which are already covered
     
     !! m1,-m2 !!
     s_ids = order_to_ids(m1,-m2,bw)
-    cc_lmn = wig_norm(l_start:) * f_ml(pm1_slice(1):pm1_slice(2)) * g_ml(pm2_slice(1):pm2_slice(2)) * sym_const_m1 &
-         & * sym_array(l_start:)
-    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m1*matmul(cc_lmn,wig_mat)
+    cc_lmn = wig_norm * f_ml(pm1) * g_ml(pm2) * sym_const_l
+    !$OMP SIMD
+    do i=1,bw2
+       so3func(bw2+1_dp-i, s_ids(1),s_ids(2)) = so3func(bw2+1_dp-i, s_ids(1),s_ids(2)) + cc_lmn*dlmn(i)
+    end do
+    !$OMP END SIMD
     
     if (m1 == m2) return               ! prevents duplicates due to swapping equal numbers
 
     !! m2,-m1 !!
     s_ids = order_to_ids(m2,-m1,bw)
-    cc_lmn = wig_norm(l_start:) * f_ml(pm2_slice(1):pm2_slice(2)) * g_ml(pm1_slice(1):pm1_slice(2)) * sym_const_m2 &
-         & * sym_array(l_start:)
-    so3func(bw2:1:-1, s_ids(1),s_ids(2)) = sym_const_m1*matmul(cc_lmn,wig_mat)    
+    cc_lmn = wig_norm * f_ml(pm2) * g_ml(pm1) * sym_const_m1m2 * sym_const_l
+    !$OMP SIMD
+    do i=1,bw2
+       so3func(bw2+1_dp-i, s_ids(1),s_ids(2)) = so3func(bw2+1_dp-i, s_ids(1),s_ids(2)) + cc_lmn*dlmn(i)
+    end do
+    !$OMP END SIMD
   end subroutine inverse_wigner_loop_body_corr_real_risbo
   subroutine inverse_wigner_trf_corr_real_risbo(self,f_ml,g_ml,fft_array,use_mp)
-    class(so3ft),intent(inout),target :: self
+     class(so3ft),intent(inout),target :: self
     complex(kind = dp),target,intent(in) :: f_ml(:),g_ml(:)
     complex(kind = dp), intent(inout) :: fft_array(:,:,:)
     logical, intent(in) :: use_mp
-    integer(kind = dp) :: i,n,m,m1,m2,lmax,bw,pm1_slice(2),pm1_tmp(2),s_ids(2),s_ids_sym(2)
-    real(kind=dp) :: sym_const_m1,sym_array(self%bw),wig_norm(self%bw)
-    procedure(wigner_corr_real_interface),pointer :: loop_body
+    integer(kind = dp) :: mnid,m1,m2,l,bw,bw2,i,j,s_ids(2),s_ids_sym(2)
+    real(kind=dp) :: sym_const_m1,sym_const_l,wig_norm,dl(2*self%bw,(self%bw*(self%bw+1))/2)
 
     bw = self%bw
-    if (allocated(self%wigner_d_trsp)) then
-       loop_body => inverse_wigner_loop_body_corr_real_kostelec_alloc
-    else
-       loop_body => inverse_wigner_loop_body_corr_real_kostelec
-    end if
-
+    bw2 = 2_dp*bw
+    
     ! zero fft array
     ! Important since not all elements will be written to before doing the fft
     fft_array = 0._dp
-    
-    ! initiallizing some constants
-    lmax = self%lmax
-    do i=0,lmax
-       sym_array(i+1) = (-1.0)**i
-       wig_norm = 2._dp*pi*SQRT(2._dp/real(2_dp*i+1_dp,kind = dp))
-    end do
 
-    if (use_mp) then
-       
-       !$OMP PARALLEL DEFAULT(SHARED) PRIVATE(i,m,m1,m2,sym_const_m1,pm1_slice,pm1_tmp,n)
-       
-       ! non-fft part of the SO(3) fourier transform + assembly of cc_lmn = wig_norm * f_ml_part * g_ml_part * sym_const_m1 * sym_const_m2
-       !$OMP DO
-       do i=1,(lmax+1)*(lmax+2)/2
-          call flat_to_triangular_index(m1,m2,i,lmax)
-          sym_const_m1 = (-1.0)**m1
-          pm1_slice = MLr_slice(m1, bw)
-          pm1_slice(1) = pm1_slice(1) + m2-m1
-          call loop_body(self,f_ml,g_ml,fft_array,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_slice)
+    if (use_mp) then       
+       ! non-fft part of the SO(3) fourier transform
+       do l=0,self%lmax
+          dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
+          sym_const_l = (-1._dp)**l
+          !$OMP PARALLEL PRIVATE(mnid,m1,m2,sym_const_m1) SHARED(fft_array,f_ml,g_ml,dl,sym_const_l,l)
+          !$OMP DO
+          do mnid=1_dp,((l+1_dp)*(l+2_dp))/2_dp
+             call flat_to_triangular_index(m1,m2,mnid,l)
+             sym_const_m1 = (-1.0)**m1 
+             call inverse_wigner_loop_body_corr_real_risbo(self,f_ml,g_ml,fft_array,dl(:,mnid),l,m1,m2,wig_norm,sym_const_l,sym_const_m1)
+          end do
+          !$OMP END DO
+          !$OMP END PARALLEL
        end do
-       !$OMP END DO
-
        ! fill remaining 2d real fft symmetry values using f_{0,m1}=f_{0,-m1}^*
+       !$OMP PARALLEL PRIVATE(m2,s_ids,s_ids_sym,i,j) SHARED(fft_array,bw)
        !$OMP DO
-       do m2=1,lmax
+       do j=1,(self%lmax+1_dp)*bw2
+          m2 = ((j-1_dp)/bw2)
+          i = MOD(j,bw2)+1_dp
           s_ids = order_to_ids(0_dp,m2,bw)
           s_ids_sym = order_to_ids(0_dp,-m2,bw)
-          fft_array(:,s_ids_sym(1),s_ids_sym(2)) = CONJG(fft_array(:,s_ids(1),s_ids(2)))
+          fft_array(i,s_ids_sym(1),s_ids_sym(2)) = CONJG(fft_array(i,s_ids(1),s_ids(2)))
        end do
        !$OMP END DO
        !$OMP END PARALLEL
     else
        ! non-fft part of the SO(3) fourier transform + assembly of cc_lmn = wig_norm * f_ml_part * g_ml_part * sym_const_m1 * sym_const_m2       
-       do m1=0, lmax
-          sym_const_m1 = (-1.0)**m1
-          pm1_slice= MLr_slice(m1,bw)
-          pm1_tmp = pm1_slice
-          !print * , pm1_tmp
-          do m2=m1, lmax
-             n = m2-m1
-             pm1_tmp(1) = pm1_slice(1)+n
-             call loop_body(self,f_ml,g_ml,fft_array,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_tmp)
+       do l=0,self%lmax
+          dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
+          sym_const_l = (-1._dp)**l
+          do m1=0, l
+             sym_const_m1 = (-1.0)**m1
+             do m2=m1, l
+                mnid = triangular_to_flat_index(m1,m2,l+1_dp)
+                call inverse_wigner_loop_body_corr_real_risbo(self,f_ml,g_ml,fft_array,dl(:,mnid),l,m1,m2,wig_norm,sym_const_l,sym_const_m1)
+             end do
           end do
        end do
 
        ! fill remaining 2d real fft symmetry values using f_{0,m1}=f_{0,-m1}^*
-       do m2=1,lmax
+       do m2=1,self%lmax
           s_ids = order_to_ids(0_dp,m2,bw)
           s_ids_sym = order_to_ids(0_dp,-m2,bw)
-          fft_array(:,s_ids_sym(1),s_ids_sym(2)) = CONJG(fft_array(:,s_ids(1),s_ids(2)))
+          !$OMP SIMD
+          do i=1,bw2
+             fft_array(i,s_ids_sym(1),s_ids_sym(2)) = CONJG(fft_array(i,s_ids(1),s_ids(2)))
+          end do
+          !$OMP END SIMD
        end do
+
     end if
   end subroutine inverse_wigner_trf_corr_real_risbo
   subroutine inverse_wigner_trf_corr_real(self,f_ml,g_ml,fft_array,use_mp)
