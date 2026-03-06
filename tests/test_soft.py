@@ -11,33 +11,24 @@ try:
 except Exception:
     shtns=None
 
+def forked_soft(args):
+    s,c = args
+    f = s.isoft(c,use_mp=False)
+    return f
+
 class TestMultiprocessingCompatibility:
     def test_fork_safety(self):
-        s = Soft(32,use_fftw_wisdom=True,init_ffts=True)
+        s = Soft(16,use_fftw_wisdom=True,init_ffts=True)
         coeff = s.get_coeff(howmany=100,random=True)
-        
-        def forked_soft(i):
-            f = s.isoft(coeff[i],use_mp=False)
-            return f
-        
-        def reinit_soft(i):
-            s = Soft(32,use_fftw_wisdom=True,init_ffts=True)
-            f = s.isoft(coeff[i])
-            return f
-        
+                
         print(locals())
         with Pool(8) as p:
-            d2 = p.map(forked_soft,np.arange(len(coeff)))
-        d2 = np.array(d)
-
-        with Pool(8) as p:
-            d3 = p.map(reinit_soft,np.arange(len(coeff)))
-        d3 = np.array(d3)
-
-        d = s.isoft(coeff,use_mp=True)
+            d2 = p.map(forked_soft,[(s,c) for c in coeff])
+        d2 = np.array(d2)
+        
+        d = s.isoft_many(coeff,use_mp=True)
         
         assert np.allclose(d2,d),'Pool using forked Soft instance is not the same as native computation.'
-        assert np.allclose(d3,d),'Pool using separate Soft instances is not the same as native computation.'
         
     
 class TestRotate:

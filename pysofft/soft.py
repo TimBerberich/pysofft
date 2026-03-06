@@ -5,6 +5,7 @@ from pysofft._soft import softclass
 from pysofft import fftw
 import os
 from collections import namedtuple
+import multiprocessing
 utils = _soft.utils
 
 #Temporary untill propper logging is implemented
@@ -60,7 +61,9 @@ class Soft:
         init_ffts: bool
            Whether or not to allocate memory and create fft plans during 
         """
-
+        
+        self._init_proces_name = multiprocessing.current_process().name
+        
         if recurrence_type not in self.recurrence_types:
             recurrence_type = self.recurrence_types.kostelec
         if lmax is None:
@@ -74,7 +77,8 @@ class Soft:
         self._lmns = None
             
     def __del__(self):
-        py.py_destroy(self._fortran_pointer)
+        if multiprocessing.current_process().name == self._init_proces_name:
+            py.py_destroy(self._fortran_pointer)
     
     @property
     def bw(self):
