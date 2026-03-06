@@ -20,20 +20,23 @@ url_source: True
   {# Doxygen location fields: file/line, and often bodyfile/bodystart #}
   {%- set file = "" -%}
   {%- set line = "" -%}
+  {%- set linestop = "" -%}	
 
   {%- if node is not none -%}
     {%- set file = node.location -%}
 	{% if node.code_language == 'Fortran' -%}
        {%- set line = node.location_bodystart-1 -%}
+	   {%- set linestop = node.location_bodyend+1 -%}	
 	{% else %}
 	   {%- set line = node.location_bodystart -%}
+	   {%- set linestop = node.location_bodyend -%}	
 	{% endif %}
   {%- endif -%}
 
   {%- if file -%}
     {%- set file = file | replace("\\", "/") -%}
     {%- if line -%}
-[{{ text }}]({{ repo_url }}/blob/{{ ref }}/{{ file }}#L{{ line }}){target="_blank"}
+[{{ text }}]({{ repo_url }}/blob/{{ ref }}/{{ file }}#L{{ line }}-L{{ linestop }}){target="_blank"}
     {%- else -%}
 [{{ text }}]({{ repo_url }}/blob/{{ ref }}/{{ file }})
     {%- endif -%}
