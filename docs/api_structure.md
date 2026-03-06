@@ -1,3 +1,7 @@
 # Package structure
 
-::: pysofft.soft.Soft
+::: pysofft.soft
+
+::: pysofft.stats
+
+

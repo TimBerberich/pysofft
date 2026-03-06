@@ -1,6 +1,7 @@
 from pysofft import _soft
 from pysofft import fftw
 from pysofft.soft import Soft
+from pysofft import stats
 from multiprocessing import cpu_count
 
 OMP_set_num_threads = _soft.py.omp_set_num_threads_

@@ -4,6 +4,10 @@ import os
 from collections import namedtuple
 import multiprocessing
 
+r'''
+Wrapper for fftw options
+'''
+
 fftw_flags = {n:int(getattr(_soft.softclass,n)) for n in dir(_soft.softclass) if n.startswith("fftw_")}
 tmp = namedtuple("FFTW_Flags",list(fftw_flags.keys()))
 

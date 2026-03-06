@@ -15,3 +15,23 @@ code {
 .md-typeset .admonition {
   font-size: 0.8rem;
 }
+
+
+/* mkdocstrings headings */
+.doc-heading {
+  display: flex;
+  align-items: baseline;
+  gap: .75rem;
+}
+
+.doc-heading-text {
+  min-width: 0;
+}
+
+.doc-gh-link {
+  margin-left: auto;      /* pushes to right */
+  font-size: 1em;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+}

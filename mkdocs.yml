@@ -165,7 +165,7 @@ plugins:
           options:
             docstring_style: numpy
             show_source: false 
-
+            show_root_heading: true
       features:
         - search.suggest
         - search.highlight

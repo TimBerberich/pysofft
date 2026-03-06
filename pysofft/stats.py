@@ -1,6 +1,6 @@
 import numpy as np
-import from scipy.stats import rv_discrete
-import pysofft.soft
+from scipy.stats import rv_discrete
+from pysofft import _soft,Soft
 
 ########################################
 ## Probability distributions on SO(3) ##
