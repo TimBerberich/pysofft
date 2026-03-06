@@ -21,32 +21,23 @@ class Soft:
 
     Attributes
     ----------
-    bw : int64
-        Bandwidth of the SO(3) fourier Transform.
-    lmax: int64
-        Maximum considered Wigner degree $l$. lmax has to satisfy 0<=lmax<bw.
-    precompute_wigners: bool
-        Whether or not to precompute and store the $O(\mathrm{bw}^4)$ small Wigner-d matrix values $d^l_{m,n}(\\beta)$.
-    recurrence_type: int64
-        Selects the recurrence that is used to compute the $d^l_{m,n}(\\beta)$.
-    init_ffts: bool
-        Whether or not to allocate memory and create fft plans during 
+    recurrence_types : namedtuple
+       Contains all available Wigner recurrence types (currently kostelec and risbo)
     """
     _fortran_pointer = None
     _wisdom_path = os.path.expanduser('~/.config/pysofft/fftw_wisdom.dat')
-    enable_fftw_wisdom = False
     recurrence_types = namedtuple('RecurrenceTypes',['kostelec','risbo'])(int(softclass.kostelec_recurrence),int(softclass.risbo_recurrence))
 
     
     
     def __init__(self,
-                 bw,
-                 lmax=None,
-                 precompute_wigners = False,
-                 recurrence_type = None,
-                 init_ffts=False,
-                 fftw_flags = 0,
-                 use_fftw_wisdom=False):
+                 bw:int,
+                 lmax:int|None = None,
+                 precompute_wigners:bool = False,
+                 recurrence_type:int|None = None,
+                 init_ffts:bool = False,
+                 fftw_flags:int = 0,
+                 use_fftw_wisdom:bool = False):
         r"""
         Parameters
         ----------
@@ -59,10 +50,10 @@ class Soft:
         recurrence_type: int64
            Selects the recurrence that is used to compute the $d^l_{m,n}(\\beta)$.
         init_ffts: bool
-           Whether or not to allocate memory and create fft plans during 
+           Whether or not to allocate memory and create fft plans during initialization.
         """
         
-        self._init_proces_name = multiprocessing.current_process().name
+        self._init_process_name = multiprocessing.current_process().name
         
         if recurrence_type not in self.recurrence_types:
             recurrence_type = self.recurrence_types.kostelec
@@ -77,7 +68,8 @@ class Soft:
         self._lmns = None
             
     def __del__(self):
-        if multiprocessing.current_process().name == self._init_proces_name:
+        if multiprocessing.current_process().name == self._init_process_name:
+            # free up any used fortran memory
             py.py_destroy(self._fortran_pointer)
     
     @property
@@ -104,7 +96,10 @@ class Soft:
     @property
     def coeff_indices(self):
         if self._lmns is None:
-            self._lmns=utils.get_coeff_degrees(self.bw)
+            if self.recurrence_type == self.recurrence_types.kostelec:
+                self._lmns=utils.get_coeff_degrees(self.bw)
+            else:
+                self._lmns=utils.get_coeff_degrees_risbo(self.bw)
             self._lmns.flags.writeable=False
         return self._lmns
     @property

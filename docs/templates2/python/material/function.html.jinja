@@ -1,0 +1,7 @@
+{% extends "_base/function.html.jinja" %}
+{% import "source_link.html.jinja" as src %}
+
+{% block contents %}
+  {{ src.github_link(function) }}
+  {{ super() }}
+{% endblock contents %}

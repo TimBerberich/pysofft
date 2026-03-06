@@ -159,10 +159,13 @@ extra_javascript:
 plugins:
   - mkdocstrings:
       default_handler: python
+      custom_templates: docs/templates2
       handlers:
         python:
           options:
             docstring_style: numpy
+            show_source: false 
+
       features:
         - search.suggest
         - search.highlight

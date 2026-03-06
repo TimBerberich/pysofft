@@ -1,0 +1,25 @@
+{# ---- Edit these two values for your repo ---- #}
+{% set REPO_WEB_URL = "https://github.com/TimBerberich/pysofft" %}
+{% set REPO_REF = "fortran" %}
+{# Optional: prepend if your package lives under src/, e.g. "src" #}
+{% set REPO_PATH_PREFIX = "" %}
+
+{% macro github_link(obj, label="[source]") -%}
+  {% if obj is defined
+        and obj.relative_package_filepath is defined
+        and obj.lineno is defined
+        and obj.lineno %}
+    {% set rel = (obj.relative_package_filepath|string).replace('\\', '/') %}
+    {% if REPO_PATH_PREFIX %}
+      {% set rel = REPO_PATH_PREFIX.strip('/') ~ '/' ~ rel %}
+    {% endif %}
+    {% set url = REPO_WEB_URL.rstrip('/') ~ '/blob/' ~ REPO_REF ~ '/' ~ rel ~ '#L' ~ obj.lineno %}
+    {% if obj.endlineno is defined and obj.endlineno and obj.endlineno != obj.lineno %}
+      {% set url = url ~ '-L' ~ obj.endlineno %}
+    {% endif %}
+
+    <p class="doc-source-link">
+      <a href="{{ url }}" target="_blank" rel="noopener noreferrer">{{ label }}</a>
+    </p>
+  {% endif %}
+{%- endmacro %}
