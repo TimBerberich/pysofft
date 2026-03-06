@@ -2,7 +2,9 @@ import numpy as np
 from pysofft import _soft
 from pysofft._soft import py
 from pysofft._soft import softclass
+from pysofft import fftw
 import os
+from collections import namedtuple
 utils = _soft.utils
 
 #Temporary untill propper logging is implemented
@@ -13,11 +15,28 @@ def log(txt):
 ## @brief fubar
 ##
 class Soft:
+    r"""
+    Python wrapper arround fortran class, that handles all transforms.
+
+    Attributes
+    ----------
+    bw : int64
+        Bandwidth of the SO(3) fourier Transform.
+    lmax: int64
+        Maximum considered Wigner degree $l$. lmax has to satisfy 0<=lmax<bw.
+    precompute_wigners: bool
+        Whether or not to precompute and store the $O(\mathrm{bw}^4)$ small Wigner-d matrix values $d^l_{m,n}(\\beta)$.
+    recurrence_type: int64
+        Selects the recurrence that is used to compute the $d^l_{m,n}(\\beta)$.
+    init_ffts: bool
+        Whether or not to allocate memory and create fft plans during 
+    """
     _fortran_pointer = None
     _wisdom_path = os.path.expanduser('~/.config/pysofft/fftw_wisdom.dat')
     enable_fftw_wisdom = False
-    _kostelec_recurrence = _soft.softclass.kostelec_recurrence
-    _risbo_recurrence = _soft.softclass.risbo_recurrence
+    recurrence_types = namedtuple('RecurrenceTypes',['kostelec','risbo'])(int(softclass.kostelec_recurrence),int(softclass.risbo_recurrence))
+
+    
     
     def __init__(self,
                  bw,
@@ -26,28 +45,37 @@ class Soft:
                  recurrence_type = None,
                  init_ffts=False,
                  fftw_flags = 0,
-                 enable_fftw_wisdom=False,
-                 fftw_wisdom_path=None):
-        if recurrence_type is None:
-            recurrence_type = self._kostelec_recurrence
+                 use_fftw_wisdom=False):
+        r"""
+        Parameters
+        ----------
+        bw : int64
+           Bandwidth of the SO(3) fourier Transform.
+        lmax: int64
+           Maximum considered Wigner degree $l$. lmax has to satisfy 0<=lmax<bw.
+        precompute_wigners: bool
+           Whether or not to precompute and store the $O(\mathrm{bw}^4)$ small Wigner-d matrix values $d^l_{m,n}(\\beta)$.
+        recurrence_type: int64
+           Selects the recurrence that is used to compute the $d^l_{m,n}(\\beta)$.
+        init_ffts: bool
+           Whether or not to allocate memory and create fft plans during 
+        """
+
+        if recurrence_type not in self.recurrence_types:
+            recurrence_type = self.recurrence_types.kostelec
         if lmax is None:
             lmax = bw-1
-        self.enable_fftw_wisdom = enable_fftw_wisdom
-        if enable_fftw_wisdom:
-            if isinstance(fftw_wisdom_path,str):
-                self._wisdom_path = fftw_wisdom_path
-            wisdom_dir = os.path.dirname(self._wisdom_path)
-            if not os.path.exists(wisdom_dir):
-                os.makedirs(wisdom_dir)
-            softclass.import_fftw_wisdom(self._wisdom_path)
+        self.use_fftw_wisdom = use_fftw_wisdom
+        if use_fftw_wisdom:
+            fftw.load_wisdom_from_file()
         self._fortran_pointer = py.py_init_soft(bw,lmax,precompute_wigners,init_ffts,recurrence_type,fftw_flags)
-        if enable_fftw_wisdom:
-            softclass.export_fftw_wisdom(self._wisdom_path)
+        if use_fftw_wisdom:
+            fftw.save_wisdom_to_file()
         self._lmns = None
             
     def __del__(self):
         py.py_destroy(self._fortran_pointer)
-        
+    
     @property
     def bw(self):
         return py.py_get_bw(self._fortran_pointer)
@@ -61,10 +89,14 @@ class Soft:
         if isinstance(value,np.ndarray):            
             py.py_set_lmax(self._fortran_pointer,value)
         else:
-            log(f'Warning: lmax ({lmax}) not an integer, abbort changing lmax.') 
+            log(f'Warning: lmax ({lmax}) not an integer, abbort changing lmax.')
+    @property
+    def recurrence_type(self):
+        return py.py_get_recurrence_type(self._fortran_pointer)
     @property
     def fftw_flags(self):
         return py.py_get_fftw_flags(self._fortran_pointer)
+
     @property
     def coeff_indices(self):
         if self._lmns is None:
@@ -77,22 +109,6 @@ class Soft:
         alpha = _soft.make_wigner.create_alpha_gamma_samples(self.bw*2)
         gamma = alpha.copy()
         return {'gamma':gamma,'alpha':alpha,'beta':beta}
-    def reset(self,
-              bw,
-              lmax=None,
-              precompute_wigners = False,
-              init_ffts=False,
-              fftw_flags = 0,
-              enable_fftw_wisdom=False):
-        self.enable_fftw_wisdom = enable_fftw_wisdöm
-        if enable_fftw_wisdom:
-            softclass.import_fftw_wisdom(self._wisdom_path)
-        py.py_reset(self._fortran_pointer,bw,lmax,precompute_wigners,init_ffts,fftw_flags)
-        if enable_fftw_wisdom:
-            softclass.export_fftw_wisdom(self._wisdom_path)
-
-    def init_ffts(self,real_fft=False):
-        py.py_init_fft(self._fortran_pointer,real_fft)
         
     @staticmethod
     def _fill_random(arr,seed=12345):
@@ -110,7 +126,10 @@ class Soft:
         if random:
             coeff = self._fill_random(coeff,seed=seed)
             if real:
-                utils.enforce_real_sym(coeff,self.bw)
+                if self.recurrence_type == self.recurrence_types.kostelec:
+                    utils.enforce_real_sym(coeff,self.bw)
+                else:
+                    utils.enforce_real_sym_lmn(coeff,self.bw)                    
         if not raw:
             coeff = CoeffSO3(coeff,self.coeff_indices)
         return coeff

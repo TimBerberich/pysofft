@@ -44,9 +44,9 @@ py.extension_module('_soft',
   incdir_f2py / 'fortranobject.c',
   # for debugging: -g -fbacktrace in fortran_args and -g in c_args
   # fortran_args: ['-fopenmp','-lfftw3', '-O3', '-fno-math-errno', '-fno-trapping-math','-g','-fbacktrace'],
-  fortran_args: ['-fopenmp','-lfftw3', '-O3', '-fno-math-errno', '-fno-trapping-math'],	
+  fortran_args: ['-fopenmp','-lfftw3', '-O3', '-fno-math-errno', '-fno-trapping-math','-march=native'],	
   # c_args: ['-fopenmp','-lfftw3', '-O3', '-fno-math-errno', '-fno-trapping-math','-g'],
-  c_args: ['-fopenmp','-lfftw3', '-O3', '-fno-math-errno', '-fno-trapping-math'],	
+  c_args: ['-fopenmp','-lfftw3', '-O3', '-fno-math-errno', '-fno-trapping-math','-march=native'],	
   link_args : ['-fopenmp','-lfftw3','-lm'],
   include_directories: inc_np,
   dependencies : [py_dep, omp, fftw],
@@ -58,6 +58,7 @@ py.extension_module('_soft',
 python_sources = [
   'soft.py',
   'stats.py',
+  'fftw.py',
   '__init__.py',
 ]
 

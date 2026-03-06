@@ -2,7 +2,8 @@ import numpy as np
 import pysofft
 from math import factorial
 from pysofft import _soft
-from pysofft import soft
+from pysofft import soft,Soft
+from multiprocessing import Pool
 import pytest
 
 try:
@@ -10,6 +11,35 @@ try:
 except Exception:
     shtns=None
 
+class TestMultiprocessingCompatibility:
+    def test_fork_safety(self):
+        s = Soft(32,use_fftw_wisdom=True,init_ffts=True)
+        coeff = s.get_coeff(howmany=100,random=True)
+        
+        def forked_soft(i):
+            f = s.isoft(coeff[i],use_mp=False)
+            return f
+        
+        def reinit_soft(i):
+            s = Soft(32,use_fftw_wisdom=True,init_ffts=True)
+            f = s.isoft(coeff[i])
+            return f
+        
+        print(locals())
+        with Pool(8) as p:
+            d2 = p.map(forked_soft,np.arange(len(coeff)))
+        d2 = np.array(d)
+
+        with Pool(8) as p:
+            d3 = p.map(reinit_soft,np.arange(len(coeff)))
+        d3 = np.array(d3)
+
+        d = s.isoft(coeff,use_mp=True)
+        
+        assert np.allclose(d2,d),'Pool using forked Soft instance is not the same as native computation.'
+        assert np.allclose(d3,d),'Pool using separate Soft instances is not the same as native computation.'
+        
+    
 class TestRotate:
     @pytest.mark.skipif(shtns is None, reason="python pakage 'shtns' is not installed but required for this test.")
     def test_rotate(self):

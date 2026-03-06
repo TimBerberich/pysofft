@@ -4845,7 +4845,7 @@ contains
     end if
        
   end function get_so3func_part_halfcomplex
-  function import_fftw_wisdom(file_path) result(error_code)
+  function load_fftw_wisdom(file_path) result(error_code)
     ! error_code == 0 means something went wrong in fftw
     character(len=*),intent(in) :: file_path
     integer(kind = dp) :: i
@@ -4857,8 +4857,8 @@ contains
     end do
     c_path(LEN(file_path)+1) = C_NULL_CHAR
     error_code = fftw_import_wisdom_from_filename(c_path)
-  end function import_fftw_wisdom
-  function export_fftw_wisdom(file_path) result(error_code)
+  end function load_fftw_wisdom
+  function save_fftw_wisdom(file_path) result(error_code)
     ! error_code == 0 means something went wrong in fftw
     character(len=*),intent(in) :: file_path
     integer(kind = dp) :: i
@@ -4870,11 +4870,12 @@ contains
     end do
     c_path(LEN(file_path)+1) = C_NULL_CHAR
     error_code = fftw_export_wisdom_to_filename(c_path)
-  end function export_fftw_wisdom
+  end function save_fftw_wisdom
   
 end module softclass
+
 !> --------
-!! @brief Hack: Object oriented Fortran in f2py  
+!! @brief Hack: Object oriented Fortran into f2py  
 !!
 !! f2py compatible wrappers for class `so3ft` in `softclass` module.
 !! 
@@ -4887,12 +4888,17 @@ module py
   !! Contains versions of the type bound procedures of so3ft that can be wrapped with f2py.
   use precision
   use softclass, only: so3ft,so3ft_ptr
+  use omp_lib
   implicit none
 contains
   subroutine OMP_set_num_threads_(nthreads)
     integer(kind = dp), intent(in) :: nthreads
     call OMP_set_num_threads(nthreads)
   end subroutine OMP_set_num_threads_
+  function OMP_get_max_threads_() result(nthreads)
+    integer(kind = dp) :: nthreads
+    nthreads = OMP_get_max_threads()
+  end function OMP_get_max_threads_
   
   function py_init_soft(bw,lmax,precompute_wigners,init_ffts,recurrence_type,fftw_flags) result(self)
     integer(kind = dp), intent(in) :: bw
@@ -4933,6 +4939,15 @@ contains
     call int_to_soft_pointer(self_int,self_ptr,self)
     lmax = self%lmax
   end function py_get_lmax
+  function py_get_recurrence_type(self_int) result(recurrence_type)
+    !f2py threadsafe
+    integer(kind = dp),intent(in) :: self_int
+    type(so3ft_ptr) :: self_ptr
+    type(so3ft),pointer :: self
+    integer(kind = dp) :: recurrence_type
+    call int_to_soft_pointer(self_int,self_ptr,self)
+    recurrence_type = self%recurrence_type
+  end function py_get_recurrence_type
   subroutine py_set_lmax(self_int,lmax)
     !f2py threadsafe
     integer(kind = dp),intent(in) :: self_int
