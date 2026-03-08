@@ -2,7 +2,7 @@ import numpy as np
 import pysofft
 from math import factorial
 from pysofft import _soft
-from pysofft.soft import rotate_ylm_cmplx,rotate_ylm_real
+from pysofft.soft import Soft
 
 def compute_dlml_naiv(l,m,betas):
     # This exact formula is only good for small l !
@@ -667,7 +667,7 @@ class TestSo3ft:
                     for i in range(5):
                         rotation_index = (np.random.rand(3)*len(albe)).astype(int)
                         eulers = (albe[rotation_index[0]],betas[rotation_index[1]],albe[rotation_index[2]])
-                        rot_coeff = rotate_ylm_cmplx(coeff[None,...],eulers)
+                        rot_coeff = Soft.rotate_ylm_cmplx(coeff[None,...],eulers)
                         so_coeff= _soft.utils.get_empty_coeff(bw).copy()
                         corr = _soft.utils.get_empty_so3func_cmplx(bw)
                         _soft.py.py_cross_correlation_ylm_cmplx(s_int,coeff,rot_coeff,corr,multiprocessing)
@@ -695,7 +695,7 @@ class TestSo3ft:
                     for i in range(5):
                         rotation_index = (np.random.rand(3)*len(albe)).astype(int)
                         eulers = (albe[rotation_index[0]],betas[rotation_index[1]],albe[rotation_index[2]])
-                        rot_coeff = rotate_ylm_real(coeff[None,...],eulers)
+                        rot_coeff = Soft.rotate_ylm_real(coeff[None,...],eulers)
                         so_coeff= _soft.utils.get_empty_coeff(bw).copy()
                         corr = _soft.utils.get_empty_so3func_real(bw)
                         _soft.py.py_cross_correlation_ylm_real(s_int,coeff,rot_coeff,corr,multiprocessing)
@@ -723,7 +723,7 @@ class TestSo3ft:
                     for i in range(5):
                         rotation_index = (np.random.rand(3)*len(albe)).astype(int)
                         eulers = (albe[rotation_index[0]],betas[rotation_index[1]],albe[rotation_index[2]])
-                        rot_coeff = rotate_ylm_cmplx(coeff,eulers).T
+                        rot_coeff = Soft.rotate_ylm_cmplx(coeff,eulers).T
                         coefft = coeff.T
                         rad_points = np.arange(coefft.shape[1]).astype(float)
                         rad_lim = np.array((1,coefft.shape[1]))
@@ -754,7 +754,7 @@ class TestSo3ft:
                     for i in range(5):
                         rotation_index = (np.random.rand(3)*len(albe)).astype(int)
                         eulers = (albe[rotation_index[0]],betas[rotation_index[1]],albe[rotation_index[2]])
-                        rot_coeff = rotate_ylm_real(coeff,eulers).T
+                        rot_coeff = Soft.rotate_ylm_real(coeff,eulers).T
                         coefft = coeff.T
                         rad_points = np.arange(coefft.shape[1]).astype(float)
                         rad_lim = np.array((1,coefft.shape[1]))

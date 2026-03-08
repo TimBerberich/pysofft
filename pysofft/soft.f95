@@ -313,16 +313,17 @@ contains
   !! For a fixed bandwith (bw) the weights are the
   !! unique solutions to the problem:
   !!
-  !! $$\sum_{k=0}^{2\text{bw}-1} w_{\text{bw}}(k) P_m(\cos(\beta_k)) = \delta_{0,m} \quad \forall 0 \leq m \leq \text{bw}$$ 
+  !! $$\sum\\_{k=0}^{2\text{bw}-1} w\\_{\text{bw}}(k) P\\_m(\cos(\beta\\_k)) = \delta\\_{0,m} \quad \forall 0 \leq m \leq \text{bw}$$ 
   !!
-  !! where the sampling angles are given by $$ \beta 1_k = \frac{\pi(2k+1)}{4 bw} $$
+  !! where the sampling angles are given by $\beta\\_k = \frac{\pi(2k+1)}{4\text{bw}}$
   !! Their closed form expression is given by:
   !!
-  !! $$ w_{\text{bw}}(k) = \frac{2}{\text{bw}}\sin(\frac{\pi(2k+1)}{4\text{bw}}) \sum_{j=0}^{\text{bw}-1}\frac{1}{2j+1}\sin((2k+1)(2j+1)\frac{\pi}{4\text{bw}})$$
-  !! both of these Formulas can be found in equations (2.13) and (2.14) of
-  !! :cite: P.J. Kostelec and D.N. Rockmore, J Fourier Anal Appl (2008) 14: 145–179
-  !! The proof of the closed form is contained in>
-  !! :cite: Driscoll, J.R., Healy, D.:  Proc. 34th IEEE FOCS (1989), pp. 344–349. Adv. in Appl. Math., vol. 15, pp. 202–250 (1994)
+  !! $$ w\\_{\text{bw}}(k) = \frac{2}{\text{bw}}\sin\left(\frac{\pi(2k+1)}{4\text{bw}}\right) \sum\\_{j=0}^{\text{bw}-1}\frac{1}{2j+1}\sin\left((2k+1)(2j+1)\frac{\pi}{4\text{bw}}\right)$$
+  !!
+  !! both of these Formulas can be found in equations (2.13) and (2.14) of  
+  !! :cite: P.J. Kostelec and D.N. Rockmore, J Fourier Anal Appl (2008) 14: 145–179  
+  !! The proof of the closed form is contained in  
+  !! :cite: Driscoll, J.R., Healy, D.:  Proc. 34th IEEE FOCS (1989), pp. 344–349. Adv. in Appl. Math., vol. 15, pp. 202–250 (1994)  
   function legendre_quadrature_weights(bw) result(weights)
     integer(kind = dp) :: bw,j,k
     real(kind = dp) :: weights(2*bw),tempsum,k_odd,j_odd,xi

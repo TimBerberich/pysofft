@@ -1,5 +1,5 @@
 # Fast Fourier transforms on the 3D rotation group $\mathrm{SO}(3)$
-PySOFFT provides high performance routines for harmonic analysis on the 3D rotation group written in Fortran wrapped in Python.  
+PySOFFT provides high performance routines for harmonic analysis on the 3D rotation group written in Fortran and wrapped in Python.  
 
 $$
 f:\mathrm{SO}(3) \rightarrow \mathbb{C} \quad \overset{\mathrm{PySOFFT}}{\longleftrightarrow} \quad f^l_{m,n} \text{ with } |m|,|n|\leq l<\infty
@@ -20,14 +20,14 @@ $$
 
 ## Origin
 PySOFFT started as a partial python port of soft-2.0 released by Peter Kostelec and Daniel Rockmore.
-Now it is entire rewrite from scratch in Fortran with several improvements, e.g better precission in Wigner-D matrix computations of high orders as well as a new data layout for harmonic coefficients.
+Now it is an entire rewrite in Fortran featuring several improvements, e.g higher precission computation of Wigner-D matrices, OpenMP routines and convenient python wrappers.
 
-For details see their paper:  
+For details on soft-2.0 see:  
 FFTs on the Rotation Group  
 J Fourier Anal Appl (2008) 14: 145–179  
 DOI [10.1007/s00041-008-9013-5](https://doi.org/10.1007/s00041-008-9013-5){target="_blank"} ([pdf](https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Kostelec08.pdf){target="_blank"})
 
-PySOFT is made available with conset of the original soft-2.0 authors and under the same GPL3 license.
+PySOFT is made available with consent of the original soft-2.0 authors and under the same GPL3 license.
 
 ## Installation
 The easiest installation option is via pip.
