@@ -572,7 +572,7 @@ class Soft:
         
         Examples
         --------
-        For an example see [rotational cross-correlation](usage/corr.md).
+        For an example see [rotational cross-correlation](/usage/corr).
         '''
         if out is None:
             out=self.get_so3func(real=False)
@@ -605,7 +605,7 @@ class Soft:
         
         Examples
         --------
-        For an example see [rotational cross-correlation](usage/corr.md).
+        For an example see [rotational cross-correlation](/usage/corr).
         '''
         if out is None:
             out=self.get_so3func(real=True)            
@@ -638,7 +638,7 @@ class Soft:
         
         Examples
         --------
-        For an example see [rotational cross-correlation](usage/corr.md).
+        For an example see [rotational cross-correlation](/usage/corr).
         '''
         if out is None:
             out=self.get_so3func(howmany=len(f_lms))
@@ -677,7 +677,7 @@ class Soft:
         
         Examples
         --------
-        For an example see [rotational cross-correlation](usage/corr.md).
+        For an example see [rotational cross-correlation](/usage/corr).
         '''
         if out is None:
             out=self.get_so3func(real=True,howmany=len(f_lms))
