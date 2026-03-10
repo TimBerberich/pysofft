@@ -39,6 +39,8 @@ class Soft:
                  fftw_flags:int = 0,
                  use_fftw_wisdom:bool = False):
         r"""
+        Create a transform instance.
+        
         Parameters
         ----------
         bw : int64
@@ -50,7 +52,7 @@ class Soft:
         recurrence_type: int64
            Selects the recurrence that is used to compute the $d^l_{m,n}(\\beta)$.
         init_ffts: bool
-           Whether or not to allocate memory and create fft plans during initialization.
+           Whether to allocate memory and create fft plans during initialization rather than lacy on the first call to a transform.
         """
         
         self._init_process_name = multiprocessing.current_process().name
@@ -134,6 +136,11 @@ class Soft:
         howmany:int
            If grater than 0, create array of shape (howmany,n_coefficients) that is compatible with the *_many transforms.
         
+        Returns
+        -------
+        coeff:ndarray
+            `((4*bw^3-bw)/3,)|(howmany,(4*bw^3-bw)/3,) complex`: Wigner coefficient array.
+        
         Examples
         -------
         ```py
@@ -154,7 +161,10 @@ class Soft:
                 else:
                     utils.enforce_real_sym_lmn(coeff,self.bw)                    
         if not raw:
-            coeff = CoeffSO3(coeff,self.coeff_indices)
+            if self.recurrence_type == self.recurrence_types.kostelec:
+                coeff = CoeffSO3(coeff,self.coeff_indices,coeff_order = 'mnl')
+            else:
+                coeff = CoeffSO3(coeff,self.coeff_indices,coeff_order = 'lmn')
         return coeff
 
     def get_so3func(self,real=False,random=False,seed=12345,howmany=0):
@@ -171,6 +181,11 @@ class Soft:
            Seed for the random number generator
         howmany:int
            If grater than 0, create array of shape (howmany,2*bw,2*bw,2*bw) that is compatible with the *_many transforms.
+        
+        Returns
+        -------
+        so3func:ndarray
+            `(2*bw,2*bw,2*bw)|(howmany,2*bw,2*bw,2*bw)   complex|real`: Array representing a function over SO(3) sampled on self.euler_angles.
         
         Examples
         -------
@@ -193,7 +208,36 @@ class Soft:
         if random:
             func = self._fill_random(func,seed=seed)
         return func.T #Transpose to go from F_CONTIGUOUS to C_CONTIGUOUS array
-    
+
+    def enforce_real_symmetry(self,coeff):
+        r'''
+        Enforces the Wigner symmetry $f^l_{m,n} = f^l_{-m,-n} (-1)^{m+n}$ that occurs if they belong to a real
+        valued function over SO(3).
+
+        Parameters
+        ----------
+        coeff:ndarray
+            `((4*bw**3-bw)/3,) complex`: Wigner coefficient array.
+        
+        Examples
+        --------
+        ```py
+        from pysofft import Soft
+        import numpy as np
+        s = Soft(16)
+        flmn = s.get_coeff(random=True)
+        f = s.isoft(flmn)
+        print(f'Max complex magnitude of f is = {np.max(np.abs(f.imag))}')
+        flmn_real = flmn.copy()
+        s.enforce_real_symmetry(flmn_real)
+        f_real = s.isoft(flmn_real)
+        print(f'Max complex magnitude of f_real is = {np.max(np.abs(f_real.imag))}')
+        ```
+        '''
+        if self.recurrence_type == self.recurrence_types.kostelec:
+            utils.enforce_real_sym(coeff,self.bw)
+        else:
+            utils.enforce_real_sym_lmn(coeff,self.bw)
     # Transforms
     def _inverse_wigner_trf_cmplx(self,coeff,so3func,use_mp = False):
         py.py_inverse_wigner_trf_cmplx(self._fortran_pointer,coeff,(so3func.T),use_mp)
@@ -489,7 +533,7 @@ class Soft:
             return py.py_integrate_over_so3_cmplx(self._fortran_pointer,f.T)
         else:
             return py.py_integrate_over_so3_real(self._fortran_pointer,f.T)
-
+        
     def _inverse_wigner_trf_corr_cmplx(self,f_lm,g_lm,out=None,use_mp=False):
         if out is None:
             out=self.get_so3func(real=False)
@@ -753,24 +797,25 @@ class Soft:
 # Syntactic sugar section
 class CoeffSO3(np.ndarray):
     r"""
-    A class to wrap SO3 fourier coefficients that provides easy access to individual coefficents
+    Numpy ndarray subclass adding easy access to individual Wigner coefficients $f^l_{n,k}$ via `self.lmn[]`.
     
     Attributes
     ----------
-    bw : int
-    Bandwidth of the distribution.
-    lnk : CharView
-    allows to acces $M_{lnk}$ by its indices l,n,k
+    bw:int
+        Bandwidth of the distribution.
+    lmn:CharView
+        allows to acces $M_{lmn}$ by its indices l,n,k
     """
-    def __new__(cls, coeff,lmns):
+    _coeff_orders = ['mnl','lmn']
+    def __new__(cls, coeff,lmn_indices,coeff_order = 'mnl'):
         # Input array is an already formed ndarray instance
         # We first cast to be our class type
         obj = np.asarray(coeff).view(cls)
         
          # add the new attribute to the created instance
-        lmns.flags.writeable = False
-        obj._lmns = lmns
-        obj.lmn = CoeffView(obj,lmns)
+        lmn_indices.flags.writeable = False
+        obj._lmns = lmn_indices
+        obj.lmn = CoeffView(obj,lmn_indices,coeff_order)
         obj.bw = obj.lmn.bw
         
         # Finally, we must return the newly created object:
@@ -845,62 +890,66 @@ class CoeffSO3(np.ndarray):
                     results[res_id]=res.view(np.ndarray)
                 
         return results[0] if len(results) == 1 else results
+    
 class CoeffView:
+    _coeff_orders = ['mnl','lmn']
     """
-    Helper class that allows to access a characteristic function $M_{l,n,k}$ by its indices l,n,k.
-    i.e. charview[l,n,k] returns  $M_{l,n,k}$. It is also possible to use slice notation i.e.
-    charview[:,0,:] returns a view into $M_{l,n,k}$ corresponding to all values with n=0. 
+    Helper class that allows to access a Wigner coefficients $f^l_{n,k}$ by its degrees l,n,k,
+    i.e. `coeffview[l,n,k]` returns  $f^l_{n,k}$. For example, it is also possible to use slice notation like
+    charview[:,0,:], which returns a view into $f^l_{n,k}$ corresponding to all values with n=0. 
 
     Attributes
     ----------
-    bw : int
-    Bandwidth
-    array : np.ndarray, ((4*bw**4-bw)/3,), complex
-    characteristic function array
-    ls : np.ndarray, (bw,), int64
-    l indices 0,...,bw
-    ns : np.ndarray, (2*bw+1), int64
-    n indices  0,...,bw,-bw+1,...,-1
-    ks : np.ndarray, (2*bw+1), int64
-    k indices  0,...,bw,-bw+1,...,-1
-    _lnks: np.ndarray, (3,(4*bw**4-bw)/3), int64
-    l,n,k value grid
-    _lookups : np.ndarray, ((4*bw**4-bw)/3,), int64
-    array ids associated to each entry of _lnks  
+    bw:int
+        Bandwidth
+    array : ndarray
+        `(4*bw^3-bw)/3,) complex`: Wigner coefficient array
+    ls:ndarray
+        `(bw,), int64`: l indices 0,...,bw
+    ns:ndarray,
+        `(2*bw+1,), int64`: n indices  0,...,bw,-bw+1,...,-1
+    ks:ndarray
+        `(2*bw+1,), int64`: k indices  0,...,bw,-bw+1,...,-1
+    _lmns:ndarray
+        `(3,(4*bw**4-bw)/3), int64`: l,n,k values associated to each entry in array.
     """
-    def __init__(self,coeff_array,lnks):
+    def __init__(self,coeff_array,lmn_indices,coeff_order='mnl'):
         self.array = coeff_array
-        self._lnks = lnks
-        self.ls = np.sort(np.unique(lnks[:,0]))
+        self._lmns = lmn_indices
+        self.ls = np.sort(np.unique(lmn_indices[:,0]))
         bw = len(self.ls)
         self.bw = bw
-        self.ns = np.roll(np.sort(np.unique(lnks[:,1])),bw)
-        self.ks = np.roll(np.sort(np.unique(lnks[:,2])),bw)
+        self.ns = np.roll(np.sort(np.unique(lmn_indices[:,1])),bw)
+        self.ks = np.roll(np.sort(np.unique(lmn_indices[:,2])),bw)
+        if coeff_order in self._coeff_orders:
+            self.coeff_order = coeff_order
+        else:
+            AssertionError(f'provided coeff_order {coeff_order} not contained in {self._coeff_orders}.')
+    def _check_index(self,l,m,n):
+        try:
+            assert (0<=l and l<self.bw), f'l={l} does not satisfy 0<=l<bw={self.bw}'
+            if self.coeff_order == 'lmn':
+                assert (abs(m)<=l and abs(n)<=l), f'm={m} or n={n} do not satisfy |m|<=l={l} |n|<=l={l}'
+            else:
+                mn = max(abs(m),abs(n))
+                assert (l>=mn), f'l={l} does not satisfy  l>=Max(|m|,|n|)={mn}'
+        except AssertionError as e:
+            raise e
+        
     def _get_mask(self,items):
         if not isinstance(items,tuple):
             items = (items,)
         assert len(items)<=3
         if (len(items)==3) and np.prod(tuple(isinstance(i,int) for i in items)):
-            id_ = utils.coeff_location(items[1],items[2],items[0],self.bw)-1
-            out = slice(id_,id_+1)
-        elif (len(items)==3) and np.prod(tuple(isinstance(i,int) for i in items[1:])) and isinstance(items[0],slice):
-            id_ = utils.coeff_slice(items[1],items[2],self.bw)
-            id_[0] -= 1
-            if (items[0].start is None) and (items[0].stop is None):
-                step = items[0].step
-                if step is None:
-                    out = slice(id_[0],id_[1])
-                elif step>=0:
-                    out = slice(id_[0],id_[1],step)
-                else:
-                    out = slice(id_[1]-1,id_[0]-1,step)
+            self._check_index(items[0],items[1],items[2])
+            if self.coeff_order == 'lmn':
+                id_ = utils.coeff_location_lmn(items[0],items[1],items[2])-1
             else:
-                selection_ids=[ids[sel] for sel,ids in zip(items,[self.ls,self.ns,self.ks])]
-                masks = [np.isin(lnk,sids) for sids,lnk in zip(selection_ids,self._lnks.T)]
-                out = np.prod(masks,axis = 0,dtype=bool)
+                id_ = utils.coeff_location_mnl(items[1],items[2],items[0],self.bw)-1
+            out = slice(id_,id_+1)
         else:
             selection_ids=[ids[sel] for sel,ids in zip(items,[self.ls,self.ns,self.ks])]
-            masks = [np.isin(lnk,sids) for sids,lnk in zip(selection_ids,self._lnks.T)]
+            masks = [np.isin(lmn,sids) for sids,lmn in zip(selection_ids,self._lmns.T)]
             out = np.prod(masks,axis = 0,dtype=bool)
         return out
     def __getitem__(self, items):        

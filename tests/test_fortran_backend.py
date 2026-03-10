@@ -318,7 +318,7 @@ class TestSo3ft:
                         coeff = _soft.utils.get_empty_coeff(bw)
                         d =  _soft.utils.get_empty_so3func_cmplx(bw)
                         d2 =  _soft.utils.get_empty_so3func_cmplx(bw)
-                        cid = _soft.utils.coeff_location(m,n,l,bw)-1
+                        cid = _soft.utils.coeff_location_mnl(m,n,l,bw)-1
                         coeff[cid]=1
                         _soft.py.py_isoft(s_int,coeff,d,False)
                         assert np.allclose(d_test,d), f'wigner mismatch for l,m,n,= {l,m,n}'
@@ -332,7 +332,7 @@ class TestSo3ft:
                     coeff = _soft.utils.get_empty_coeff(bw)
                     d =  _soft.utils.get_empty_so3func_cmplx(bw)
                     d2 =  _soft.utils.get_empty_so3func_cmplx(bw)
-                    cid = _soft.utils.coeff_location(m,n,l,bw)-1
+                    cid = _soft.utils.coeff_location_mnl(m,n,l,bw)-1
                     coeff[cid]=1
                     _soft.py.py_isoft(s_int,coeff,d,False)
                     assert np.allclose(d_test,d), f'wigner mismatch for l,m,n,= {l,m,n}'
@@ -345,7 +345,7 @@ class TestSo3ft:
             d2 =  _soft.utils.get_empty_so3func_cmplx(bw)
             coeff = _soft.utils.get_empty_coeff(bw)
             for l in range(bw):
-                cid = _soft.utils.coeff_location(0,0,l,bw)-1
+                cid = _soft.utils.coeff_location_mnl(0,0,l,bw)-1
                 coeff[cid]=cos_2eta_coeff(l,eta)
             _soft.py.py_isoft(s_int,coeff,d,False)
             d_test = cos_2eta_func(beta,eta)
@@ -381,7 +381,7 @@ class TestSo3ft:
                     for n in range(-l,l+1):
                         #print(f'l,n,m = {l,n,m}')
                         coeff_test = _soft.utils.get_empty_coeff(bw)
-                        cid = _soft.utils.coeff_location(m,n,l,bw)-1
+                        cid = _soft.utils.coeff_location_mnl(m,n,l,bw)-1
                         coeff_test[cid]=1
                         coeff = _soft.utils.get_empty_coeff(bw)
                         coeff2 = _soft.utils.get_empty_coeff(bw)
@@ -395,7 +395,7 @@ class TestSo3ft:
                     n=l
                     #print(f'l,n,m = {l,n,m}')
                     coeff_test = _soft.utils.get_empty_coeff(bw)
-                    cid = _soft.utils.coeff_location(m,n,l,bw)-1
+                    cid = _soft.utils.coeff_location_mnl(m,n,l,bw)-1
                     coeff_test[cid]=1
                     coeff = _soft.utils.get_empty_coeff(bw)
                     d = wigner_Dlmn_limited_l(l,m,n,alpha,beta,gamma)
@@ -411,7 +411,7 @@ class TestSo3ft:
             coeff = _soft.utils.get_empty_coeff(bw)
             coeff_test = _soft.utils.get_empty_coeff(bw)
             for l in range(bw):
-                cid = _soft.utils.coeff_location(0,0,l,bw)-1
+                cid = _soft.utils.coeff_location_mnl(0,0,l,bw)-1
                 coeff_test[cid]=cos_2eta_coeff(l,eta)
             _soft.py.py_soft(s_int,d,coeff,False)
             assert np.allclose(coeff_test,coeff),f'isoft & cos(beta)^(2*eta) mismatch at eta={eta}'

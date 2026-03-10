@@ -56,10 +56,11 @@ py.extension_module('_soft',
 #add_global_arguments('--opt="-O3 -fno-math-errno -fno-trapping-math"', language : 'fortran')
 
 python_sources = [
+  'fftw.py',
+   'omp.py',		
   'soft.py',
   'stats.py',
-  'fftw.py',
-  '__init__.py',
+  '__init__.py'
 ]
 
 py.install_sources(

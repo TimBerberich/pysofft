@@ -21,7 +21,6 @@ class TestMultiprocessingCompatibility:
         s = Soft(16,use_fftw_wisdom=True,init_ffts=True)
         coeff = s.get_coeff(howmany=100,random=True)
                 
-        print(locals())
         with Pool(8) as p:
             d2 = p.map(forked_soft,[(s,c) for c in coeff])
         d2 = np.array(d2)

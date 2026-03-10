@@ -110,7 +110,7 @@ contains
     slice(2) = slice(1) + bw-m(2)
     slice(1) = slice(1) + 1_dp ! 1 indexing
   end function coeff_slice_mnl
-  function coeff_location(m1,m2,l,bw) result(id)
+  function coeff_location_mnl(m1,m2,l,bw) result(id)
     ! This function returns the index of the coefficient array corresponding to f_{m1,m2}^l.
     ! Note that this index has to lie within the slice given by coefLoc_so3.
     integer(kind = dp) :: m1,m2,bw,l,m,slice(2),id
@@ -121,7 +121,7 @@ contains
        stop
     end if
     id = slice(1)+l-m
-  end function coeff_location
+  end function coeff_location_mnl
   function get_coeff_degrees(bw) result(lmn)
     !! Returns an array containing all valid l,m,n coefficient combinations
     !! in the native order they are stored in.
@@ -237,60 +237,93 @@ contains
     slice(2) = slice(1)+length
     slice(1) = slice(1) + 1_dp ! 1 indexing
   end function coeff_slice_lmn
-  
+  function coeff_location_lmn(l,n1,n2) result(id)
+        integer(kind=dp), intent(in) :: n1,n2,l
+        integer(kind=dp) :: id,slice(2),m,n
+        
+        n=MAX(ABS(n1),ABS(n2))
+        m=MIN(ABS(n1),ABS(n2))
+        slice = coeff_slice_lmn(l,m,n)
+        if (n1==m .AND. n2==n) then
+           id = slice(1) 
+        else if (n1==-n .AND. n2==-m) then
+           id = slice(1) + 1_dp
+        else if (n1==n .AND. n2==m) then
+           id = slice(1) + 2_dp
+        else if (n1==-m .AND. n2 == -n) then
+           id = slice(1) + 3_dp
+        else if (n1==m .AND. n2 == -n) then
+           if (m/=n) then
+              id = slice(1) + 4_dp
+           else
+              id = slice(1) + 2_dp
+           end if
+        else if (n1==-m .AND. n2 == n) then
+           if (m/=n) then
+              id = slice(1) + 5_dp
+           else
+              id = slice(1) + 3_dp
+           end if
+        else if (n1==n .AND. n2 == -m) then
+           id = slice(1) + 6_dp
+        else if (n1==-n .AND. n2 == m) then
+           id = slice(1) + 7_dp
+        end if
+  end function coeff_location_lmn
   function get_coeff_degrees_risbo(bw) result(lmn)
     !! Returns an array containing all valid l,m,n coefficient combinations
     !! in the native order they are stored in.
     integer(kind = dp), intent(in) :: bw
     integer(kind = dp) :: lmn((4_dp*(bw*bw*bw)-bw)/3_dp,3)
-    integer(kind = dp) :: m1,m2,cslice(2),l,id,o
-
+    integer(kind = dp) :: m1,m2,start,cslice(2),l,id,o
     do l = 0, bw-1
-       do m1 = 0, bw-1
-          do m2 = m1, bw-1
+       do m1 = 0, l
+          do m2 = m1, l
              cslice = coeff_slice_lmn(l,m1,m2)
-             lmn(cslice(1),1) = l
-             lmn(cslice(1),2) = m1
-             lmn(cslice(1),3) = m2
+             start = cslice(1)
+             lmn(start,1) = l
+             lmn(start,2) = m1
+             lmn(start,3) = m2
 
              if ((m1==0) .and. (m2==0)) cycle
-             id = cslice(1)+1_dp
+             id = start+1_dp
              lmn(id,1) = l
              lmn(id,2) = -m2
              lmn(id,3) = -m1
 
              if (m1/=m2) then
-                id = cslice(1)+2_dp
+                id = start+2_dp
                 lmn(id,1) = l
                 lmn(id,2) = m2
                 lmn(id,3) = m1
 
-                id = cslice(1)+3_dp
+                id = start+3_dp
                 lmn(id,1) = l
                 lmn(id,2) = -m1
                 lmn(id,3) = -m2
              end if
 
              if ((m1==0) .or. (m2==0)) cycle
+             
              o=MERGE(2_dp,0_dp,m1/=m2)
-             id = cslice(1)+2_dp+o
+             id = start+2_dp+o
              lmn(id,1) = l
              lmn(id,2) = m1
              lmn(id,3) = -m2
              
-             id = cslice(1)+3_dp+o
+             id = start+3_dp+o
              lmn(id,1) = l
              lmn(id,2) = -m1
              lmn(id,3) = m2
              
              if (m1==m2) cycle
-
-             id = cslice(1)+6_dp
+             
+             id = start+6_dp
              lmn(id,1) = l
              lmn(id,2) = m2
              lmn(id,3) = -m1
              
-             id = cslice(1)+6_dp
+             id = start+7_dp
              lmn(id,1) = l
              lmn(id,2) = -m2
              lmn(id,3) = m1
@@ -402,7 +435,7 @@ contains
   !> --------
   !! @brief Enforces real symmetry in lmn ordered coefficients
   !!
-  !! Enforces the symmetry $f^l\\_{m,n} = f^l\\_{m,n} (-1)^{m+n}$ in
+  !! Enforces the symmetry $f^l\\_{m,n} = f^l\\_{-m,-n} (-1)^{m+n}$ in
   !! l,m,n ordered coefficients
   !!
   subroutine enforce_real_sym_lmn(coeff,bw)
@@ -3578,6 +3611,10 @@ contains
     integer(kind=dp) :: n,i
     n = size(coeffs,2)
 
+    if (.NOT. self%plans_allocated_c) then
+       call self%init_fft(.FALSE.)
+    end if
+    
     if (use_mp) then
        !$OMP PARALLEL DEFAULT(SHARED) PRIVATE(i,fft_c2c_in_2)
        !! allocatable array is precaution to not cause stack overflows

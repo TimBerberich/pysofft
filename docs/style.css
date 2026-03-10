@@ -35,3 +35,13 @@ code {
   white-space: nowrap;
   text-decoration: none;
 }
+
+/* Markdown tables in Material for MkDocs */
+.md-typeset table:not([class]) th {
+  background-color: #e6e6e6;  /* gray header */
+}
+
+/* Optional: better contrast in dark mode */
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) th {
+  background-color: #3a3a3a;
+}

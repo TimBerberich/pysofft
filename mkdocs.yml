@@ -10,6 +10,8 @@ nav:
   - Usage:
       - usage/simple.md
       - usage/multi.md
+      - usage/parallelization.md
+      - usage/fftw.md
       - usage/corr.md
       - usage/stats.md
   - Definitions:
@@ -17,12 +19,15 @@ nav:
       - array.md
       - wigner.md
   - API:
-      - api_structure.md
-      - pysofft/classpysofft_1_1soft_1_1Soft.md
-      - pysofft/namespacemake__wigner.md
-      - pysofft/namespaceutils.md
-      - pysofft/namespaces.md
-      - pysofft/files.md
+      - api/structure.md
+      - Python:
+          - api/python/soft.md
+          - api/python/stats.md
+      - Fortran:
+          - pysofft/namespacemake__wigner.md
+          - pysofft/namespacesoftclass.md
+          - pysofft/namespaceutils.md
+          - pysofft/namespacepy.md
 theme:
   name: material
   palette:
