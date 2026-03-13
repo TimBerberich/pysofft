@@ -110,7 +110,7 @@ The Wigner coefficents of a real valued function $f$ satisfy the following symme
 $$ {f^l_{m,n}}^* = f^l_{-m,-n} (-1)^{m-n} $$
 
 Currenctly PySOFFT does not have a special Wigner coefficient type that reduces the number of stored coefficients using the above symmetry.
-Instead the real transforms ([rsoft][pysofft.soft.Soft.rsoft] and [irsoft][pysofft.soft.Soft.irsofft]) will only access half of the values in the coefficient array.
+Instead the real transforms ([rsoft][pysofft.soft.Soft.rsoft] and [irsoft][pysofft.soft.Soft.irsoft]) will only access half of the values in the coefficient array.
 
 If you want to manually populate wigner coefficients for real functions, write only to indices $l,m,n$ where $m$ is positive and afterwards call [enforce_real_symmetry][pysofft.soft.Soft.enforce_real_symmetry], i.e.
 ```py

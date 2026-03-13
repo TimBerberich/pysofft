@@ -23,8 +23,11 @@ nav:
       - api/structure.md
       - Python:
           - api/python/soft.md
+          - api/python/fftw.md
+          - api/python/omp.md
           - api/python/stats.md
       - Fortran:
+          - pysofft/namespaces.md
           - pysofft/namespacemake__wigner.md
           - pysofft/namespacesoftclass.md
           - pysofft/namespaceutils.md
@@ -194,7 +197,7 @@ plugins:
   - mkdoxy:
       projects:
         pysofft:
-          src-dirs: ./pysofft
+          src-dirs: ./pysofft/soft.f95
           template-dir: ./docs/templates
           full-doc: true
           enable_sorting: false

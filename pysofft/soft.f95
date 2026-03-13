@@ -1,10 +1,14 @@
-! Define constants
+!> ------
+!! @brief Defines kind aliases sp,dp,qp
 module precision
 implicit none
 integer, parameter :: sp = selected_real_kind(6, 37)
 integer, parameter :: dp = selected_real_kind(15, 307)
 integer, parameter :: qp = selected_real_kind(33, 4931)
 end module precision
+
+!> ------
+!! @brief Defines pi
 module math_constants
   use precision
   implicit none
@@ -717,8 +721,6 @@ end module utils
 
 !> --------
 !! @brief Module containing code to compute Wigner-D matrices 
-!!
-!! 
 module make_wigner
   use precision
   use math_constants
@@ -1631,6 +1633,8 @@ contains
       end function sym_reduced_to_full_wigner
 end module make_wigner
 
+!> --------
+!! @brief Main Module containing the so3ft class which implements all transforms.
 module softclass
   use precision
   use utils
@@ -4888,7 +4892,6 @@ contains
     f2 = f2 * (1._dp/(real(Size(f1,1),kind=dp)))
   end subroutine irfft
   
-  
   ! Class functions
   function get_so3func_part_halfcomplex(bw,m1,m2,so3func) result(so3func_part)
     complex(kind = dp),intent(in) :: so3func(:,:,:)
@@ -4942,7 +4945,7 @@ end module softclass
 !! The problem is that custom types as well as newer object oriented features of Fortran are not supported by f2py.
 !! We thus have to exclued the relevate code parts from beeing wraped by f2py using the `skip::` commandline option.
 !!
-!! Instead this module provides wrappers that expose a pointer to `so3ft` istances as integer to python.
+!! Instead this module provides wrappers that expose a pointer to `so3ft` instances as integer to python.
 !! Any call to a method first converts the provided integer into a `so3ft` pointer which allows access to the class methods from python since the wrapper function are f2py compatible.
 module py
   !! Contains versions of the type bound procedures of so3ft that can be wrapped with f2py.
