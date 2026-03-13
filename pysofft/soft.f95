@@ -449,9 +449,9 @@ contains
     c_slice = coeff_slice_mnl(0_dp,0_dp,bw)
     coeff(c_slice(1):c_slice(2)) = coeff(c_slice(1):c_slice(2))%re
     do m1=0,bw-1
-       sym_const_m1 = (-1.0)**m1
+       sym_const_m1 = (-1._dp)**m1
        do m2=-bw+1,bw-1
-          sym_const_m2 = (-1.0)**m2
+          sym_const_m2 = (-1._dp)**m2
           c_slice_sym = coeff_slice_mnl(m1,m2,bw)
           c_slice = coeff_slice_mnl(-m1,-m2,bw)
           coeff(c_slice(1):c_slice(2)) = sym_const_m1*sym_const_m2*CONJG(coeff(c_slice_sym(1):c_slice_sym(2)))       
@@ -507,8 +507,6 @@ contains
   end subroutine enforce_real_sym_lmn
 
   ! Indexing tricks section
-
-  
   !< --------------
   !! 
   function triangular_size(bw) result(tri_size)
@@ -861,7 +859,7 @@ contains
     !! Arrays containing $sin(\frac{\beta}{2})*cos(\frac{\beta}{2})$ and $cos(\frac{\beta}{2})**2$
     real(kind = dp),intent(in) :: sincos(:),cos2(:)
     logical,intent(in) :: normalized
-    !f2py logical :: normalized = TRUE
+    !f2py logical :: normalized = 1
     integer(kind = dp) :: i,l,swap_id,swap_id2,nc1,nc2
 
     !Normalization defining constants
@@ -904,7 +902,7 @@ contains
     !! Arrays containing $sin(\frac{\beta}{2})*cos(\frac{\beta}{2})$ and $cos(\frac{\beta}{2})**2$
     real(kind = dp),intent(in) :: sincos(:),cos2(:)
     logical,intent(in) :: normalized
-    !f2py logical :: normalized = TRUE
+    !f2py logical :: normalized = 1
     !! Array of output Wigner small d values 
     real(kind = dp) :: dlml(SIZE(cos2,1),(bw*(bw+1))/2_dp),dlml_tmp(Size(cos2,1),bw)
     integer(kind=dp) :: m,lm_id,next_lm_id
@@ -935,7 +933,7 @@ contains
     !! Arrays containing $sin(\frac{\beta}{2})*cos(\frac{\beta}{2})$ and $cos(\frac{\beta}{2})**2$
     real(kind = dp),intent(in) :: sincos(:),cos2(:)
     logical,intent(in) :: normalized
-    !f2py logical :: normalized = TRUE
+    !f2py logical :: normalized = 1
     !! Array of output Wigner small d values 
     real(kind = dp) :: dlml(size(cos2,1)), dlml_tmp(size(cos2,1),l+1)
     integer(kind = dp) :: mm
@@ -958,7 +956,7 @@ contains
     integer(kind = dp), intent(in) :: l,m1,m2
     real(kind = dp),intent(in) :: cos(:)
     logical,intent(in) :: normalized
-    !f2py logical :: normalized = TRUE
+    !f2py logical :: normalized = 1
     real(kind = dp),intent(inout) :: workspace(:,:)
     integer(kind = dp) :: dl_id,dl_1id,o,i
     real(kind = dp) :: c_common,c_l,c_l_1
@@ -1033,7 +1031,7 @@ contains
     integer(kind = dp),intent(in) :: m1,m2,bw
     real(kind = dp),intent(in) :: cos(:),dlml(:)
     logical,intent(in) :: normalized
-    !f2py logical :: normalized = TRUE
+    !f2py logical :: normalized = 1
     real(kind = dp) :: wigners_m1m2(Size(cos,1),(bw-max(abs(m1),abs(m2))))
     
     real(kind = dp) :: workspace(Size(cos,1),3)
@@ -1066,7 +1064,7 @@ contains
     integer(kind = dp), intent(in) :: m1,m2,bw
     real(kind = dp), intent(in) :: cos(:),dlml(:)
     logical,intent(in) :: normalized
-    !f2py logical :: normalized = TRUE
+    !f2py logical :: normalized = 1
     real(kind = dp) :: wigners_m1m2((bw-max(abs(m1),abs(m2))),Size(cos,1))
     
     real(kind = dp) :: workspace(Size(cos,1),3)
@@ -1108,7 +1106,7 @@ contains
     integer(kind = dp),intent(in) :: l
     real(kind = dp),intent(in) :: betas(:)
     logical,intent(in) :: normalized
-    !f2py logical :: normalized = TRUE
+    !f2py logical :: normalized = 1
     real(kind = dp) :: dl(SIZE(betas,1),2*l+1,2*l+1)
     real(kind = dp) :: trig(SIZE(betas,1),3)
     real(kind = dp) :: workspace(SIZE(betas,1),3)
@@ -1186,7 +1184,7 @@ contains
     
     integer(kind = dp), intent(in) :: bw
     logical,intent(in) :: normalized
-    !f2py logical :: normalized = TRUE
+    !f2py logical :: normalized = 1
     real(kind=dp), intent(inout) :: wigners(:,:)
     real(kind = dp) :: trig_samples(2*bw,3)
     real(kind=dp) :: dlml_workspace(2_dp*bw,bw)
@@ -1233,9 +1231,8 @@ contains
     
     integer(kind = dp),intent(in):: bw
     logical,intent(in) :: normalized
-    !f2py logical :: normalized = TRUE
+    !f2py logical :: normalized = 1
     real(kind=dp) :: wigners(bw*2_dp,(bw * (2_dp + 3_dp*bw + bw*bw))/6_dp)
-
     call genwig_all_kostelec_preallocated(bw,wigners,normalized)
   end function genwig_all_kostelec
 
@@ -1535,7 +1532,7 @@ contains
   subroutine genwig_all_risbo_preallocated(bw,wigners,normalized)
     integer(kind = dp),intent(in) :: bw
     logical,intent(in) :: normalized
-    !f2py logical :: normalized = TRUE
+    !f2py logical :: normalized = 1
     real(kind=dp), intent(inout) :: wigners(:,:)
     real(kind = dp) :: dl(2_dp*bw,(bw*(bw+1_dp))/2)
     real(kind = dp) :: betas(2_dp*bw),cos_b(2_dp*bw),sin_b(2_dp*bw),ls_sqrt(2_dp*bw)
@@ -1579,7 +1576,7 @@ contains
     
     integer(kind = dp),intent(in):: bw
     logical,intent(in) :: normalized
-    !f2py logical :: normalized = TRUE
+    !f2py logical :: normalized = 1
     real(kind=dp) :: wigners(bw*2_dp,(bw * (2_dp + 3_dp*bw + bw*bw))/6_dp)
 
     call genwig_all_risbo_preallocated(bw,wigners,normalized)
@@ -1645,8 +1642,7 @@ module softclass
   include 'fftw3.f03'
   
   ! f2py has issues if there is no variable declaration before the type declaration
-  ! for unknown reasons so dont exclude the following integer definition
-  integer :: f2py_bug  = 1
+  ! for unknown reasons so make sure there is at least one variable beeing declared
   integer :: risbo_recurrence = 1
   integer :: kostelec_recurrence = 0
   type :: so3ft
@@ -5041,9 +5037,9 @@ contains
     integer(kind = dp), intent(in) :: lmax
     !f2py integer :: lmax = bw - 1
     logical, intent(in) :: init_ffts
-    !f2py logical :: init_ffts = FALSE
+    !f2py logical :: init_ffts = 0
     logical, intent(in) :: precompute_wigners
-    !f2py logical :: precompute_wigners = FALSE
+    !f2py logical :: precompute_wigners = 0
     integer(kind = dp), intent(in) :: recurrence_type
     !f2py integer :: recurrence_type = 0
     ! kistelec_recurrence=0, risbo_recurrence=1
