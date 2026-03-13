@@ -286,7 +286,7 @@ contains
            end if
         else if (n1==n .AND. n2 == -m) then
            id = slice(1) + 6_dp
-        else if (n1==-n .AND. n2 == m) then
+        else ! (n1==-n .AND. n2 == m) then
            id = slice(1) + 7_dp
         end if
   end function coeff_location_lmn
@@ -652,10 +652,12 @@ contains
   !! Loops of the following kind are contiguous in memory with this indexing
   !! do l in [0,1,..., bw-1]
   !!   do m in [-(bw-1),...,bw-1]
-  function LMc(l,m) result(index)
+  function LMc(l,m) result(ind)
+    !! Result ind was previousely called index this caused errors in f2py
+    !! it automatically canged the kind of the output to sp=4 instead of 8.
     integer(kind = dp),intent(in) :: l,m
-    integer(kind = dp) :: index
-    index = l*(l+1_dp)+m+1_dp
+    integer(kind = dp) :: ind
+    ind = l*(l+1_dp)+m+1_dp
   end function LMc
 
   function LMc_slice(l) result(slice)
@@ -673,10 +675,12 @@ contains
   !! do m in [0,1,..., bw-1]
   !!   do l in [m,...,bw-1]
   !! ( ((((m*(2*lmax + 2 - m))>>1) + (l) )
-  function MLr(m,l,bw) result(index)
+  function MLr(m,l,bw) result(ind)
+    !! Result ind was previousely called index this caused errors in f2py
+    !! it automatically canged the kind of the output to sp=4 instead of 8.
     integer(kind = dp),intent(in) :: l,m,bw
-    integer(kind = dp) :: index
-    index = (m*(2_dp * bw - 1_dp - m))/2_dp + l + 1_dp
+    integer(kind = dp) :: ind
+    ind = (m*(2_dp * bw - 1_dp - m))/2_dp + l + 1_dp
   end function MLr
 
   function MLr_slice(m,bw) result(slice)
@@ -694,10 +698,12 @@ contains
   !! Loops of the following kind are contiguous in memory with this indexing
   !! do m in [0,1,-1,2,-2,..., bw-1,-(bw-1)]
   !!   do l in [|m|,...,bw-1]
-  function MLc(m,l,bw) result(index)
+  function MLc(m,l,bw) result(ind)
+    !! Result ind was previousely called index this caused errors in f2py
+    !! it automatically canged the kind of the output to sp=4 instead of 8.
     integer(kind = dp),intent(in) :: l,m,bw
-    integer(kind = dp) :: index
-    index = MAX(0, ABS(m)*(2_dp*bw - ABS(m)) - bw) + MERGE(0_dp,bw-abs(m),m>=0) + l + 1_dp
+    integer(kind = dp) :: ind
+    ind = MAX(0, ABS(m)*(2_dp*bw - ABS(m)) - bw) + MERGE(0_dp,bw-abs(m),m>=0) + l + 1_dp
   end function MLc
 
   !> ------------
@@ -3457,19 +3463,35 @@ contains
     integer(kind = dp) :: m1,m2,l,mnid
     real(kind=dp) :: sym_const_m1,sym_const_l,dl(2*self%bw,(self%bw*(self%bw+1))/2),dl_tmp(2_dp*self%bw)
 
-
-    do l=0,self%lmax
-       dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
-       sym_const_l = (-1._dp)**l
-       do m1=0, l
-          sym_const_m1 = (-1.0)**m1
-          do m2=m1, l
-             mnid = triangular_to_flat_index(m1,m2,l+1_dp)
+   if (use_mp) then
+       do l=0,self%lmax
+          dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
+          sym_const_l = (-1._dp)**l
+          !$OMP PARALLEL PRIVATE(mnid,m1,m2,sym_const_m1,dl_tmp) SHARED(so3func,coeff,dl,sym_const_l,l)
+          !$OMP DO
+          do mnid=1_dp,((l+1_dp)*(l+2_dp))/2_dp
+             call flat_to_triangular_index(m1,m2,mnid,l)
+             sym_const_m1 = (-1.0)**m1
              dl_tmp = dl(:,mnid)*self%legendre_weights
              call forward_wigner_loop_body_real_risbo(self,so3func,coeff,dl_tmp,l,m1,m2,sym_const_l,sym_const_m1)
           end do
+          !$OMP END DO
+          !$OMP END PARALLEL
        end do
-    end do
+    else
+       do l=0,self%lmax
+          dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
+          sym_const_l = (-1._dp)**l
+          do m1=0, l
+             sym_const_m1 = (-1.0)**m1
+             do m2=m1, l
+                mnid = triangular_to_flat_index(m1,m2,l+1_dp)
+                dl_tmp = dl(:,mnid)*self%legendre_weights
+                call forward_wigner_loop_body_real_risbo(self,so3func,coeff,dl_tmp,l,m1,m2,sym_const_l,sym_const_m1)
+             end do
+          end do
+       end do
+    end if
   end subroutine forward_wigner_trf_real_risbo
   subroutine forward_wigner_trf_real(self,so3func,coeff,use_mp)
     !f2py threadsafe
@@ -4028,10 +4050,9 @@ contains
     integer(kind=dp), intent(in) :: l,m1,m2
     real(kind=dp),intent(in) :: wig_norm,sym_const_l,sym_const_m1
     real(kind=dp),intent(in) :: dlmn(:)
-    real(kind = dp) :: wig_mat(self%bw-m2,2*self%bw)
     real(kind = dp) :: sym_const_m2,sym_const_m1m2
     complex(kind = dp) :: cc_lmn
-    integer(kind=dp) :: s_ids(2),bw,bw2,l_start,dlml_id,i,nm1,nm2,pm1,pm2
+    integer(kind=dp) :: s_ids(2),bw,bw2,l_start,i,nm1,nm2,pm1,pm2
 
     sym_const_m2 = (-1.0_dp)**m2
     sym_const_m1m2 = sym_const_m1*sym_const_m2
@@ -4154,7 +4175,6 @@ contains
     complex(kind = dp),target,intent(in) :: f_lm(:),g_lm(:)
     complex(kind = dp), intent(inout) :: fft_array(:,:,:)
     logical, intent(in) :: use_mp
-    complex(kind = dp) ::  f_ml(size(f_lm)),g_ml(size(f_lm))
     integer(kind = dp) :: mnid,m1,m2,l,bw
     real(kind=dp) :: sym_const_m1,sym_const_l,wig_norm,dl(2*self%bw,(self%bw*(self%bw+1))/2)
         
@@ -4558,10 +4578,9 @@ contains
     integer(kind=dp), intent(in) :: l,m1,m2
     real(kind=dp),intent(in) :: wig_norm,sym_const_l,sym_const_m1
     real(kind=dp),intent(in) :: dlmn(:)
-    real(kind = dp) :: wig_mat(self%bw-m2,2*self%bw)
     real(kind = dp) :: sym_const_m2,sym_const_m1m2
     complex(kind = dp) :: cc_lmn
-    integer(kind=dp) :: s_ids(2),bw,bw2,l_start,dlml_id,i,pm1,pm2
+    integer(kind=dp) :: s_ids(2),bw,bw2,l_start,i,pm1,pm2
 
 
     sym_const_m2 = (-1.0_dp)**m2
@@ -4951,11 +4970,17 @@ module py
   implicit none
 contains
   subroutine OMP_set_num_threads_(nthreads)
-    integer(kind = dp), intent(in) :: nthreads
+    integer(kind = sp), intent(in) :: nthreads
     call OMP_set_num_threads(nthreads)
   end subroutine OMP_set_num_threads_
-  function OMP_get_max_threads_() result(nthreads)
-    integer(kind = dp) :: nthreads
+  function OMP_get_max_threads_(f2py_bug) result(nthreads)
+    !! This function does not need an input ...
+    !! but f2py generates an error if it does not have one ...
+    logical, intent(in) :: f2py_bug
+    logical :: f2py_bug_dummy
+    !f2py logical :: f2py_bug = 0
+    integer(kind = sp) :: nthreads
+    f2py_bug_dummy = f2py_bug ! only there to suppress warning during f2py compilation.
     nthreads = OMP_get_max_threads()
   end function OMP_get_max_threads_
   
