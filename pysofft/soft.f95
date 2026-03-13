@@ -458,6 +458,23 @@ contains
        end do
     end do
   end subroutine enforce_real_sym_mnl
+
+  !> --------
+  !! @brief many version of enforce_real_sym
+  !!
+  !! Enforces the symmetry $f^l\\_{m,n}^* = f^l\\_{-m,-n} (-1)^{m+n}$ in
+  !! m,n,l ordered coefficients.
+  !! 
+  !! coeff_many is now a 2D array where the second index labels differenct coefficient arrays.
+  subroutine enforce_real_sym_mnl_many(coeff_many,bw)
+    complex(kind=dp) ,intent(inout) :: coeff_many(:,:)
+    integer(kind=dp) ,intent(in) :: bw
+    integer(kind=dp) :: n
+
+    do n=1,SIZE(coeff_many,2)
+       call enforce_real_sym_mnl(coeff_many(:,n),bw)
+    end do
+  end subroutine enforce_real_sym_mnl_many
   !> --------
   !! @brief Enforces real symmetry in lmn ordered coefficients
   !!
@@ -506,6 +523,23 @@ contains
     end do
   end subroutine enforce_real_sym_lmn
 
+  !> --------
+  !! @brief many version of enforce_real_sym_lmn
+  !!
+  !! Enforces the symmetry $f^l\\_{m,n}^* = f^l\\_{-m,-n} (-1)^{m+n}$ in
+  !! l,m,n ordered coefficients.
+  !! 
+  !! coeff_many is now a 2D array where the second index labels differenct coefficient arrays.
+  subroutine enforce_real_sym_lmn_many(coeff_many,bw)
+    complex(kind=dp) ,intent(inout) :: coeff_many(:,:)
+    integer(kind=dp) ,intent(in) :: bw
+    integer(kind=dp) :: n
+    do n=1,SIZE(coeff_many,2)
+       call enforce_real_sym_mnl(coeff_many(:,n),bw)
+    end do
+  end subroutine enforce_real_sym_lmn_many
+  
+  
   ! Indexing tricks section
   !< --------------
   !! 

@@ -160,9 +160,15 @@ class Soft:
             coeff = self._fill_random(coeff,seed=seed)
             if real:
                 if (self.recurrence_type == self.recurrence_types.kostelec) or self.wigners_are_precomputed:
-                    utils.enforce_real_sym_mnl(coeff,self.bw)
+                    if howmany>0:
+                        utils.enforce_real_sym_mnl_many(coeff.T,self.bw)
+                    else:
+                        utils.enforce_real_sym_mnl(coeff,self.bw)
                 else:
-                    utils.enforce_real_sym_lmn(coeff,self.bw)                    
+                    if howmany>0:
+                        utils.enforce_real_sym_lmn_many(coeff.T,self.bw)
+                    else:
+                        utils.enforce_real_sym_lmn(coeff,self.bw)
         if not raw:
             if (self.recurrence_type == self.recurrence_types.kostelec) or self.wigners_are_precomputed:
                 coeff = CoeffSO3(coeff,self.coeff_indices,coeff_order = 'mnl')
