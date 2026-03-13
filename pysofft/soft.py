@@ -92,13 +92,16 @@ class Soft:
     def recurrence_type(self):
         return py.py_get_recurrence_type(self._fortran_pointer)
     @property
+    def wigners_are_precomputed(self):
+        return bool(py.py_wigners_are_precomputed(self._fortran_pointer))
+    @property
     def fftw_flags(self):
         return py.py_get_fftw_flags(self._fortran_pointer)
 
     @property
     def coeff_indices(self):
         if self._lmns is None:
-            if self.recurrence_type == self.recurrence_types.kostelec:
+            if (self.recurrence_type == self.recurrence_types.kostelec) or self.wigners_are_precomputed:
                 self._lmns=utils.get_coeff_degrees(self.bw)
             else:
                 self._lmns=utils.get_coeff_degrees_risbo(self.bw)
@@ -156,12 +159,12 @@ class Soft:
         if random:
             coeff = self._fill_random(coeff,seed=seed)
             if real:
-                if self.recurrence_type == self.recurrence_types.kostelec:
-                    utils.enforce_real_sym(coeff,self.bw)
+                if (self.recurrence_type == self.recurrence_types.kostelec) or self.wigners_are_precomputed:
+                    utils.enforce_real_sym_mnl(coeff,self.bw)
                 else:
                     utils.enforce_real_sym_lmn(coeff,self.bw)                    
         if not raw:
-            if self.recurrence_type == self.recurrence_types.kostelec:
+            if (self.recurrence_type == self.recurrence_types.kostelec) or self.wigners_are_precomputed:
                 coeff = CoeffSO3(coeff,self.coeff_indices,coeff_order = 'mnl')
             else:
                 coeff = CoeffSO3(coeff,self.coeff_indices,coeff_order = 'lmn')
@@ -234,8 +237,8 @@ class Soft:
         print(f'Max complex magnitude of f_real is = {np.max(np.abs(f_real.imag))}')
         ```
         '''
-        if self.recurrence_type == self.recurrence_types.kostelec:
-            utils.enforce_real_sym(coeff,self.bw)
+        if (self.recurrence_type == self.recurrence_types.kostelec) or self.wigners_are_precomputed:
+            utils.enforce_real_sym_mnl(coeff,self.bw)
         else:
             utils.enforce_real_sym_lmn(coeff,self.bw)
     # Transforms
@@ -803,8 +806,8 @@ class CoeffSO3(np.ndarray):
     ----------
     bw:int
         Bandwidth of the distribution.
-    lmn:CharView
-        allows to acces $M_{lmn}$ by its indices l,n,k
+    lmn:CoeffView
+        allows to acces $f^l_{m,n}$ by its indices $l,n,k$.
     """
     _coeff_orders = ['mnl','lmn']
     def __new__(cls, coeff,lmn_indices,coeff_order = 'mnl'):
@@ -817,6 +820,7 @@ class CoeffSO3(np.ndarray):
         obj._lmns = lmn_indices
         obj.lmn = CoeffView(obj,lmn_indices,coeff_order)
         obj.bw = obj.lmn.bw
+        obj.coeff_order = obj.lmn.coeff_order
         
         # Finally, we must return the newly created object:
         return obj
@@ -830,9 +834,11 @@ class CoeffSO3(np.ndarray):
         if self._lmns is None:
             self.lmn = None
             self.bw = None
+            self.coeff_order = None
         else:
             self.lmn = CoeffView(self,self._lmns)
             self.bw = obj.lmn.bw
+            self.coeff_order = obj.lmn.coeff_order
 
     def __array_ufunc__(self, ufunc, method, *inputs, out=None, **kwargs):
         # Enables ufuncs like +,-,*,/ to preserve the additional attributes _lmns,lmn,bw

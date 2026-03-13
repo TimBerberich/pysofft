@@ -10,18 +10,23 @@ module math_constants
   implicit none
   real(kind=dp), parameter :: pi = 4.0_dp*atan2(1.0_dp,1.0_dp)
 end module math_constants
+
+!> ---------
+!! @brief Module containing mostly indexing helper function.
 module utils
   use precision
   use math_constants
   implicit none
-contains 
+contains
+  !> ----------
+  !! @brief $\mathrm{bw}-\max(|m\\_1|,|m\\_2|)$
+  !!
+  !! Returns the number of small wigner-d coefficients for fixed m1, m2 and bandwidth bw,i.e.
+  !!
+  !! $$bw-\max(|m\\_1|,|m\\_2|)$$
+  !!
   function num_coeffs(m1,m2,bw) result(num_coeff)
-    !  For orders m1, m2, and bandwidth bw, returns how many coefficients
-    !  will be computed.
-    !  
-    !  let m = Max( |m1|, |m2| )
-    !  
-    !  The number of coefficients is = bw - m
+    ! not used 
     integer(kind=dp) :: m1,m2,bw,num_coeff
     if (abs(m1)>=bw .OR. abs(m2)>=bw) then
        print *, "Out of bounds error (n_coeffs): |m1|>bw or |m2|>bw"
@@ -29,27 +34,29 @@ contains
     end if
     num_coeff = bw - max(abs(m1),abs(m2))
   end function num_coeffs
+  !> -----------
+  !! @brief $(4\mathrm{bw}^3-\mathrm{bw})/3$
+  !!
+  !! Returns the total number of Wigner coefficients $f^l\\_{m,n}$
+  !! computed in the SO(3) fourier transform of bandwidth `bw`, i.e.
+  !!
+  !! $$\sum\\_{l=0}^{\mathrm{bw}-1} (2l+1)^2 =  \frac{(4\mathrm{bw}^3-\mathrm{bw})}{3} $$
   function total_num_coeffs(bw) result(num_coeff)
-    !  For bandwidth bw, returns the TOTAL NUMBER of coefficients
-    !  that will be computed when doing a full SO3 forward transform.
-    !
-    !  total number = 1/3 * bw * (4 * bw^2 - 1 ) 
-    !
-    !  note that for integer bw, 4 * bw^3 - bw ,is always a multiple of 3,
-    !  so integer division won't be messy.   
+    ! not used 
     integer(kind=8) bw,num_coeff
     num_coeff = (4_dp*(bw*bw*bw)-bw)/3_dp
   end function total_num_coeffs
 
+  !> -----------
+  !! @brief Returns slice into $f(\alpha,\beta,\gamma)$ needed to compute $f\\_{m\\_1,m\\_2}^l$ .
+  !!
+  !! For order $m\\_1$, $m\\_2$ and bandwidth $\mathrm{bw}$, returns the slice in the 3-D,
+  !! fft'd array of the SO(3) function $f(\alpha,\beta,\gamma)$ that is needed  to compute
+  !! $f\\_{m\\_1,m\\_2}^l$ for all possible $l$.
+  !!
   function order_to_ids(m1,m2,bw) result(ids)
-    ! For order m1, m2 and bandwidth bw, returns the slice in the 3-D,
-    ! fft'd array of the data necessary for the Wigner-(m1,m2)
-    ! transform. I.e. The slice of the fft'd data
-    ! needed to compute f_{m1,m2}^l for all legal l. 
-    !
-    ! Note that the array is of size 2*bw x 2*bw x 2*bw, so I
-    ! need to multiply by that 2*bw (I'm sampling at twice
-    ! the bandwidth)
+    ! Note: That the array for $f$ is of size (2*bw,2*bw,2*bw}), so I
+    ! need to multiply by that bw2 (I'm sampling at twice the bandwidth)
     integer(kind=dp) :: m1,m2,bw,bw2
     integer(kind=dp) :: ids(2)
     if (abs(m1)>=bw .OR. abs(m2)>=bw) then
@@ -60,27 +67,36 @@ contains
     ids(1) = (1_dp-sign(1_dp,m1))/2_dp*bw2 + m1+1_dp
     ids(2) = (1_dp-sign(1_dp,m2))/2_dp*bw2 + m2+1_dp
   end function order_to_ids
-    
-  function coeff_slice_mnl(n1,n2,bw) result(slice)
-    ! Returns the slice of coefficients f_(n1,n2)^l for all possible l valaues.
-    ! It is chosen such that in loops of the follwing type memory access
-    ! for the coefficients is continuouse without jumps.
-    !
-    ! do m1=0,bw-1
-    !    do m2=m1,bw-1
-    !      f_{m1,m2}
-    !      if m1==0 and m2==0, cycle  
-    !      f_{-m2,-m1}
-    !      if m1/=m2
-    !         f_{m2,m1}
-    !         f_{-m1,-m2}
-    !      if m1==0 or m2==0
-    !      f_{m1,-m2}
-    !      f_{-m1,m2}
-    !      if m1==m2, cycle
-    !      f_{m2,-m1}
-    !      f_{-m2,m1}
 
+  !> ---------
+  !! @brief $n\\_1,n\\_2,\mathrm{bw} \rightarrow$ slice into mnl ordered $f^l\\_{n\\_1,n\\_2}$ array.
+  !!
+  !! Returns a slice into the coefficient array $f^l\\_{n\\_1,n\\_2}$ for all possible l valaues.
+  !! It is chosen such that in loops of the follwing type memory access
+  !! for the coefficients is contigous without jumps.
+  !!
+  !! /// info | Code
+  !! ```Fortran
+  !! do m1=0,bw-1
+  !!   do m2=m1,bw-1
+  !!     print *, coeff_slice_mnl(m1,m2,bw)
+  !!     if (m1==0 .and. m2==0), cycle
+  !!     print *, coeff_slice_mnl(-m2,-m1,bw)
+  !!     if (m1/=m2) then
+  !!        print *, coeff_slice_mnl(m2,m1,bw)
+  !!        print *, coeff_slice_mnl(-m1,-m2,bw)
+  !!     end if
+  !!     if (m1==0), cycle
+  !!     print *, coeff_slice_mnl(m1,-m2,bw)
+  !!     print *, coeff_slice_mnl(-m1,m2,bw)
+  !!     if (m1==m2), cycle
+  !!     print *, coeff_slice_mnl(m2,-m1,bw)
+  !!     print *, coeff_slice_mnl(-m2,m1,bw)
+  !!   end do
+  !! end do
+  !! ```
+  !! ///
+  function coeff_slice_mnl(n1,n2,bw) result(slice)
     integer(kind=dp), intent(in) :: n1,n2,bw
     integer(kind=dp) :: m(2),slice(2),an1,an2,temp1,temp2,temp3
     logical :: swapped,n1_neg,n2_neg
@@ -414,7 +430,13 @@ contains
     real(kind = dp) :: so3func(2*bw,2*bw,2*bw,n)
     so3func = 0.0
   end function get_empty_so3func_real_many
-  subroutine enforce_real_sym(coeff,bw)
+  !> --------
+  !! @brief Enforces real symmetry in mnl ordered coefficients
+  !!
+  !! Enforces the symmetry $f^l\\_{m,n}^* = f^l\\_{-m,-n} (-1)^{m+n}$ in
+  !! m,n,l ordered coefficients
+  !!
+  subroutine enforce_real_sym_mnl(coeff,bw)
     complex(kind=dp) ,intent(inout) :: coeff(:)
     integer(kind=dp) ,intent(in) :: bw
     real(kind=dp) :: sym_const_m1,sym_const_m2
@@ -422,20 +444,20 @@ contains
 
     c_slice = coeff_slice_mnl(0_dp,0_dp,bw)
     coeff(c_slice(1):c_slice(2)) = coeff(c_slice(1):c_slice(2))%re
-    do m1=-bw+1,bw-1
+    do m1=0,bw-1
        sym_const_m1 = (-1.0)**m1
        do m2=-bw+1,bw-1
           sym_const_m2 = (-1.0)**m2
-          c_slice = coeff_slice_mnl(m1,m2,bw)
-          c_slice_sym = coeff_slice_mnl(-m1,-m2,bw)
+          c_slice_sym = coeff_slice_mnl(m1,m2,bw)
+          c_slice = coeff_slice_mnl(-m1,-m2,bw)
           coeff(c_slice(1):c_slice(2)) = sym_const_m1*sym_const_m2*CONJG(coeff(c_slice_sym(1):c_slice_sym(2)))       
        end do
     end do
-  end subroutine enforce_real_sym
+  end subroutine enforce_real_sym_mnl
   !> --------
   !! @brief Enforces real symmetry in lmn ordered coefficients
   !!
-  !! Enforces the symmetry $f^l\\_{m,n} = f^l\\_{-m,-n} (-1)^{m+n}$ in
+  !! Enforces the symmetry $f^l\\_{m,n}^* = f^l\\_{-m,-n} (-1)^{m-n}$ in
   !! l,m,n ordered coefficients
   !!
   subroutine enforce_real_sym_lmn(coeff,bw)
@@ -458,7 +480,8 @@ contains
              
              if (m1/=m2) then
                 !! m2,m1 !!
-                coeff(c_loc+2_dp) = (sym_const_m1*sym_const_m2)*CONJG(coeff(c_loc + 1_dp))
+                !coeff(c_loc+2_dp) = (sym_const_m1*sym_const_m2)*CONJG(coeff(c_loc + 1_dp))
+                coeff(c_loc+1_dp) = (sym_const_m1*sym_const_m2)*CONJG(coeff(c_loc + 2_dp))
                 !! -m1,-m2 !!
                 coeff(c_loc+3_dp) = (sym_const_m1*sym_const_m2)*CONJG(coeff(c_loc)) 
              else
@@ -1074,29 +1097,28 @@ contains
   !!
   !! Convenience function to compute the small Wigner d matrix $d^l\\_{m,n}(\beta)$ for fixed $l$.
   !! It uses the three recurrence realtion from `wig_l_recurrence`.
-  !! This implies that it has to compute ALL small wigner $d^k\\_{m,n}$ matrices with $k<l$ as well. 
+  !! This implies that it has to compute ALL small wigner $d^k\\_{m,n}$ matrices with $k<l$ as well.
+  !!
+  !! IMPORTANT: Pi-betas must be equal to reversing the betas array.
+  !!            Otherwise the routine will not give correct results
   function wigner_dl_kostelec(l,betas,normalized) result(dl)
     !! compute the small wigner-d matrix $d^l_{m_1,m_2}(\beta)$ for fixed l
     integer(kind = dp),intent(in) :: l
     real(kind = dp),intent(in) :: betas(:)
     logical,intent(in) :: normalized
     !f2py logical :: normalized = TRUE
-    real(kind = dp) :: betas2(2*SIZE(betas,1))
-    real(kind = dp) :: dl(2*SIZE(betas,1),2*l+1,2*l+1)
-    real(kind = dp) :: trig(2*SIZE(betas,1),3)
-    real(kind = dp) :: workspace(2*SIZE(betas,1),3)
-    real(kind=dp) :: dlml_workspace(2*SIZE(betas,1),l+1),sym_const_m,sym_const_n,sym_const_l
-    integer(kind = dp) :: m,n,i,mid,nid,neg_mid,neg_nid,o,bw,nbeta2
+    real(kind = dp) :: dl(SIZE(betas,1),2*l+1,2*l+1)
+    real(kind = dp) :: trig(SIZE(betas,1),3)
+    real(kind = dp) :: workspace(SIZE(betas,1),3)
+    real(kind=dp) :: dlml_workspace(SIZE(betas,1),l+1),sym_const_m,sym_const_n,sym_const_l
+    integer(kind = dp) :: m,n,i,mid,nid,neg_mid,neg_nid,o,bw,nbeta
 
     dl = 0
     sym_const_l = (-1._dp)**l
-    betas2(:Size(betas,1)) = betas
-    betas2(Size(betas,1)+1:) = Pi-betas(Size(betas,1):1:-1)
-    nbeta2 = Size(betas2,1)
-    trig(:,1) = cos(betas2)                      
-    trig(:,2) = cos(betas2/2_dp)*sin(betas2/2_dp) 
-    trig(:,3) = cos(betas2/2_dp)**2
-    
+    trig(:,1) = cos(betas)                      
+    trig(:,2) = cos(betas/2_dp)*sin(betas/2_dp) 
+    trig(:,3) = cos(betas/2_dp)**2
+    nbeta = SIZE(betas,1)
     bw = l+1_dp
 
     dlml_workspace(:,1) = MERGE(SQRT(0.5_dp),1._dp,normalized)
@@ -1130,11 +1152,11 @@ contains
              dl(:,neg_nid,neg_mid) = (sym_const_m*sym_const_n)*workspace(:,o)
           end if
           if (m==0 .or. n==0) cycle
-          dl(:,neg_nid,mid)=workspace(nbeta2:1:-1,o)*(sym_const_l*sym_const_m)
-          dl(:,nid,neg_mid)=workspace(nbeta2:1:-1,o)*(sym_const_l*sym_const_n)
+          dl(:,neg_nid,mid)=workspace(nbeta:1:-1,o)*(sym_const_l*sym_const_m)
+          dl(:,nid,neg_mid)=workspace(nbeta:1:-1,o)*(sym_const_l*sym_const_n)
           if (m==n) cycle
-          dl(:,neg_mid,nid)=workspace(nbeta2:1:-1,o)*(sym_const_l*sym_const_m)
-          dl(:,mid,neg_nid)=workspace(nbeta2:1:-1,o)*(sym_const_l*sym_const_n)
+          dl(:,neg_mid,nid)=workspace(nbeta:1:-1,o)*(sym_const_l*sym_const_m)
+          dl(:,mid,neg_nid)=workspace(nbeta:1:-1,o)*(sym_const_l*sym_const_n)
           
        end do
     end do
@@ -2804,7 +2826,7 @@ contains
     if (self%recurrence_type == kostelec_recurrence) then
        call self%forward_wigner_trf_cmplx_kostelec(so3func,coeff, use_mp)
     else
-       if (allocated(self%wigner_d_trsp)) then
+       if (allocated(self%wigner_d)) then
           ! genwig_all_risbo_preallocated has been used compute wigners and store them in mnl order
           ! compatible with faster kostelec transfom
           call self%forward_wigner_trf_cmplx_kostelec(so3func,coeff,use_mp)
@@ -3459,7 +3481,7 @@ contains
     if (self%recurrence_type == kostelec_recurrence) then
        call self%forward_wigner_trf_real_kostelec(so3func,coeff,use_mp)
     else
-       if (allocated(self%wigner_d_trsp)) then
+       if (allocated(self%wigner_d)) then
           ! genwig_all_risbo_preallocated has been used compute wigners and store them in mnl order
           ! compatible with faster kostelec transfom
           call self%forward_wigner_trf_real_kostelec(so3func,coeff,use_mp)
@@ -4977,6 +4999,14 @@ contains
     call int_to_soft_pointer(self_int,self_ptr,self)
     lmax = self%lmax
   end function py_get_lmax
+  function py_wigners_are_precomputed(self_int) result(precomputed)
+    integer(kind = dp),intent(in) :: self_int
+    type(so3ft_ptr) :: self_ptr
+    type(so3ft),pointer :: self
+    logical :: precomputed
+    call int_to_soft_pointer(self_int,self_ptr,self)
+    precomputed = (allocated(self%wigner_d) .AND. allocated(self%wigner_d_trsp))
+  end function py_wigners_are_precomputed
   function py_get_recurrence_type(self_int) result(recurrence_type)
     !f2py threadsafe
     integer(kind = dp),intent(in) :: self_int

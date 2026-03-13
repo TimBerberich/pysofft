@@ -212,7 +212,7 @@ class TestMakeWigner:
     def test_wigner_dl_kostelec(self):
         # makes sure that the computed small wigner d matrices are elements of  O(2l+1)
         Lmax = 128
-        betas = np.array([np.pi*5/11])
+        betas = np.array([np.pi*5/11,np.pi-np.pi*5/11])
         for l in range(2,Lmax+1):
             dl = _soft.make_wigner.wigner_dl_kostelec(l,betas,False)[0]
             assert np.allclose(dl@dl.T,np.eye(2*l+1)), f'wigner matrix of degree {l} is not orthogonal'
@@ -487,7 +487,7 @@ class TestSo3ft:
                 d3 = _soft.utils.get_empty_so3func_real(bw)            
                 coeff[...] = np.random.rand(*coeff.shape) + 1.j*np.random.rand(*coeff.shape)
                 if recurrence_type==0:
-                    _soft.utils.enforce_real_sym(coeff,bw)
+                    _soft.utils.enforce_real_sym_mnl(coeff,bw)
                 else:
                     _soft.utils.enforce_real_sym_lmn(coeff,bw)
                 
@@ -515,7 +515,7 @@ class TestSo3ft:
                 
                 coeff[...] = np.random.rand(*coeff.shape) + 1.j*np.random.rand(*coeff.shape)
                 if recurrence_type==0:
-                    _soft.utils.enforce_real_sym(coeff,bw)
+                    _soft.utils.enforce_real_sym_mnl(coeff,bw)
                 else:
                     _soft.utils.enforce_real_sym_lmn(coeff,bw)
                 _soft.py.py_irsoft(s_int,coeff,d,False)
@@ -617,7 +617,10 @@ class TestSo3ft:
             d2 = _soft.utils.get_empty_so3func_real_many(bw,howmany)
             d3 = _soft.utils.get_empty_so3func_real_many(bw,howmany)
             coeff[:]=np.random.rand(*coeff.shape)+1.j*np.random.rand(*coeff.shape)
-            _soft.utils.enforce_real_sym(coeff,bw)
+            if recurrence_type==0:
+                _soft.utils.enforce_real_sym_mnl(coeff,bw)
+            else:
+                _soft.utils.enforce_real_sym_lmn(coeff,bw)
             coeff2[:] = coeff
             for i in range(howmany):
                 _soft.py.py_irsoft(s_int,coeff[:,i],d[...,i],False)

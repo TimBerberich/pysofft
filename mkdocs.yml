@@ -1,4 +1,4 @@
-site_name: pysofft
+site_name: PySOFFT
 repo_url: https://github.com/TimBerberich/pysofft
 
 docs_dir: docs/
@@ -15,9 +15,10 @@ nav:
       - usage/corr.md
       - usage/stats.md
   - Definitions:
-      - so3_grid.md
-      - array.md
-      - wigner.md
+      - defs/so3_grid.md
+      - defs/so3_func.md
+      - defs/coeff.md
+      - defs/wigner.md
   - API:
       - api/structure.md
       - Python:
