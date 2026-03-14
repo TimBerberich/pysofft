@@ -3,8 +3,7 @@
 ![Language](https://img.shields.io/badge/language-python-blue)
 ![Language](https://img.shields.io/badge/language-fortran-blue)
 
-# PySOFFT
-## Fast Fourier transforms on the 3D rotation group $\mathrm{SO}(3)$
+# Fast Fourier transforms on the 3D rotation group $\mathrm{SO}(3)$
 PySOFFT provides high performance routines for harmonic analysis on the 3D rotation group written in Fortran and wrapped in Python.  
 
 $$
