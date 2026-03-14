@@ -12,7 +12,7 @@ $$
 * X-ray scattering simulations of randomly oriented particles.
 
 ## Main features:
-* [__Fast__](speed.md)
+* __Fast__ (see docs for more details)
 * __OpenMP__ routines to speed up single transforms or compute many in parallel. 
 * Dedicated faster transforms for real data.
 * Compute __rotational cross-correlations__.
