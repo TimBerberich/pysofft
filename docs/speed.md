@@ -1,55 +1,76 @@
 # Performance metrics
-The following performence metric where generated on a compute node with two AMD EPYC 7543 with a total of 64 physical CPU cores and 512GB of RAM.
+The following performence metric where generated on a compute node with two AMD EPYC 7543, a total of 64 physical CPU cores and 512GB of RAM.
+/// Info | on-the-fly computation VS. precomputed Wigners
+All results on this site where generated using the on-the-fly computation of Wigner matrices.  
+The precomputed variants give a slight speed increase and eliminate all performance differences between Kostelec and Risbo reccurences.
+Memory consumption becomes a nightmare though. The number of Wigner coefficients scales with $O(\mathrm{bw}^4)$ and their required memory reaches $~180\,$GB at `bw = 512`.
+///
 
+<p float="left" align="middle">
+  <img src="/images/single_core_speed_kostelec.png" width="490" />
+  <img src="/images/single_core_speed_risbo.png" width="490" /> 
+</p>
 
-<figure markdown="span">
-	![Single core execution times](images/single_core_speed.png){ width="700" }
-</figure>
+__Kostelec recurrence__
 
+| method\\bw | 16                    | 32                      | 64                     | 128                     | 256                    | 512                 |
+|------------|-----------------------|-------------------------|------------------------|-------------------------|------------------------|---------------------|
+| soft       | $450\mu$s $\pm 1\mu$s | $4.91$ms $\pm 0.05$ms   | $61.6$ms $\pm 0.3$ms   | $0.8466$s $\pm 0.0006$s | $12.0$s $\pm 0.4$s     | $172$s $\pm 4$s     |
+| isoft      | $501\mu$s $\pm 4\mu$s | $5.28$ms $\pm 0.02$ms   | $64.6$ms $\pm 0.2$ms   | $0.8962$s $\pm 0.0006$s | $13.328$s $\pm 0.004$s | $186$s $\pm 1$s     |
+| rsoft      | $273\mu$s $\pm 2\mu$s | $2.917$ms $\pm 0.004$ms | $35.5$ms $\pm 0.2$ms   | $0.5517$s $\pm 0.0001$s | $7.8$s $\pm 0.2$s      | $103.7$s $\pm 0.7$s |
+| irsoft     | $273\mu$s $\pm 2\mu$s | $3.01$ms $\pm 0.02$ms   | $38.1.6$ms $\pm 0.2$ms | $0.5783$s $\pm 0.0002$s | $9.00$s $\pm 0.07$s    | $120$s $\pm 1$s     |
 
+__Risbo recurrence__
 
-
-| method\\bw | 16                     | 32                      | 64                     | 128                     | 256                    | 512                 |
-|------------|------------------------|-------------------------|------------------------|-------------------------|------------------------|---------------------|
-| soft       | $500\mu$s $\pm 10\mu$s | $5.346$ms $\pm 0.01$ms  | $67.7$ms $\pm 0.2$ms   | $0.9139$s $\pm 0.0008$s | $12.396$s $\pm 0.3$s   | $173.4$s $\pm 0.8$s |
-| isoft      | $506\mu$s $\pm 5\mu$s  | $5.63$ms $\pm 0.02$ms   | $67.94$ms $\pm 0.07$ms | $0.960$s $\pm 0.001$s   | $13.529$s $\pm 0.004$s | $189.9$s $\pm 0.3$s |
-| rsoft      | $307\mu$s $\pm 3\mu$s  | $3.295$ms $\pm 0.007$ms | $39.0$ms $\pm 0.2$ms   | $0.5887$s $\pm 0.0001$s | $9.126$s $\pm 0.007$s  | $107.6$s $\pm 0.9$s |
-| irsoft     | $283\mu$s $\pm6\mu$s   | $3.258$ms $\pm 0.004$ms | $40.6$ms $\pm 0.3$ms   | $0.6181$s $\pm 0.0003$s | $9.582$s $\pm 0.002$s  | $121.7$s $\pm 0.1$s |
-
-The given errors are simply the standard deviations of the above computed datasets.
-/// note | Code: Single-core speed test
+| method\\bw | 16                    | 32                    | 64                   | 128                   | 256                  | 512                 |
+|------------|-----------------------|-----------------------|----------------------|-----------------------|----------------------|---------------------|
+| soft       | $401\mu$s $\pm 2\mu$s | $5.35$ms $\pm 0.04$ms | $81.0$ms $\pm 0.3$ms | $1.457$s $\pm 0.009$s | $20.46$s $\pm 0.02$s | $172$s $\pm 4$s     |
+| isoft      | $353\mu$s $\pm 1\mu$s | $4.00$ms $\pm 0.03$ms | $60$ms $\pm 1$ms     | $1.197$s $\pm 0.009$s | $17.11$s $\pm 0.02$s | $186$s $\pm 1$s     |
+| rsoft      | $238\mu$s $\pm 1\mu$s | $3.21$ms $\pm 0.03$ms | $44.7$ms $\pm 0.2$ms | $0.878$s $\pm 0.001$s | $14.18$s $\pm 0.02$s | $103.7$s $\pm 0.7$s |
+| irsoft     | $133\mu$s $\pm 1\mu$s | $2.34$ms $\pm 0.03$ms | $31.0$ms $\pm 0.2$ms | $0.720$s $\pm 0.001$s | $12.19$s $\pm 0.06$s | $120$s $\pm 1$s     |
+	
+The given errors are simply the standard deviations of the datasets computed by the code below.
+/// note | Code: Single-core speed test 
 WARNING: The bw=512 computation uses $\sim 70$GB of RAM and bw=256 uses $\sim 8$GB. Depending on your PC you might need to skip these.
 ``` py
 from pysofft import Soft
 import pysofft
 import timeit
 import numpy as np
-    
-soft_execution_times=[]
-rsoft_execution_times=[]
-isoft_execution_times=[]
-irsoft_execution_times=[]
+
+soft_execution_times=[[],[]]
+rsoft_execution_times=[[],[]]
+isoft_execution_times=[[],[]]
+irsoft_execution_times=[[],[]]
 for bw in [16,32,64,128,256,512]:
-	# instanciating Soft class + generating in/out arrays
-	s = Soft(bw,init_ffts=True,enable_fftw_wisdom=True,fftw_flags=pysofft._soft.softclass.fftw_measure,precompute_wigners=False)
-	coeff = s.get_coeff(random=True)
-	coeffr = s.get_coeff(random=True,real=True)
-	func = s.get_so3func()
-	funcr = s.get_so3func(real=True)
-	
-	# speed tests
-	tmpi = np.array(timeit.repeat('s.isoft(coeff,out = func)',number=10,repeat=7,globals=globals()))/10
-	isoft_execution_times.append(tmpi)
-	tmpir = np.array(timeit.repeat('s.irsoft(coeffr, out = funcr)',number=10,repeat=7,globals=globals()))/10
-	irsoft_execution_times.append(tmpir)
-	tmp = np.array(timeit.repeat('s.soft(func,out = coeff)',number=10,repeat=7,globals=globals()))/10
-	soft_execution_times.append(tmp)
-	tmpr = np.array(timeit.repeat('s.rsoft(funcr, out = coeffr)',number=10,repeat=7,globals=globals()))/10
-	rsoft_execution_times.append(tmpr)
-soft_mean = np.mean(soft_execution_times,axis=-1)
-rsoft_mean = np.mean(rsoft_execution_times,axis=-1)
-isoft_mean = np.mean(isoft_execution_times,axis=-1)
-irsoft_mean = np.mean(irsoft_execution_times,axis=-1)
+    for recurrence_type in [0,1]:
+        # instanciating Soft class + generating in/out arrays
+        s = Soft(bw,init_ffts=True,
+                 use_fftw_wisdom=True,
+                 fftw_flags=pysofft._soft.softclass.fftw_measure,
+                 precompute_wigners=False,
+                 recurrence_type=recurrence_type)
+        coeff = s.get_coeff(random=True)
+        coeffr = s.get_coeff(random=True,real=True)
+        func = s.get_so3func()
+        funcr = s.get_so3func(real=True)
+        if recurrence_type==0:
+            recurrence = 'Kostelec'
+        else:
+            recurrence = 'Risbo'
+        # speed tests
+        tmpi = np.array(timeit.repeat('s.isoft(coeff,out = func)',number=10,repeat=7,globals=globals()))/10
+        isoft_execution_times[recurrence_type].append(tmpi)
+        tmpir = np.array(timeit.repeat('s.irsoft(coeffr, out = funcr)',number=10,repeat=7,globals=globals()))/10
+        irsoft_execution_times[recurrence_type].append(tmpir)
+        tmp = np.array(timeit.repeat('s.soft(func,out = coeff)',number=10,repeat=7,globals=globals()))/10
+        soft_execution_times[recurrence_type].append(tmp)
+        tmpr = np.array(timeit.repeat('s.rsoft(funcr, out = coeffr)',number=10,repeat=7,globals=globals()))/10
+        rsoft_execution_times[recurrence_type].append(tmpr)
+        np.save(f"soft_{recurrence}.npy",soft_execution_times[recurrence_type])
+        np.save(f"rsoft_{recurrence}.npy",rsoft_execution_times[recurrence_type])
+        np.save(f"isoft_{recurrence}.npy",isoft_execution_times[recurrence_type])
+        np.save(f"irsoft_{recurrence}.npy",irsoft_execution_times[recurrence_type])
 ```
 ///
 
@@ -108,7 +129,6 @@ for nthreads in [1,2,4,8,16,32,64]:
 	coeffr = s.get_coeff(random=True,real=True,howmany=N)
 	func = s.get_so3func(howmany=N)
 	funcr = s.get_so3func(real=True,howmany=N)
-
     
 	tmp = np.array(timeit.repeat('s.isoft_many(coeff,out = func,use_mp=True)',number=10,repeat=1,globals=globals()))/10
 	isoft_execution_times.append(tmp)
@@ -149,38 +169,45 @@ import pysofft
 from pysofft import Soft
 import timeit
 import numpy as np
-    
-soft_execution_times=[]
-rsoft_execution_times=[]
-isoft_execution_times=[]
-irsoft_execution_times=[]
+
+soft_execution_times=[[],[]]
+rsoft_execution_times=[[],[]]
+isoft_execution_times=[[],[]]
+irsoft_execution_times=[[],[]]
 bw = 64
+N = 256
 for nthreads in [1,2,4,8,16,32,64]:
-	# instanciating Soft class + generating in/out arrays
-	s = Soft(bw,init_ffts=True,enable_fftw_wisdom=True,fftw_flags=pysofft._soft.softclass.fftw_measure,precompute_wigners=False)
-	pysofft.OMP_set_num_threads(nthreads)
-	coeff = s.get_coeff(random=True)
-	coeffr = s.get_coeff(random=True,real=True)
-	func = s.get_so3func()
-	funcr = s.get_so3func(real=True)
-    
-	# speed tests
-	tmp = np.array(timeit.repeat('s.isoft(coeff,out = func,use_mp=True)',number=10,repeat=7,globals=globals()))/10
-	isoft_execution_times.append(tmp)
-	tmpr = np.array(timeit.repeat('s.irsoft(coeffr, out = funcr,use_mp=True)',number=10,repeat=7,globals=globals()))/10
-	irsoft_execution_times.append(tmpr)
-	tmp = np.array(timeit.repeat('s.soft(func,out = coeff,use_mp=True)',number=10,repeat=7,globals=globals()))/10
-	soft_execution_times.append(tmp)
-	tmpr = np.array(timeit.repeat('s.rsoft(funcr, out = coeffr,use_mp=True)',number=10,repeat=7,globals=globals()))/10
-	rsoft_execution_times.append(tmpr)
-soft_mean = np.mean(soft_execution_times,axis=-1)
-rsoft_mean = np.mean(rsoft_execution_times,axis=-1)
-isoft_mean = np.mean(isoft_execution_times,axis=-1)
-irsoft_mean = np.mean(irsoft_execution_times,axis=-1)
-	
-soft_speedup = soft_mean[0]/soft_mean[1:]
-rsoft_speedup = rsoft_mean[0]/rsoft_mean[1:]
-isoft_speedup = isoft_mean[0]/isoft_mean[1:]
-irsoft_speedup = rsoft_mean[0]/irsoft_mean[1:]
+    for recurrence_type in [0,1]:
+        # instanciating Soft class + generating in/out arrays
+        s = Soft(bw,init_ffts=True,
+                 use_fftw_wisdom=True,
+                 fftw_flags=pysofft._soft.softclass.fftw_measure,
+                 precompute_wigners=False,
+                 recurrence_type=recurrence_type)
+        
+        pysofft.omp.set_num_threads(nthreads)
+        coeff = s.get_coeff(random=True,howmany=N)
+        coeffr = s.get_coeff(random=True,real=True,howmany=N)
+        func = s.get_so3func(howmany=N)
+        funcr = s.get_so3func(real=True,howmany=N)
+        print(nthreads)
+        if recurrence_type==0:
+            recurrence = 'Kostelec'
+        else:
+            recurrence = 'Risbo'
+        print('alive')
+        tmp = np.array(timeit.repeat('s.isoft_many(coeff,out = func,use_mp=True)',number=10,repeat=1,globals=globals()))/10
+        isoft_execution_times[recurrence_type].append(tmp)
+        tmpr = np.array(timeit.repeat('s.irsoft_many(coeffr, out = funcr,use_mp=True)',number=10,repeat=1,globals=globals()))/10
+        irsoft_execution_times[recurrence_type].append(tmpr)
+        tmp = np.array(timeit.repeat('s.soft_many(func,out = coeff,use_mp=True)',number=10,repeat=1,globals=globals()))/10
+        soft_execution_times[recurrence_type].append(tmp)
+        tmpr = np.array(timeit.repeat('s.rsoft_many(funcr, out = coeffr,use_mp=True)',number=10,repeat=1,globals=globals()))/10
+        rsoft_execution_times[recurrence_type].append(tmpr)
+        
+        np.save(f"soft_{recurrence}_mp_single.npy",soft_execution_times[recurrence_type])
+        np.save(f"rsoft_{recurrence}_mp_single.npy",rsoft_execution_times[recurrence_type])
+        np.save(f"isoft_{recurrence}_mp_single.npy",isoft_execution_times[recurrence_type])
+        np.save(f"irsoft_{recurrence}_mp_single.npy",irsoft_execution_times[recurrence_type])
 ```
 ///

@@ -63,7 +63,14 @@ Non-python dependencies are __fftw__, __openmp__, __meson__, __gcc__ and __gfort
  pysofft = ">=0.9.0,<2"
  ```
 ///
+ 
+/// Info | Pitfall when installing on Clusters
+`pip install` triggers compitlation of the fortran code with `gfortran`.  
+One of the provided compiler options is `-march=native`, which enambles CPU specific optimizations.
+When installing pysofft on one node of the cluster and then trying to use pysofft on a different node the program can crash with an `Illegal instruction` error, if the CPUS are too different.
 
+To change that behaviour, you can clone the [pysofft repo](https://github.com/TimBerberich/pysofft/){target="_blank"} and delete `-march=native` from `pysofft/pysofft/meson.build` file.
+///
 
 ## Basic Usage Python
 	
