@@ -38,18 +38,19 @@ The easiest installation option is via pip.
 The only python dependency is __numpy__.
 Non-python dependencies are __fftw__, __openmp__, __meson__, __gcc__ and __gfortran__.
 
-/// info | pixi
+### Pixi
  If you use [pixi](https://pixi.prefix.dev/latest/) you can use the following pixi.toml for installation.
  ``` toml
- [project]
+  [workspace]
  channels = ["conda-forge"]
- description = "Add a short description here"
+ description = "Workspace for pysofft"
  name = "temp"
  platforms = ["linux-64"]
  version = "0.1.0"
-    
- [tasks]
-    
+ 
+ [system-requirements]
+ libc = { family = "glibc", version = "2.34" }
+ 
  [dependencies]
  gfortran = ">=15.2,<15.5.0"
  gcc = ">=15.2,<15.5.0"
@@ -61,18 +62,8 @@ Non-python dependencies are __fftw__, __openmp__, __meson__, __gcc__ and __gfort
  meson-python = ">=0.19.0,<0.20"
  fftw = ">=3.3.10,<4"
  openmp = ">=8.0.1,<9"
- pysofft = ">=0.9.0,<2"
  ```
-///
  
-/// Info | Pitfall when installing on Clusters
-`pip install` triggers compitlation of the fortran code with `gfortran`.  
-One of the provided compiler options is `-march=native`, which enambles CPU specific optimizations.
-When installing pysofft on one node of the cluster and then trying to use pysofft on a different node the program can crash with an `Illegal instruction` error, if the CPUS are too different.
-
-To change that behaviour, you can clone the [pysofft repo](https://github.com/TimBerberich/pysofft/){target="_blank"} and delete `-march=native` from `pysofft/pysofft/meson.build` file.
-///
-
 ## Basic Usage Python
 	
 Forward and inverse transforms

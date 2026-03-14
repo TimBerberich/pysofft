@@ -40,15 +40,16 @@ Non-python dependencies are __fftw__, __openmp__, __meson__, __gcc__ and __gfort
 /// info | pixi
  If you use [pixi](https://pixi.prefix.dev/latest/) you can use the following pixi.toml for installation.
  ``` toml
- [project]
+ [workspace]
  channels = ["conda-forge"]
- description = "Add a short description here"
+ description = "Workspace for pysofft"
  name = "temp"
  platforms = ["linux-64"]
  version = "0.1.0"
-    
- [tasks]
-    
+ 
+ [system-requirements]
+ libc = { family = "glibc", version = "2.34" }
+ 
  [dependencies]
  gfortran = ">=15.2,<15.5.0"
  gcc = ">=15.2,<15.5.0"
@@ -60,10 +61,9 @@ Non-python dependencies are __fftw__, __openmp__, __meson__, __gcc__ and __gfort
  meson-python = ">=0.19.0,<0.20"
  fftw = ">=3.3.10,<4"
  openmp = ">=8.0.1,<9"
- pysofft = ">=0.9.0,<2"
  ```
 ///
- 
+
 /// Info | Pitfall when installing on Clusters
 `pip install` triggers compitlation of the fortran code with `gfortran`.  
 One of the provided compiler options is `-march=native`, which enambles CPU specific optimizations.
