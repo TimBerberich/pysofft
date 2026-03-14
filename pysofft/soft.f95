@@ -2340,7 +2340,7 @@ contains
           !print *,i,m1,m2
           sym_const_m1 = (-1.0)**m1
           call loop_body(self,coeff,so3func,m1,m2,sym_array,sym_const_m1)
-       end do
+         end do
        !$OMP END DO
        !$OMP END PARALLEL 
     else
@@ -2349,7 +2349,7 @@ contains
           do m2=m1, L
              call loop_body(self,coeff,so3func,m1,m2,sym_array,sym_const_m1)
           end do
-       end do
+        end do
     end if
   end subroutine inverse_wigner_trf_cmplx_kostelec
   subroutine inverse_wigner_loop_body_cmplx_risbo(self,coeff,so3func,dlmn,l,m1,m2,sym_const_l,sym_const_m1)
@@ -2469,12 +2469,12 @@ contains
     ! zeroing so3func needed since it will be populated by +=
     so3func = 0
 
-    if (use_mp) then
+    if (use_mp) then       
        ! non-fft part of the SO(3) fourier transform
+       !$OMP PARALLEL PRIVATE(mnid,m1,m2,sym_const_m1,dl,sym_const_l,l) SHARED(so3func,coeff)
        do l=0,self%lmax
           dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
           sym_const_l = (-1._dp)**l
-          !$OMP PARALLEL PRIVATE(mnid,m1,m2,sym_const_m1) SHARED(so3func,coeff,dl,sym_const_l,l)
           !$OMP DO
           do mnid=1_dp,((l+1_dp)*(l+2_dp))/2_dp
              call flat_to_triangular_index(m1,m2,mnid,l)
@@ -2482,8 +2482,8 @@ contains
              call inverse_wigner_loop_body_cmplx_risbo(self,coeff,so3func,dl(:,mnid),l,m1,m2,sym_const_l,sym_const_m1)
           end do
           !$OMP END DO
-          !$OMP END PARALLEL
        end do
+       !$OMP END PARALLEL       
     else
        ! non-fft part of the SO(3) fourier transform
        do l=0,self%lmax
@@ -2827,10 +2827,10 @@ contains
 
       
     if (use_mp) then
+       !$OMP PARALLEL PRIVATE(mnid,m1,m2,sym_const_m1,dl_tmp,dl,sym_const_l,l) SHARED(so3func,coeff)
        do l=0,self%lmax
           dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
           sym_const_l = (-1._dp)**l
-          !$OMP PARALLEL PRIVATE(mnid,m1,m2,sym_const_m1,dl_tmp) SHARED(so3func,coeff,dl,sym_const_l,l)
           !$OMP DO
           do mnid=1_dp,((l+1_dp)*(l+2_dp))/2_dp
              call flat_to_triangular_index(m1,m2,mnid,l)
@@ -2839,8 +2839,8 @@ contains
              call forward_wigner_loop_body_cmplx_risbo(self,so3func,coeff,dl_tmp,l,m1,m2,sym_const_l,sym_const_m1)
           end do
           !$OMP END DO
-          !$OMP END PARALLEL
        end do
+       !$OMP END PARALLEL
     else
        do l=0,self%lmax
           dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
@@ -3131,10 +3131,10 @@ contains
 
     if (use_mp) then
        ! non-fft part of the SO(3) fourier transform
+       !$OMP PARALLEL PRIVATE(mnid,m1,m2,sym_const_m1,s_ids,s_ids_sym,i,j,dl,sym_const_l,l) SHARED(so3func,coeff,bw,bw2)
        do l=0,self%lmax
           dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
           sym_const_l = (-1._dp)**l
-          !$OMP PARALLEL PRIVATE(mnid,m1,m2,sym_const_m1,s_ids,s_ids_sym,i,j) SHARED(so3func,coeff,dl,sym_const_l,l,bw,bw2)
           !$OMP DO
           do mnid=1_dp,((l+1_dp)*(l+2_dp))/2_dp
              call flat_to_triangular_index(m1,m2,mnid,l)
@@ -3142,9 +3142,9 @@ contains
              call inverse_wigner_loop_body_real_risbo(self,coeff,so3func,dl(:,mnid),l,m1,m2,sym_const_l,sym_const_m1)
           end do
           !$OMP END DO
-          !$OMP END PARALLEL
        end do
-
+       !$OMP END PARALLEL
+       
        ! fill remaining 2d real fft symmetry values using f_{0,m1}=f_{0,-m1}^*
        !$OMP PARALLEL PRIVATE(m2,s_ids,s_ids_sym,i,j) SHARED(so3func,bw,bw2)
        !$OMP DO
@@ -3498,10 +3498,10 @@ contains
     real(kind=dp) :: sym_const_m1,sym_const_l,dl(2*self%bw,(self%bw*(self%bw+1))/2),dl_tmp(2_dp*self%bw)
 
    if (use_mp) then
+      !$OMP PARALLEL PRIVATE(mnid,m1,m2,sym_const_m1,dl_tmp,dl,sym_const_l,l) SHARED(so3func,coeff)
        do l=0,self%lmax
           dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
           sym_const_l = (-1._dp)**l
-          !$OMP PARALLEL PRIVATE(mnid,m1,m2,sym_const_m1,dl_tmp) SHARED(so3func,coeff,dl,sym_const_l,l)
           !$OMP DO
           do mnid=1_dp,((l+1_dp)*(l+2_dp))/2_dp
              call flat_to_triangular_index(m1,m2,mnid,l)
@@ -3510,8 +3510,8 @@ contains
              call forward_wigner_loop_body_real_risbo(self,so3func,coeff,dl_tmp,l,m1,m2,sym_const_l,sym_const_m1)
           end do
           !$OMP END DO
-          !$OMP END PARALLEL
        end do
+       !$OMP END PARALLEL
     else
        do l=0,self%lmax
           dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)

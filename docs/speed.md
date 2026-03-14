@@ -95,7 +95,7 @@ PySOFFT allows parallelization in two different ways:
 
 
 <figure markdown="span">
-	![multi processing speed up multi transform](images/multi_core_multi_transform.png){ width="700" }
+	![multi processing speed up multi transform](images/mp_many_kostelec.png){ width="700" }
 </figure>
 
 
