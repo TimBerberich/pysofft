@@ -26,7 +26,7 @@ Now it is an entire rewrite in Fortran featuring several improvements, e.g highe
 For details on soft-2.0 see:  
 FFTs on the Rotation Group  
 J Fourier Anal Appl (2008) 14: 145–179  
-DOI [10.1007/s00041-008-9013-5](https://doi.org/10.1007/s00041-008-9013-5){target="_blank"} ([pdf](https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Kostelec08.pdf){target="_blank"})
+DOI [10.1007/s00041-008-9013-5](https://doi.org/10.1007/s00041-008-9013-5) ([pdf](https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Kostelec08.pdf))
 
 PySOFT is made available with consent of the original soft-2.0 authors and under the same GPL3 license.
 
