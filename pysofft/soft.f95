@@ -3495,9 +3495,14 @@ contains
     complex(kind = dp), intent(in) :: so3func(:,:,:)
     logical, intent(in) :: use_mp
     integer(kind = dp) :: m1,m2,l,mnid
-    real(kind=dp) :: sym_const_m1,sym_const_l,dl(2*self%bw,(self%bw*(self%bw+1))/2),dl_tmp(2_dp*self%bw)
+    real(kind=dp) :: sym_const_m1,sym_const_l,dl_tmp(2_dp*self%bw)
+    real(kind=dp), allocatable :: dl(:,:)
 
-   if (use_mp) then
+    ! I had issues with segfaults due to stack overflow in the mp routines
+    ! so lets make dl allocatable
+    allocate(dl(2*self%bw,(self%bw*(self%bw+1))/2))
+    
+    if (use_mp) then
       !$OMP PARALLEL PRIVATE(mnid,m1,m2,sym_const_m1,dl_tmp,dl,sym_const_l,l) SHARED(so3func,coeff)
        do l=0,self%lmax
           dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
@@ -3512,7 +3517,7 @@ contains
           !$OMP END DO
        end do
        !$OMP END PARALLEL
-    else
+    else       
        do l=0,self%lmax
           dl(:,1:((l+1)*(l+2))/2) = wigner_recurrence_risbo_reduced(dl(:,1:(l*(l+1))/2),l,self%trig_samples_risbo(:,1),self%trig_samples_risbo(:,2),self%sqrts_risbo,.True.)
           sym_const_l = (-1._dp)**l
@@ -3526,6 +3531,7 @@ contains
           end do
        end do
     end if
+    deallocate(dl)
   end subroutine forward_wigner_trf_real_risbo
   subroutine forward_wigner_trf_real(self,so3func,coeff,use_mp)
     !f2py threadsafe
