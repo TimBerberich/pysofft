@@ -2464,11 +2464,12 @@ contains
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
     logical,intent(in) :: use_mp
     integer(kind = dp) :: m1,m2,l,mnid
-    real(kind=dp) :: sym_const_m1,sym_const_l,dl(2*self%bw,(self%bw*(self%bw+1))/2)
-       
+    real(kind=dp) :: sym_const_m1,sym_const_l
+    real(kind=dp), allocatable :: dl(:,:)
     ! zeroing so3func needed since it will be populated by +=
     so3func = 0
 
+    allocate(dl(2*self%bw,(self%bw*(self%bw+1))/2))
     if (use_mp) then       
        ! non-fft part of the SO(3) fourier transform
        !$OMP PARALLEL PRIVATE(mnid,m1,m2,sym_const_m1,dl,sym_const_l,l) SHARED(so3func,coeff)
@@ -2498,6 +2499,7 @@ contains
           end do
        end do
     end if
+    deallocate(dl)
   end subroutine inverse_wigner_trf_cmplx_risbo
   subroutine inverse_wigner_trf_cmplx(self,coeff,so3func,use_mp)
     !f2py threadsafe
@@ -2823,9 +2825,10 @@ contains
     complex(kind = dp), intent(in) :: so3func(:,:,:)
     logical, intent(in) :: use_mp
     integer(kind = dp) :: m1,m2,l,mnid
-    real(kind=dp) :: sym_const_m1,sym_const_l,dl(2*self%bw,(self%bw*(self%bw+1))/2),dl_tmp(2_dp*self%bw)
+    real(kind=dp) :: sym_const_m1,sym_const_l,dl_tmp(2_dp*self%bw)
+    real(kind=dp), allocatable :: dl(:,:)
 
-      
+    allocate(dl(2*self%bw,(self%bw*(self%bw+1))/2))
     if (use_mp) then
        !$OMP PARALLEL PRIVATE(mnid,m1,m2,sym_const_m1,dl_tmp,dl,sym_const_l,l) SHARED(so3func,coeff)
        do l=0,self%lmax
@@ -2855,6 +2858,7 @@ contains
           end do
        end do
     end if
+    deallocate(dl)
   end subroutine forward_wigner_trf_cmplx_risbo
   subroutine forward_wigner_trf_cmplx(self,so3func,coeff,use_mp)
     !f2py threadsafe
@@ -3124,11 +3128,15 @@ contains
     complex(kind = dp), intent(in) :: coeff(:)
     logical, intent(in) :: use_mp
     integer(kind = dp) :: j,i,m1,m2,l,mnid,s_ids(2),s_ids_sym(2),bw,bw2
-    real(kind=dp) :: sym_const_m1,sym_const_l,dl(2*self%bw,(self%bw*(self%bw+1))/2)
+    real(kind=dp) :: sym_const_m1,sym_const_l
+    real(kind = dp), allocatable :: dl(:,:) 
 
     bw  = self%bw
     bw2  = 2_dp*bw
-
+    ! I had issues with segfaults due to stack overflow in the mp routines
+    ! so lets make dl allocatable
+    allocate(dl(2*self%bw,(self%bw*(self%bw+1))/2))
+    
     if (use_mp) then
        ! non-fft part of the SO(3) fourier transform
        !$OMP PARALLEL PRIVATE(mnid,m1,m2,sym_const_m1,s_ids,s_ids_sym,i,j,dl,sym_const_l,l) SHARED(so3func,coeff,bw,bw2)
@@ -3180,6 +3188,7 @@ contains
           end do
        end do
     end if
+    deallocate(dl)
   end subroutine inverse_wigner_trf_real_risbo
   subroutine inverse_wigner_trf_real(self,coeff,so3func,use_mp)
     !f2py threadsafe
