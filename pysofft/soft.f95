@@ -130,6 +130,11 @@ contains
     slice(2) = slice(1) + bw-m(2)
     slice(1) = slice(1) + 1_dp ! 1 indexing
   end function coeff_slice_mnl
+
+  !> ----------
+  !! @brief Returns the location of $f^l\\_{n\\_1,n\\_2}$ for mnl ordered Wigner coefficients.
+  !!
+  !! Returns: `coeff_slice_mnl(m1,m2,bw)(1)+l-max(abs(m1),abs(m2))`
   function coeff_location_mnl(m1,m2,l,bw) result(id)
     ! This function returns the index of the coefficient array corresponding to f_{m1,m2}^l.
     ! Note that this index has to lie within the slice given by coefLoc_so3.
@@ -142,6 +147,12 @@ contains
     end if
     id = slice(1)+l-m
   end function coeff_location_mnl
+  
+  !> ------
+  !! @brief Return all valid (l,m,n) ids in mnl order.
+  !!
+  !! Returns an array containing all valid l,m,n coefficient combinations
+  !! in the native order they are stored in for mnl ordered Wigner coefficients.
   function get_coeff_degrees(bw) result(lmn)
     !! Returns an array containing all valid l,m,n coefficient combinations
     !! in the native order they are stored in.
@@ -204,30 +215,33 @@ contains
        end do
     end do
   end function get_coeff_degrees
- 
+
+  !> --------
+  !! @brief  $l,n\\_1,n\\_2 \rightarrow$ slice into lmn ordered $f^l\\_{n\\_1,n\\_2}$ array.
+  !!
+  !! Returns the slice of coefficients $f\\_(m,n)^l$ for all possible symmetry variants of m,n.
+  !! It is chosen such that in loops of the follwing type, memory access
+  !! for the coefficients is continuouse without jumps.
+  !! ```
+  !! do l=0,bw-1
+  !!    do m=0,l
+  !!       do n=m,l
+  !!          slice = coeff_slice_lmn(l,m,n)
+  !!          f(slice(1))      !f_{m,n} 
+  !!          if m==0 and n==0, cycle  
+  !!          f(slice(1)+1)    !f_{-n,-m}
+  !!          if m/=n
+  !!             f(slice(1)+2) !f_{n,m}
+  !!             f(slice(1)+3) !f_{-m,-n}
+  !!          if m==0 or n==0, cycle
+  !!          o=MERGE(2,0,m/=n)
+  !!          f(slice(1)+2+o)  !f_{m,-n}
+  !!          f(slice(1)+3+o)  !f_{-m,n}
+  !!          if m==n, cycle
+  !!          f(slice(1)+6)    !f_{n,-m}
+  !!          f(slice(1)+7)    !f_{-n,m}
+  !! ```
   function coeff_slice_lmn(l,n1,n2) result(slice)
-    ! Returns the slice of coefficients f_(m,n)^l for all possible symmetry variants of m,n.
-    ! It is chosen such that in loops of the follwing type, memory access
-    ! for the coefficients is continuouse without jumps.
-    !
-    ! do l=0,bw-1
-    !    do m=0,l
-    !       do n=m,l
-    !          slice = coeff_slice_lmn(l,m,n)
-    !          f(slice(1))      !f_{m,n} 
-    !          if m==0 and n==0, cycle  
-    !          f(slice(1)+1)    !f_{-n,-m}
-    !          if m/=n
-    !             f(slice(1)+2) !f_{n,m}
-    !             f(slice(1)+3) !f_{-m,-n}
-    !          if m==0 or n==0, cycle
-    !          o=MERGE(2,0,m/=n)
-    !          f(slice(1)+2+o)  !f_{m,-n}
-    !          f(slice(1)+3+o)  !f_{-m,n}
-    !          if m==n, cycle
-    !          f(slice(1)+6)    !f_{n,-m}
-    !          f(slice(1)+7)    !f_{-n,m}
-    !
     ! Insight is 
     ! 1 4 4 4 4    top to bottom is m, left to right is n.
     !   4 8 8 8    Numbers are number of function occurances in the above loop
@@ -257,6 +271,9 @@ contains
     slice(2) = slice(1)+length
     slice(1) = slice(1) + 1_dp ! 1 indexing
   end function coeff_slice_lmn
+  
+  !> --------
+  !! @brief  Location of $f^l\\_{n\\_1,n\\_2}$ in an lmn ordered coefficient array.
   function coeff_location_lmn(l,n1,n2) result(id)
         integer(kind=dp), intent(in) :: n1,n2,l
         integer(kind=dp) :: id,slice(2),m,n
@@ -290,6 +307,12 @@ contains
            id = slice(1) + 7_dp
         end if
   end function coeff_location_lmn
+
+  !> ------
+  !! @brief Return all valid (l,m,n) ids in lmn order.
+  !!
+  !! Returns an array containing all valid l,m,n coefficient combinations
+  !! in the native order they are stored in for lmn ordered Wigner coefficients.
   function get_coeff_degrees_risbo(bw) result(lmn)
     !! Returns an array containing all valid l,m,n coefficient combinations
     !! in the native order they are stored in.
@@ -351,7 +374,9 @@ contains
        end do
     end do
   end function get_coeff_degrees_risbo
-  
+
+  !> ------
+  !! @brief `(2*bw,2*bw,2*bw)`
   function euler_shape(bw) result(eshape)
     integer(kind=dp), intent(in) :: bw
     integer(kind=dp) :: eshape(3)
@@ -394,52 +419,71 @@ contains
     end do
   end function legendre_quadrature_weights
 
+  !> -------
+  !! @brief Zeroed Wigner coefficients for a given bandwidth `bw`.
+  !!
+  !! Returns a complex array of shape $\left(\frac{(4\mathrm{bw}^3-\mathrm{bw})}{3},\right)$.
   function get_empty_coeff(bw) result(coeff)
     integer(kind = dp) :: bw
     complex(kind = dp) :: coeff((4_dp*(bw*bw*bw)-bw)/3_dp)
     coeff = 0.0
   end function get_empty_coeff
+
+  !> -------
+  !! @brief n zeroed Wigner coefficients for a given bandwidth `bw`.
+  !!
+  !! Returns a complex array of shape $\left(\frac{(4\mathrm{bw}^3-\mathrm{bw})}{3},n\right)$.
   function get_empty_coeff_many(bw,n) result(coeff)
     integer(kind = dp) :: bw,n
     complex(kind = dp) :: coeff((4_dp*(bw*bw*bw)-bw)/3_dp,n)
     coeff = 0.0
   end function get_empty_coeff_many
+
+  !> --------
+  !! @brief Zeroed complex function over SO(3) for a given bandwidth `bw`.
+  !!
+  !! Returns a complex array of shape `(2*bw,2*bw,2*bw)`
   function get_empty_so3func_cmplx(bw) result(so3func)
     integer(kind = dp) :: bw
     complex(kind = dp) :: so3func(2*bw,2*bw,2*bw)
     so3func = 0.0
   end function get_empty_so3func_cmplx
+
+  !> --------
+  !! @brief n zeroed complex functions over SO(3) for a given bandwidth `bw`.
+  !!
+  !! Returns a complex array of shape `(2*bw,2*bw,2*bw,n)`
   function get_empty_so3func_cmplx_many(bw,n) result(so3func)
     integer(kind = dp) :: bw,n
     complex(kind = dp) :: so3func(2*bw,2*bw,2*bw,n)
     so3func = 0.0
   end function get_empty_so3func_cmplx_many
-  function get_empty_so3func_halfcmplx(bw) result(so3func)
-    integer(kind = dp) :: bw
-    complex(kind = dp) :: so3func(2*bw,bw+1,2*bw)
-    so3func = 0.0
-  end function get_empty_so3func_halfcmplx
-  function get_empty_so3func_halfcmplx_many(bw,n) result(so3func)
-    integer(kind = dp) :: bw,n
-    complex(kind = dp) :: so3func(2*bw,bw+1,2*bw,n)
-    so3func = 0.0
-  end function get_empty_so3func_halfcmplx_many
+
+  !> --------
+  !! @brief Zeroed real function over SO(3) for a given bandwidth `bw`.
+  !!
+  !! Returns a real array of shape `(2*bw,2*bw,2*bw)`
   function get_empty_so3func_real(bw) result(so3func)
     integer(kind = dp) ::  bw
     real(kind = dp) :: so3func(2*bw,2*bw,2*bw)
     so3func = 0.0
   end function get_empty_so3func_real
+  
+  !> --------
+  !! @brief n zeroed real functions over SO(3) for a given bandwidth `bw`.
+  !!
+  !! Returns a real array of shape `(2*bw,2*bw,2*bw,n)`
   function get_empty_so3func_real_many(bw,n) result(so3func)
     integer(kind = dp) ::  bw,n
     real(kind = dp) :: so3func(2*bw,2*bw,2*bw,n)
     so3func = 0.0
   end function get_empty_so3func_real_many
+  
   !> --------
   !! @brief Enforces real symmetry in mnl ordered coefficients
   !!
-  !! Enforces the symmetry $f^l\\_{m,n}^* = f^l\\_{-m,-n} (-1)^{m+n}$ in
+  !! Enforces the symmetry ${f^l\\_{m,n}}^* = f^l\\_{-m,-n} (-1)^{m+n}$ in
   !! m,n,l ordered coefficients
-  !!
   subroutine enforce_real_sym_mnl(coeff,bw)
     complex(kind=dp) ,intent(inout) :: coeff(:)
     integer(kind=dp) ,intent(in) :: bw
@@ -462,7 +506,7 @@ contains
   !> --------
   !! @brief many version of enforce_real_sym
   !!
-  !! Enforces the symmetry $f^l\\_{m,n}^* = f^l\\_{-m,-n} (-1)^{m+n}$ in
+  !! Enforces the symmetry ${f^l\\_{m,n}}^* = f^l\\_{-m,-n} (-1)^{m+n}$ in
   !! m,n,l ordered coefficients.
   !! 
   !! coeff_many is now a 2D array where the second index labels differenct coefficient arrays.
@@ -475,10 +519,11 @@ contains
        call enforce_real_sym_mnl(coeff_many(:,n),bw)
     end do
   end subroutine enforce_real_sym_mnl_many
+  
   !> --------
   !! @brief Enforces real symmetry in lmn ordered coefficients
   !!
-  !! Enforces the symmetry $f^l\\_{m,n}^* = f^l\\_{-m,-n} (-1)^{m-n}$ in
+  !! Enforces the symmetry ${f^l\\_{m,n}}^{\*} = f^l\\_{-m,-n} (-1)^{m-n}$ in
   !! l,m,n ordered coefficients
   !!
   subroutine enforce_real_sym_lmn(coeff,bw)
@@ -526,7 +571,7 @@ contains
   !> --------
   !! @brief many version of enforce_real_sym_lmn
   !!
-  !! Enforces the symmetry $f^l\\_{m,n}^* = f^l\\_{-m,-n} (-1)^{m+n}$ in
+  !! Enforces the symmetry ${f^l\\_{m,n}}^{\*} = f^l\\_{-m,-n} (-1)^{m+n}$ in
   !! l,m,n ordered coefficients.
   !! 
   !! coeff_many is now a 2D array where the second index labels differenct coefficient arrays.
@@ -542,35 +587,49 @@ contains
   
   ! Indexing tricks section
   !< --------------
-  !! 
+  !! @brief Total number of elements of a triangular index of bandwidth `bw`
+  !!
+  !! Consider the triangular index $0<=i<=j<bw$
+  !! This function returns the total number of possible pairs $i,j$
   function triangular_size(bw) result(tri_size)
-    !! Consider the triangular index 0<=i<=j<bw
-    !! This function returns the total number of possible pairs i,j
     integer(kind = dp),intent(in) :: bw
     integer(kind = dp) :: tri_size
     tri_size = (bw*(bw+1))/2_dp
   end function triangular_size
+
+  !> -----------
+  !! @brief Total number of elements of a triangular index of bandwidth `bw`
+  !!
+  !! consider the pyramid index $0<=i<bw$ and $-i<=j<=i$.
+  !! This function returns the total number of possible pairs $i,j$.
   function pyramid_size(bw) result(pyr_size)
-    !! consider the pyramid index 0<=i<bw and -i<=j<=i
-    !!This function returns the total number of possible pairs i,j
     integer(kind = dp),intent(in) ::bw
     integer(kind = dp) :: pyr_size
     pyr_size = bw**2
   end function pyramid_size
+
+  !> ---------
+  !! @brief Running index to pyramid index.
+  !!
+  !! Converts a running index k=0 to bw*(bw+1)/2-1 into
+  !! a pyramid double index i,j with  0<=i<bw and -i<=j<=i
+  !! This allows to reformulate pyramid loops as simple loops via
+  !! ```
+  !! do k=1, (N+1)**2
+  !!    call flat_to_pyramid_index(i,j,k)
+  !! ```
+  !! is the same as
+  !! ```
+  !! do i=0,N
+  !!   do j=-i,i
+  !! ```
   subroutine flat_to_pyramid_index(i,j,k)
-    ! Converts a running index k=0 to bw*(bw+1)/2-1 into
-    ! a triangular double index i,j with  0<=i<bw and i<=j<=bw
-    ! This allows to reformulate Triangular loops as simple loops via
-    ! do k=1, (N+1)**2
-    !    call flat_to_pyramid_index(i,j,k)
-    ! is the same as
-    ! do i=0,N
-    !   do j=-i,i
     integer(kind = dp), intent(inout) :: i,j
     integer(kind = dp), intent(in) :: k
     i = int(SQRT(real(k-1,dp)),kind = dp)
     j = -i+(k-1)-i**2 
   end subroutine flat_to_pyramid_index
+  
   !> ---------------------
   !! @brief Converts a 1d index k to a triagonal double index (i,j).
   !!
@@ -611,7 +670,10 @@ contains
     integer(kind = dp) :: id 
     id = (i*(2_dp*bw-i+1_dp))/2_dp + j-i + 1_dp
   end function triangular_to_flat_index
-  !> Consider the triangular index 0<=i<=j<bw 
+  !> ---------
+  !! @brief d
+  !!
+  !! Consider the triangular index 0<=i<=j<bw 
   !! This function returns the slice of of a flattened array that corresponds
   !! to all valid i for a fixed j.
   !! This function allows to store a triangular array in an i contiguous way
@@ -834,14 +896,9 @@ contains
   end function create_trig_samples_risbo
 
   !> -------
-  !! @brief Returns trig samples for Wigner-d computations via risbo.
-  !! 
-  !! Does the following:
-  !! ```fortran
-  !!  betas = create_beta_samples(2*bw)
-  !!  trig_samples(:,1) = cos(betas/2)
-  !!  trig_samples(:,2) = sin(betas/2)
-  !! ```
+  !! @brief Returns square root samples for Wigner-d computations via risbo.
+  !!
+  !! Returns $\sqrt{l}$ for $0 \leq l \leq (2\mathrm{bw}-2)$.
   function create_sqrts_risbo(bw) result(sqrts)
     integer(kind=dp), intent(in) :: bw
     real(kind = dp) :: sqrts(2*bw-1)
@@ -887,7 +944,7 @@ contains
   !! /// info|Recursion scheme\n
   !! ![dlml\\_l]{../images/dlml.svg#only-light}(width=400 align=left)\n
   !! ![dlml\\_l]{../images/dlml_white.svg#only-dark}(width=400 align=left)\n
-  !! In the lefthand diagram shows the recursion scheme for `bw=6`. Diagonal arrows correspond to usage of the first recursion relation, i.e. $d^l\\_{m_1-1,l}\rightarrow d^{l+1}\\_{m_1,l}$ , and horizontal steps imply usage of the second recursion relation, i.e. $d^l\\_{m_1,l}\rightarrow d^{l+1}\\_{m_1,l}$.\n
+  !! The diagram shows the recursion scheme for `bw=6`. Diagonal arrows correspond to usage of the first recursion relation, i.e. $d^l\\_{m_1-1,l}\rightarrow d^{l+1}\\_{m_1,l}$ , and horizontal steps imply usage of the second recursion relation, i.e. $d^l\\_{m_1,l}\rightarrow d^{l+1}\\_{m_1,l}$.\n
   !! ///
   !!
   !! For a detailed usage example see the source of [compute_all_dlml_l_contiguous](namespacemake__wigner.md#function-compute_all_dlml_l_contiguous).
@@ -924,18 +981,7 @@ contains
   !! @brief Computes all $d^l\\_{m\\_1,m\\_2}(\beta)$ for $m\\_2=l<\\mathrm{bw}$.
   !!
   !! Computes all Wigner little d coefficients of the form d_lml(beta) with l<bw and stores the values in an l contiguous way.
-  !! That is dlml is stored at triangular_to_flat_index(m,l,bw)
-  !! 
-  !! $$d^l_{m,l}(\beta) = \Sqrt{\frac{2l+1}{2}} \sqrt{\frac{2l!}{(l+m)!(l-m)!}} \cos(\frac{\beta}{2})^{l+m} \sin(\frac{\beta}{2})^{l-m} $$
-  !!
-  !! as well as the following recursion relationships
-  !!
-  !!  $$d^{l+1}_{m,l+1}(\beta) = d^l_{m,l}*\sqrt{\frac{(2l+2)(2l+3)}{(l+m+1)(l-m+1)}} \cos(\frac{\beta}{2}) \sin(\frac{\beta}{2})$$
-  !!  $$d^{l+1}_{m,l+1}(\beta) = d^l_{m,l}*\sqrt{\frac{(2l+2)(2l+3)}{(l+m+1)(l+m+2)}} \cos(\frac{\beta}{2})^2 $$
-  !!
-  !! Note the normalization factor $\Sqrt{\frac{2l+1}{2}}$ in the above equations, for unormalized dlml the equations wold change slightly
-  !!
-  !! It seems that iterating between the two recurrences is the most stable computation approach. No overflow/underflow occurs at least till bw=5000.
+  !! That is $d^l\\_{m,l}$ is stored at index $=$ triangular_to_flat_index(m,l,bw)
   function compute_all_dlml_l_contiguous(bw,sincos,cos2,normalized) result(dlml)
     !! bandwidth 0<=l<bw
     integer(kind=dp),intent(in) :: bw
@@ -964,9 +1010,9 @@ contains
   !> -----
   !! @brief Compute $d^l\\_{m,l}$ for specific $l,m$.
   !!
-  !! DO NOT use for perfomance critical computations!  
   !! This is a convenience function that computes the small wigner-d matrix elements $d^l_{m,l}$ for specific $l,m$.
   !! It does so using the l-contiguous recurrence relation `dlml_recursion_l_contuguous`.
+  !! DO NOT use for perfomance critical computations!  
   function compute_dlml(l,m,sincos,cos2,normalized) result(dlml)
     !! Indices $l,m$ at which to compute d^l_{m,l}
     integer(kind = dp),intent(in) :: l,m
@@ -990,7 +1036,15 @@ contains
   !> --------
   !! @brief three term recurrence relation
   !!
+  !! This function implements the three term recurrence relation used by Kostelec
+  !! For a usage example usage see the source code of [genwig_l2](namespacemake__wigner.md#function-genwig_l2).
   !!
+  !! @param[in,out]   workspace   (SIZE(beta,1),3), storing the elements for the three term recurrence
+  !! @param[in]   cos   (SIZE(beta,1),), containing $\cos(\beta)$ values
+  !! @param[in]   l  degree to compute.
+  !! @param[in]   m1  first order
+  !! @param[in]   m2  second order
+  !! @param[in]   normalized  Whether or not to compute the L2 normalized wigners.
   subroutine wig_l_recurrence_kostelec(workspace,cos,l,m1,m2,normalized)
     !
     integer(kind = dp), intent(in) :: l,m1,m2
@@ -1033,28 +1087,9 @@ contains
   !!  generate all the Wigner little d functions whose orders
   !!  are (m1, m2) and degrees are j = max(|m1|, |m2|) = m2 through j = bw - 1
   !!  using the 3-term recurrence. 
-  !!  
-  !!  All of these Wigners will have L2 norm = 1
-  !!  
-  !!  
-  !!  let j = max(|m1|, |m2|)
-  !!  
-  !!  The functions generated will be
-  !!  
-  !!  d_{m1,m2}^j, d_{m1,m2}^{j+1}, ..., d_{m1,m2}^{bw-1}
-  !!  
-  !!  Each of these functions will be evaluated at the n = 2*bw-many
-  !!  points
-  !!  
-  !!  pi*(2 * [0..n-1] + 1) / ( 2 * n )
-  !!  
-  !!  If beta(k) = pi*(2*k+1)/(2*n), then what's returned will be the
-  !!  array
-  !!  
-  !!  d_{m1,m2}^j(beta(0)) ... d_{m1,m2}^{bw-1}(beta(0))
-  !!  d_{m1,m2}^j(beta(1)) ... d_{m1,m2}^{bw-1}(beta(1))
-  !!  d_{m1,m2}^j(beta(2)) ... d_{m1,m2}^{bw-1}(beta(2)) ...
-  !!  d_{m1,m2}^j(beta(n-1)) ... d_{m1,m2}^{bw-1}(beta(n-1))
+  !!
+  !!  When normalization = True is used all of these Wigners
+  !!  will have L2 norm = 1
   !!  
   !!  arguments: m1, m2 = orders of the functions
   !!             bw = bandwidth
@@ -1370,7 +1405,6 @@ contains
     end if
   end function wigner_mn_recurrence_risbo
 
-
   !> ---------
   !! @brief Computes the small Wigner d matrix $d^l\\_{m,n}(\beta)$ for fixed $l$.
   !!
@@ -1405,7 +1439,6 @@ contains
        dl = dl * SQRT(real(2*l+1_dp,kind=dp)/2._dp)
     end if
   end function wigner_dl_risbo
-
 
   !>--------
   !! @brief Symmetry reduced risbo recurrence for $d^l\\_{m,n}$
@@ -1604,7 +1637,6 @@ contains
     end do
   end subroutine genwig_all_risbo_preallocated
 
-
   !> --------
   !! @brief Computes all $d^l\\_{m,n}$ for $0 \\leq m \\leq n \leq l < bw$.
   !! 
@@ -1621,7 +1653,6 @@ contains
 
     call genwig_all_risbo_preallocated(bw,wigners,normalized)
   end function genwig_all_risbo
-
 
   !> ------
   !! @brief Convert symmetry reduced Wigner-d to full Wigner-d
@@ -1788,16 +1819,13 @@ module softclass
      procedure :: ifft
      procedure :: rfft
      procedure :: irfft
-  end type so3ft
-     
+  end type so3ft     
   interface so3ft
      module procedure :: init_soft
   end interface so3ft
-
   type :: so3ft_ptr
      type(so3ft),pointer :: p=>Null()
   end type so3ft_ptr
-
   abstract interface
      subroutine inverse_wigner_kostelec_interface(self,coeff,so3func,m1,m2,sym_array,sym_const_m1)
        import :: dp  ! Otherwise dp is undefined in _abstract interface blocks
@@ -2080,7 +2108,6 @@ contains
     type(so3ft) :: self
     call self%init(bw,lmax,precompute_wigners,init_ffts,recurrence_type,fftw_flags)
   end function init_soft
-
   subroutine destroy(self)
     class(so3ft),intent(inout) :: self
     ! Reset soft module variables
@@ -2110,8 +2137,8 @@ contains
     self%bw=0
     self%lmax=0
   end subroutine destroy
-
-  ! inverse wigner complex
+  
+  ! inverse  wigner complex
   subroutine inverse_wigner_loop_body_cmplx_kostelec_alloc(self,coeff,so3func,m1,m2,sym_array,sym_const_m1)
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(in) :: coeff(:)
@@ -2468,7 +2495,7 @@ contains
     real(kind=dp), allocatable :: dl(:,:)
     ! zeroing so3func needed since it will be populated by +=
     so3func = 0
-
+    
     allocate(dl(2*self%bw,(self%bw*(self%bw+1))/2))
     if (use_mp) then       
        ! non-fft part of the SO(3) fourier transform
@@ -2520,7 +2547,7 @@ contains
        end if
     end if
   end subroutine inverse_wigner_trf_cmplx
-  ! forward wigner complex
+  ! forward  wigner complex
   subroutine forward_wigner_loop_body_cmplx_kostelec_alloc(self,so3func,coeff,m1,m2,sym_array,sym_const_m1)
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(inout) :: coeff(:)
@@ -2879,7 +2906,7 @@ contains
        end if
     end if
   end subroutine forward_wigner_trf_cmplx
-  ! inverse wigner real
+  ! inverse  wigner real
   subroutine inverse_wigner_loop_body_real_kostelec_alloc(self,coeff,so3func,m1,m2,sym_array,sym_const_m1)
     ! This subroutine assumes 0<=m1<=m2<=bw
     ! which also means m = max(abs(m1),abs(m2)) = m2
@@ -3209,7 +3236,7 @@ contains
        end if
     end if
   end subroutine inverse_wigner_trf_real
-  ! forward wigner real
+  ! forward  wigner real
   subroutine forward_wigner_loop_body_real_kostelec_alloc(self,so3func,coeff,m1,m2,sym_array,sym_const_m1)
     ! This subroutine assumes 0<=m1<=m2<=bw
     ! which also means m = max(abs(m1),abs(m2)) = m2

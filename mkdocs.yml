@@ -132,6 +132,9 @@ markdown_extensions:
       block_tag: 'pre'
   - pymdownx.mark:  
   - pymdownx.saneheaders:
+  - pymdownx.blocks.admonition:
+      types:
+        - warning
   - pymdownx.blocks.details:
       types:
       - new
@@ -142,7 +145,6 @@ markdown_extensions:
       - tip
       - success
       - question
-      - warning
       - failure
       - danger
       - bug

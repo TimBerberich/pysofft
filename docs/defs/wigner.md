@@ -93,6 +93,8 @@ for m=0,bw-1
 		flmn = matmul(f,d_mn)
 ```
 The important thing here is that one can use highly efficient matrix multiplication to compute the inner sum over $l$. 
+For the same reason the Kostelec recurrence behaves much better when using OpenMP to accellerate computations.
+For details take a look at the [performance page](/speed).
 ///
 
 /// Example | compute $d^l_{m,n}$ for fixed $l$. 
