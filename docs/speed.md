@@ -9,8 +9,8 @@ Memory consumption becomes a nightmare though. The number of Wigner coefficients
 ///
 
 <p float="left" align="middle">
-  <img src="/images/single_core_speed_kostelec.png" width="490" />
-  <img src="/images/single_core_speed_risbo.png" width="490" /> 
+  <img src="single_core_speed_kostelec.png" width="490" />
+  <img src="single_core_speed_risbo.png" width="490" /> 
 </p>
 
 __Kostelec recurrence__
@@ -97,8 +97,8 @@ PySOFFT allows parallelization in two different ways:
 
 
 <p float="left" align="middle">
-  <img src="/images/mp_many_kostelec.png" width="490" />
-  <img src="/images/mp_many_risbo.png" width="490" /> 
+  <img src="mp_many_kostelec.png" width="490" />
+  <img src="mp_many_risbo.png" width="490" /> 
 </p>
 
 /// note | Code: Multi-core multi-transform speed test
@@ -151,8 +151,8 @@ for nthreads in [1,2,4,8,16,32,64]:
 ///
 
 <p float="left" align="middle">
-  <img src="/images/mp_single_kostelec.png" width="490" />
-  <img src="/images/mp_single_risbo.png" width="490" /> 
+  <img src="mp_single_kostelec.png" width="490" />
+  <img src="mp_single_risbo.png" width="490" /> 
 </p>
 
 /// note |Code: Multi-core single-transform speed test
