@@ -1,0 +1,77 @@
+---
+brief: True
+details: True
+implements: True
+url_source: True
+---
+
+{% macro _get(mapping_or_obj, key) -%}
+  {%- if mapping_or_obj is mapping -%}
+    {{- mapping_or_obj.get(key) -}}
+  {%- else -%}
+    {{- attribute(mapping_or_obj, key) if mapping_or_obj is not none and (mapping_or_obj|attr(key) is defined) else "" -}}
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro github_source_link(node,
+                            repo_url="https://github.com/TimBerberich/pysofft",
+                            ref="fortran",
+                            text="[source]") -%}
+  {# Doxygen location fields: file/line, and often bodyfile/bodystart #}
+  {%- set file = "" -%}
+  {%- set line = "" -%}
+  {%- set linestop = "" -%}	
+
+  {%- if node is not none -%}
+    {%- set file = node.location -%}
+	{% if node.code_language == 'Fortran' -%}
+       {%- set line = node.location_bodystart-1 -%}
+	   {%- set linestop = node.location_bodyend+1 -%}	
+	{% else %}
+	   {%- set line = node.location_bodystart -%}
+	   {%- set linestop = node.location_bodyend -%}	
+	{% endif %}
+  {%- endif -%}
+
+  {%- if file -%}
+    {%- set file = file | replace("\\", "/") -%}
+    {%- if line -%}
+[{{ text }}]({{ repo_url }}/blob/{{ ref }}/{{ file }}#L{{ line }}-L{{ linestop }}){target="_blank"}
+    {%- else -%}
+[{{ text }}]({{ repo_url }}/blob/{{ ref }}/{{ file }})
+    {%- endif -%}
+  {%- endif -%}
+{%- endmacro %}
+
+
+{# This template is used inside of member.py #}
+{% filter indent(config.get('indent_level', 0), True) %}
+
+ 
+### {{ node.name_long if node.is_group else node.name_short }} {{ node.overload_suffix }} <span style="float: right;">{{ github_source_link(node) }}</span> { #{{ node.kind.value }}-{{ node.name_long if node.is_group else node.name_short }}{{ node.overload_suffix }} }
+
+
+
+{% if configMemDef.get('brief') -%}
+{% if node.has_brief -%}
+{{node.brief + "\n"}}
+{%- endif -%}
+{%- endif -%}
+
+{{node.codeblock | use_code_language(node.code_language)}}
+
+
+{% if configMemDef.get('details') -%}
+{% if node.has_details -%}
+{{node.details | use_code_language(node.code_language)}}
+{%- endif -%}
+{%- endif -%}
+
+{% if configMemDef.get('implements') -%}
+{% if node.reimplements %}
+Implements [*{{node.reimplements.name_long}}*]({{node.reimplements.url}})
+{% endif %}
+{%- endif -%}
+{% endfilter %}
+
+<hr>

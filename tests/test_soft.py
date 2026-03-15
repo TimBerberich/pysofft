@@ -1,125 +1,78 @@
-import time
-import sys
 import numpy as np
+import pysofft
+from math import factorial
+from pysofft import _soft
+from pysofft import soft,Soft
+from multiprocessing import Pool
+import pytest
 
-from pysofft.make_wiegner import CosEvalPts,CosEvalPts2,SinEvalPts,SinEvalPts2,genWigTrans_L2
-from pysofft.make_wiegner import genWigAll,genWigAllTrans
-from pysofft.wignerTransform import wigNaiveSynthesis_fftw
-from pysofft.wignerWeights import makeweights2
-from pysofft.soft import Inverse_SO3_Naive_fft_pc,Forward_SO3_Naive_fft_pc,coefLoc_so3,sampLoc_so3,forward_fft,inverse_fft,forward_wigner,inverse_wigner 
-from c_arrays import tcoeff_forward, tcoeff_forward_2, tdata_inverse, tdata_inverse_ffted, tdata_inverse_ffted_2 
+try:
+    import shtns
+except Exception:
+    shtns=None
 
+def forked_soft(args):
+    s,c = args
+    f = s.isoft(c,use_mp=False)
+    return f
 
-
-def test_forward():
-    bw = 5
-    n=2*bw
-    cs = CosEvalPts(2*bw)
-    si2 = SinEvalPts2(2*bw)
-    cs2 = CosEvalPts2(2*bw)
-    
-    wigners = genWigAll(bw)
-    wignersT = genWigAllTrans(bw)
-    weights = makeweights2(bw)
-    
-    n_total_coeffs = int((4 * bw * bw * bw - bw ) / 3 +0.5)
-
-    #in_data = np.full(n**3,1+1j)#np.random.rand(n**3)+np.random.rand(n**3)*1j
-    in_data = np.arange(n**3)+1j #np.random.rand(n**3)+np.random.rand(n**3)*1j
-    in_data[0]=0
-    in_data = tdata_inverse_ffted_2
-    tcoeff = np.arange(n_total_coeffs) +1j
-    
-    data_is_complex = True
-    outcoeff = Forward_SO3_Naive_fft_pc(bw,in_data,weights,wigners,data_is_complex)
-    print(outcoeff)
-
-    is_close_mask = np.isclose(outcoeff,tcoeff,atol = 1e-15)
-    if is_close_mask.all():
-        print("test passed!")
-    else:
-        print("TEST FAILED!")
-        print("failing indices are \n {}".format(~is_close_mask))
-        print('max error ={}'.format(np.max(np.abs(tcoeff_forward_2-outcoeff))))
-    return locals()
-
-def test_inverse():
-    bw = 5
-    n=2*bw
-    
-    wignersT = genWigAllTrans(bw)
-    
-    n_total_coeffs = int((4 * bw * bw * bw - bw ) / 3 +0.5)
-    
-    in_coeff = np.full(n_total_coeffs,1+1j).astype(np.complex128) #np.random.rand(n**3)+np.random.rand(n**3)*1j
-    in_coeff = np.arange(n_total_coeffs) +1j
-    #in_coeff[:bw*n]=1+1j
-    
-    data_is_complex = True
-    data = Inverse_SO3_Naive_fft_pc(bw,in_coeff,wignersT,data_is_complex)
-    
-    is_close_mask = np.isclose(tdata_inverse_ffted_2,data,atol = 1e-15)
-    if is_close_mask.all():
-        print("test passed!")
-    else:
-        print("TEST FAILED!")
-        print("failing indices are \n {}".format(~is_close_mask))
-        print('max error ={}'.format(np.max(np.abs(tdata_inverse_ffted_2-data))))
-    return locals()
-
-def test_IF_loop(iterations = 1):
-    bw = 5
-    n=2*bw
-    start = time.time()
-
-    wigners = genWigAll(bw)
-    wignersT = genWigAllTrans(bw)
-    weights = makeweights2(bw)    
-    n_total_coeffs = int((4 * bw * bw * bw - bw ) / 3 +0.5)
-
-    #in_coeff = np.full(n_total_coeffs,1+1j)#np.random.rand(n**3)+np.random.rand(n**3)*1j
-    #in_coeff = np.arange(n_total_coeffs) +1.j
-    in_coeff = np.random.rand(n_total_coeffs)+0j#+np.random.rand(n_total_coeffs)*1j
-    data_is_complex = True
-    coeff = in_coeff.copy()
-    print('data generation took {}s'.format(time.time()-start))
-
-    inverse_time = 0
-    forward_time = 0
-    for i in range(iterations):
-        print('current iteration = {} of {}'.format(i+1,iterations))        
-        start_inverse = time.time()
-        data = Inverse_SO3_Naive_fft_pc(bw,coeff,wignersT,data_is_complex)
-        inverse_time += time.time()-start_inverse
-        start_forward = time.time()
-        coeff = Forward_SO3_Naive_fft_pc(bw,data,weights,wigners,data_is_complex)
-        forward_time += time.time()-start_forward
+class TestMultiprocessingCompatibility:
+    def test_fork_safety(self):
+        s = Soft(16,use_fftw_wisdom=True,init_ffts=True)
+        coeff = s.get_coeff(howmany=100,random=True)
+                
+        with Pool(8) as p:
+            d2 = p.map(forked_soft,[(s,c) for c in coeff])
+        d2 = np.array(d2)
         
-    print('forward SOFT took on average {}s using {} iterations'.format(forward_time/iterations,iterations))
-    print('inverse SOFT took on average {}s using {} iterations'.format(inverse_time/iterations,iterations))    
-    is_close_mask = np.isclose(coeff,in_coeff,atol = 1e-15)
-    if is_close_mask.all():
-        print("test passed!")
-    else:
-        print("TEST FAILED!")
-        print("failed indices mask \n {}".format(~is_close_mask))
-        print('max error ={}'.format(np.max(np.abs(in_coeff-coeff))))
-    return locals()
+        d = s.isoft_many(coeff,use_mp=True)
+        
+        assert np.allclose(d2,d),'Pool using forked Soft instance is not the same as native computation.'
+        
+    
+class TestRotate:
+    @pytest.mark.skipif(shtns is None, reason="python pakage 'shtns' is not installed but required for this test.")
+    def test_rotate(self):
+        #setup
+        lmax = 64
+        sh = shtns.sht(lmax)
+        n_coeff = (lmax+1)**2
+        n_phi = 256
+        n_theta = 128
+        sh.set_grid(polar_opt=0,flags=shtns.sht_gauss)
+        sh.set_grid(nlat=n_theta,nphi=n_phi,polar_opt=0,flags=shtns.sht_gauss)
+        phis=2*np.pi*np.arange(n_phi)/(n_phi*sh.mres)
+        thetas=np.arccos(sh.cos_theta)
+        
+        
+        rs = np.arange(10)
+        y_dens = np.zeros((len(thetas),len(phis)),dtype = complex)
+        delta = np.pi/64
+        y_dens[:,(phis<delta) + (phis>(2*np.pi-delta)) ]=1
+        y_dens_lm = sh.analys_cplx(y_dens)
+        
+        euler_angles = np.array([[0,0,0],[np.pi/2,0,0],[np.pi,0,0],[np.pi*3/2,0,0]])
+        res = np.squeeze(Soft.rotate_ylm_cmplx(y_dens_lm[None,...],euler_angles))
+        
+        y_out = [sh.synth_cplx(r) for r in res]
+        y_argmax = tuple(np.argmax(o.real.mean(axis = 0)) for o in y_out)
 
-# incoeff = np.random.rand(n_total_coeffs)+np.random.rand(n_total_coeffs)*1j
-# incoeff = np.full(n_total_coeffs,1+1j)
-# in_data = np.full(n**3,1+1j)#np.random.rand(n**3)+np.random.rand(n**3)*1j
-# in_data[:1]=0
-# data_is_complex = True
-# data = Inverse_SO3_Naive_fft_pc(bw,incoeff,wignersT,data_is_complex)
-# outcoeff = Forward_SO3_Naive_fft_pc(bw,data,weights,wigners,data_is_complex)
+        assert y_argmax == (0,64,128,192), 'Density maxima do not coincide with used righthanded rotations around z-axis.'
+        
+        z_dens = np.zeros((len(thetas),len(phis)),dtype = complex)
+        delta = np.pi/64
+        z_dens[(thetas<(np.pi/4+delta)) * (thetas>(np.pi/4-delta)) ,:]=1
+        z_dens *= y_dens
+        
+        z_dens_lm = sh.analys_cplx(z_dens)
+        euler_angles = np.array([[0,0,0],[0,np.pi/2,0],[0,np.pi,0],[0,np.pi*3/2,0]])
+        res = np.squeeze(Soft.rotate_ylm_cmplx(z_dens_lm[None,...],euler_angles))
+        
+        z_out = [sh.synth_cplx(r) for r in res]
+        phi_ids = tuple(np.argmax(o.real.mean(axis = 0)) for o in z_out)
+        theta_ids = tuple(np.argmax(o.real.mean(axis = 1)) for o in z_out)
+        assert (phi_ids == (0,0,128,128)) and (theta_ids == (31,96,96,31)), 'Density maxima do not coincide with right handed rotations around y-axis'
 
-#data = Inverse_00(bw,incoeff,wignersT,data_is_complex)
-#outcoeff = Forward_00(bw,in_data,weights,wigners,data_is_complex)
-
-#out_data= fft_test(bw,in_data)
-
-if __name__ == "__main__" :
-    #locals().update(test_forward())
-    #locals().update(test_inverse())
-    locals().update(test_IF_loop(iterations = 2))
+        #print(f"phi_loc = {[np.argmax(o.real.mean(axis=0))for o in z_out]}")
+        #print(f"theta_loc = {[np.argmax(o.real.mean(axis=1))for o in z_out]}")
+        

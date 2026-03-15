@@ -1,9 +1,4 @@
-[![Lates Release](https://img.shields.io/github/v/release/European-XFEL/xframe)](https://github.com/TimBerberich/pysofft/releases)
-![License](https://img.shields.io/github/license/TimBerberich/pysofft)
-![Language](https://img.shields.io/badge/language-python-blue)
-![Language](https://img.shields.io/badge/language-fortran-blue)
-
-#3 Fast Fourier transforms on the 3D rotation group $\mathrm{SO}(3)$
+# Fast Fourier transforms on the 3D rotation group $\mathrm{SO}(3)$
 PySOFFT provides high performance routines for harmonic analysis on the 3D rotation group written in Fortran and wrapped in Python.  
 
 $$
@@ -16,7 +11,7 @@ $$
 * X-ray scattering simulations of randomly oriented particles.
 
 ## Main features:
-* __Fast__ (see docs for more details)
+* [__Fast__](speed.md)
 * __OpenMP__ routines to speed up single transforms or compute many in parallel. 
 * Dedicated faster transforms for real data.
 * Compute __rotational cross-correlations__.
@@ -30,7 +25,7 @@ Now it is an entire rewrite in Fortran featuring several improvements, e.g highe
 For details on soft-2.0 see:  
 FFTs on the Rotation Group  
 J Fourier Anal Appl (2008) 14: 145–179  
-DOI [10.1007/s00041-008-9013-5](https://doi.org/10.1007/s00041-008-9013-5) ([pdf](https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Kostelec08.pdf))
+DOI [10.1007/s00041-008-9013-5](https://doi.org/10.1007/s00041-008-9013-5){target="_blank"} ([pdf](https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Kostelec08.pdf){target="_blank"})
 
 PySOFT is made available with consent of the original soft-2.0 authors and under the same GPL3 license.
 
@@ -42,10 +37,10 @@ The easiest installation option is via pip.
 The only python dependency is __numpy__.
 Non-python dependencies are __fftw__, __openmp__, __meson__, __gcc__ and __gfortran__.
 
-### Pixi
+/// info | pixi
  If you use [pixi](https://pixi.prefix.dev/latest/) you can use the following pixi.toml for installation.
  ``` toml
-  [workspace]
+ [workspace]
  channels = ["conda-forge"]
  description = "Workspace for pysofft"
  name = "temp"
@@ -67,7 +62,16 @@ Non-python dependencies are __fftw__, __openmp__, __meson__, __gcc__ and __gfort
  fftw = ">=3.3.10,<4"
  openmp = ">=8.0.1,<9"
  ```
- 
+///
+
+/// Info | Pitfall when installing on Clusters
+`pip install` triggers compitlation of the fortran code with `gfortran`.  
+One of the provided compiler options is `-march=native`, which enambles CPU specific optimizations.
+When installing pysofft on one node of the cluster and then trying to use pysofft on a different node the program can crash with an `Illegal instruction` error, if the CPUS are too different.
+
+To change that behaviour, you can clone the [pysofft repo](https://github.com/TimBerberich/pysofft/){target="_blank"} and delete `-march=native` from `pysofft/pysofft/meson.build` file.
+///
+
 ## Basic Usage Python
 	
 Forward and inverse transforms
@@ -109,3 +113,6 @@ print(f_lmn.lmn[l,m,:])
 # as well as value asignment
 f_lmn.lmn[l,m,:] = 1 + 1.j
 ```
+	
+	
+	

@@ -1,0 +1,7 @@
+{% extends "_base/module.html.jinja" %}
+{% import "source_link.html.jinja" as src %}
+
+{% block heading %}
+  <span class="doc-heading-text">{{ super() }}</span>
+  {{ src.github_link_inline(module, "[source]") }}
+{% endblock heading %}

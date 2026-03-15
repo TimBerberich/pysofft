@@ -1,0 +1,47 @@
+code {
+    tab-size: 4
+}
+
+.md-grid {
+	max-width: 1600px; /* pick what you like */
+}
+
+/* Applies to collapsible admonitions (??? / details) */
+.md-typeset details {
+  font-size: 0.8rem;
+}
+
+/* Applies to collapsible admonitions (??? / details) */
+.md-typeset .admonition {
+  font-size: 0.8rem;
+}
+
+
+/* mkdocstrings headings */
+.doc-heading {
+  display: flex;
+  align-items: baseline;
+  gap: .75rem;
+}
+
+.doc-heading-text {
+  min-width: 0;
+}
+
+.doc-gh-link {
+  margin-left: auto;      /* pushes to right */
+  font-size: 1em;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+/* Markdown tables in Material for MkDocs */
+.md-typeset table:not([class]) th {
+  background-color: #e6e6e6;  /* gray header */
+}
+
+/* Optional: better contrast in dark mode */
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) th {
+  background-color: #3a3a3a;
+}
