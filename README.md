@@ -1,5 +1,7 @@
 [![Lates Release](https://img.shields.io/github/v/release/European-XFEL/xframe)](https://github.com/TimBerberich/pysofft/releases)
 ![License](https://img.shields.io/github/license/TimBerberich/pysofft)
+[![Documentation](https://img.shields.io/readthedocs/pysofft)](https://pysofft.readthedocs.io/en/latest/)
+[![Documentation](https://img.shields.io/badge/documentation-online-blue)](https://pysofft.readthedocs.io/en/latest/)
 ![Language](https://img.shields.io/badge/language-python-blue)
 ![Language](https://img.shields.io/badge/language-fortran-blue)
 
