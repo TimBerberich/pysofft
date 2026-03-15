@@ -7,7 +7,7 @@ To the true connoisseurs among you, especially those coming over from [spherical
 I know, I share your pain ... euler angles are utterly disgusting and indeed quaternions,matrices ,or the axis-angle form are way better. Buuuut Euler angles bribed me ... with FFTs ... and I could not resist, for now at least. 
 ///
 
-![Euler angles](/images/eulerangles.png){ width="400" align=left } Using the corotation reference picture a rotation $(\alpha,\beta,\gamma)\in\mathrm{SO}(3)$ acts via:
+![Euler angles](../images/eulerangles.png){ width="400" align=left } Using the corotation reference picture a rotation $(\alpha,\beta,\gamma)\in\mathrm{SO}(3)$ acts via:
 
 1. Rotate by $\alpha$ around $\boldsymbol{z}$, which results in a new coordinate frame $(\boldsymbol{x'} ,\boldsymbol{y'} , \boldsymbol{z})$.
 2. Rotate by $\beta$ around $\boldsymbol{y'}$, which results in a new coordinate frame $(\boldsymbol{x''} ,\boldsymbol{y'} , \boldsymbol{z'})$.
