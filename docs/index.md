@@ -6,7 +6,7 @@ f:\mathrm{SO}(3) \rightarrow \mathbb{C} \quad \overset{\mathrm{PySOFFT}}{\longle
 $$
 
 ## Some applications:
-* Rotational alignment of datasets given by their spherical harmonic coefficients.
+* [Rotational alignment](usage/corr.md) of datasets given by their spherical harmonic coefficients.
 * Statistical analysis over SO(3).
 * X-ray scattering simulations of randomly oriented particles.
 
