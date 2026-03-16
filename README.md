@@ -24,6 +24,7 @@ $$
 * Compute __rotational cross-correlations__.
 * Built in Python wrapper.
 * On-the-fly computation of Wigner matrices: saving memory.
+* Documentation at [https://pysofft.readthedocs.io](https://pysofft.readthedocs.io)
 
 ## Origin
 PySOFFT started as a partial python port of soft-2.0 released by Peter Kostelec and Daniel Rockmore.
