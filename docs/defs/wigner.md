@@ -54,8 +54,8 @@ $$
 Starting from $d^{0}_{0,0}(\beta)=\sqrt{\frac{1}{2}}$ (i.e. the normed definition of $d^l_{m,n}$ these two recursion formulas are applied according to the following scheme 
 
 <figure markdown="span">
-	![dnmn](/images/dlml_simple.svg#only-light){width="300"}
-	![dnmn](/images/dlml_simple_white.svg#only-dark){width="300"}
+	![dnmn](../images/dlml_simple.svg#only-light){width="300"}
+	![dnmn](../images/dlml_simple_white.svg#only-dark){width="300"}
 	<figcaption style="width:1000px">Example recursion scheme for $0\leq m\leq n<6$. Diagonal arrows correspond to usage of the first recursion relation and horizontal arrows imply the application of the second recursion relation. The shown pattern continues for higher $n,m$. </figcaption>
 </figure>
 
@@ -147,10 +147,10 @@ $$
 
 graphically this can be represented as follows:
 
-![dnmn](/images/risbo_example_sym.svg#only-light){width="420"}
-![dnmn](/images/risbo_example_sym_white.svg#only-dark){width="420"}
-![dnmn](/images/risbo_kernel.svg#only-light){width="365"}
-![dnmn](/images/risbo_kernel_white.svg#only-dark){width="365"}
+![dnmn](../images/risbo_example_sym.svg#only-light){width="420"}
+![dnmn](../images/risbo_example_sym_white.svg#only-dark){width="420"}
+![dnmn](../images/risbo_kernel.svg#only-light){width="365"}
+![dnmn](../images/risbo_kernel_white.svg#only-dark){width="365"}
 
 On the left you can see the how the recurrence looks for the example of $d^{1}_{m,n} \rightarrow d^{\frac{3}{2}}_{m,n}$.
 On the right is a graphical representation of the recurrence kernel that has been given in the equation from above.
