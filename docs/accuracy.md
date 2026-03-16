@@ -1,4 +1,4 @@
-# Accurracy
+# Accuracy
 
 The critical part of PySOFT in terms of numerical accuracy is the computation of Wigner d matrices.
 Here we use the fact that Wigner should be orthogonal to verify the correctness of their computation.
