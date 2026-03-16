@@ -1,6 +1,5 @@
 from pysofft import _soft
 from pysofft.soft import Soft
-from pysofft import stats
 from pysofft import fftw
 from pysofft import omp
 from multiprocessing import cpu_count
