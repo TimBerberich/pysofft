@@ -15,7 +15,7 @@ from collections import namedtuple
 import multiprocessing
 
 
-fftw_flags = {n:int(getattr(_soft.softclass,n)) for n in dir(_soft.softclass) if n.startswith("fftw_")}
+fftw_flags = {n:int(getattr(_soft.py,n)) for n in dir(_soft.py) if n.startswith("fftw_")}
 tmp = namedtuple("FFTW_Flags",list(fftw_flags.keys()))
 
 flags = tmp(*fftw_flags.values())
@@ -42,7 +42,7 @@ def load_wisdom_from_file():
     Load fftw wisdom data.
     '''
     if _wisdom_file_path.exists():
-        _soft.softclass.load_fftw_wisdom(str(_wisdom_file_path))
+        _soft.py.load_fftw_wisdom(str(_wisdom_file_path))
 
 def save_wisdom_to_file():
     r'''
@@ -54,5 +54,5 @@ def save_wisdom_to_file():
     if multiprocessing.parent_process() is None:
         if not _wisdom_file_path.parent.exists():
             os.makedirs(str(_wisdom_file_path.parent))
-        _soft.softclass.save_fftw_wisdom(str(_wisdom_file_path))
+        _soft.py.save_fftw_wisdom(str(_wisdom_file_path))
     

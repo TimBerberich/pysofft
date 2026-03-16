@@ -13,13 +13,13 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",  
 ]
 dependencies = [
-    "numpy",
+    "numpy>=2.2.0,<3.0.0",
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 
 [project.urls]
 Homepage = "https://github.com/TimBerberich/pysofft"
 
 [build-system]
 build-backend = "mesonpy"
-requires = ["meson-python","meson","ninja","wheel","numpy","charset-normalizer"]
+requires = ["meson-python>=0.19.0,<0.20","meson>=1.8.1,<1.9.0","ninja","wheel","numpy>=2.2.0,<3.0.0","charset-normalizer"]

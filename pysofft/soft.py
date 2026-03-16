@@ -1,7 +1,6 @@
 import numpy as np
 from pysofft import _soft
 from pysofft._soft import py
-from pysofft._soft import softclass
 from pysofft import fftw
 import os
 from collections import namedtuple
@@ -28,7 +27,7 @@ class Soft:
     """
     _fortran_pointer = None
     _wisdom_path = os.path.expanduser('~/.config/pysofft/fftw_wisdom.dat')
-    recurrence_types = namedtuple('RecurrenceTypes',['kostelec','risbo'])(int(softclass.kostelec_recurrence),int(softclass.risbo_recurrence))
+    recurrence_types = namedtuple('RecurrenceTypes',['kostelec','risbo'])(int(py.get_kostelec_recurrence_val()),int(py.get_risbo_recurrence_val()))
 
     def __init__(self,
                  bw:int,

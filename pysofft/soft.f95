@@ -1819,7 +1819,7 @@ module softclass
      procedure :: ifft
      procedure :: rfft
      procedure :: irfft
-  end type so3ft     
+  end type so3ft
   interface so3ft
      module procedure :: init_soft
   end interface so3ft
@@ -5041,10 +5041,56 @@ end module softclass
 module py
   !! Contains versions of the type bound procedures of so3ft that can be wrapped with f2py.
   use precision
-  use softclass, only: so3ft,so3ft_ptr
+  use softclass, only: so3ft,so3ft_ptr,kostelec_recurrence,risbo_recurrence
   use omp_lib
+  use, intrinsic :: iso_c_binding
   implicit none
+  include 'fftw3.f03'
+  
 contains
+  function load_fftw_wisdom(file_path) result(error_code)
+    ! error_code == 0 means something went wrong in fftw
+    character(len=*),intent(in) :: file_path
+    integer(kind = dp) :: i
+    integer(C_INT) :: error_code
+    character(kind=c_char), dimension(LEN(file_path)+1) :: c_path
+    ! convert fortran to C string.
+    do i = 1, LEN(file_path)
+       c_path(i) = file_path(i:i)
+    end do
+    c_path(LEN(file_path)+1) = C_NULL_CHAR
+    error_code = fftw_import_wisdom_from_filename(c_path)
+  end function load_fftw_wisdom
+  function save_fftw_wisdom(file_path) result(error_code)
+    ! error_code == 0 means something went wrong in fftw
+    character(len=*),intent(in) :: file_path
+    integer(kind = dp) :: i
+    integer(C_INT) :: error_code
+    character(kind=c_char), dimension(LEN(file_path)+1) :: c_path
+    ! convert fortran to C string.
+    do i = 1, LEN(file_path)
+       c_path(i) = file_path(i:i)
+    end do
+    c_path(LEN(file_path)+1) = C_NULL_CHAR
+    error_code = fftw_export_wisdom_to_filename(c_path)
+  end function save_fftw_wisdom
+
+  function get_kostelec_recurrence_val(f2py_bug) result(id)
+    logical, intent(in) :: f2py_bug
+    logical :: f2py_bug_dummy
+    !f2py logical :: f2py_bug = 0
+    integer :: id
+    f2py_bug_dummy = f2py_bug ! only there to suppress warning during f2py compilation.
+    id = kostelec_recurrence
+  end function get_kostelec_recurrence_val
+  function get_risbo_recurrence_val(f2py_bug) result(id)
+    logical, intent(in) :: f2py_bug
+    logical :: f2py_bug_dummy
+    !f2py logical :: f2py_bug = 0
+    integer :: id
+    f2py_bug_dummy = f2py_bug ! only there to suppress warning during f2py compilation.
+    id = risbo_recurrence
+  end function get_risbo_recurrence_val
   subroutine OMP_set_num_threads_(nthreads)
     integer(kind = sp), intent(in) :: nthreads
     call OMP_set_num_threads(nthreads)
