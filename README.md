@@ -37,9 +37,10 @@ DOI [10.1007/s00041-008-9013-5](https://doi.org/10.1007/s00041-008-9013-5) ([pdf
 PySOFT is made available with consent of the original soft-2.0 authors and under the same GPL3 license.
 
 ## Installation
-The easiest installation option is via pip.
-	
-	pip install pysofft
+
+Untill I get to fix pypi the only way to get the current way of pysofft is to clone the repo go into its folder and call
+
+`pip install .`
 	
 The only python dependency is __numpy__.
 Non-python dependencies are __fftw__, __openmp__, __meson__, __gcc__ and __gfortran__.
