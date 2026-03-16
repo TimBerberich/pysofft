@@ -30,15 +30,13 @@ DOI [10.1007/s00041-008-9013-5](https://doi.org/10.1007/s00041-008-9013-5){targe
 PySOFT is made available with consent of the original soft-2.0 authors and under the same GPL3 license.
 
 ## Installation
-The easiest installation option is via pip.
-	
-	pip install pysofft
-	
-The only python dependency is __numpy__.
-Non-python dependencies are __fftw__, __openmp__, __meson__, __gcc__ and __gfortran__.
-
-/// info | pixi
- If you use [pixi](https://pixi.prefix.dev/latest/) you can use the following pixi.toml for installation.
+PySOFFT has the following non-python dependencies
+ [__fftw__](https://fftw.org/){target="_blank"},[__openmp__](https://www.openmp.org/){target="_blank"}, [__meson__](https://mesonbuild.com/){target="_blank"} and [__gcc__](https://gcc.gnu.org/){target="_blank"}.  
+ The only python dependency is [__numpy__](https://numpy.org/){target="_blank"}.
+### [Pixi](https://pixi.prefix.dev/latest/){target="_blank"}
+ The advantage of pixi is that all non-python dependencies are installed automatically.
+ You can use the following pixi.toml for installation.
+ /// info | pixi.toml
  ``` toml
  [workspace]
  channels = ["conda-forge"]
@@ -61,15 +59,59 @@ Non-python dependencies are __fftw__, __openmp__, __meson__, __gcc__ and __gfort
  meson-python = ">=0.19.0,<0.20"
  fftw = ">=3.3.10,<4"
  openmp = ">=8.0.1,<9"
+ 
+ [pypi-dependencies]
+ pysofft = ">=0.9.0, <2.0.0"
  ```
-///
+ ///
+ after placing the above `pixi.toml` in an empty directory you can install the environment using
+ 
+ ```bash
+ pixi update
+ ```
+ and finally access a pixi shell using 
+ 
+ ```bash
+ pixi shell
+ ```
+ 
+ 
+### [PyPi](https://pypi.org/project/pysofft/){target="_blank"}
+PySOFFT can be installed via 
+```bash
+pip install pysofft
+```
+NOTE: This install will fail if some of the non-python dependencies are not installed on your system.
 
-/// Info | Pitfall when installing on Clusters
-`pip install` triggers compitlation of the fortran code with `gfortran`.  
-One of the provided compiler options is `-march=native`, which enambles CPU specific optimizations.
-When installing pysofft on one node of the cluster and then trying to use pysofft on a different node the program can crash with an `Illegal instruction` error, if the CPUS are too different.
+### Git Clone + pip
+You can also git clone and pip install.
 
-To change that behaviour, you can clone the [pysofft repo](https://github.com/TimBerberich/pysofft/){target="_blank"} and delete `-march=native` from `pysofft/pysofft/meson.build` file.
+```bash
+git clone https://github.com/TimBerberich/pysofft
+cd pysofft
+pip install .
+```
+NOTE: This install will fail if some of the non-python dependencies are not installed on your system.  
+
+Editable installs are possible by substituting the last line with
+```bash
+pip install --no-build-isolation -e .
+```
+
+/// Info | CPU specific optimization
+This can significally speed up computations.  
+You can use them by adding `-march=native` to the lines in 
+`pysofft/pysofft/meson.build` starting with `c_args` and `fortran_args`, before calling `pip install .`.  
+The relevant lines should then be
+```
+  fortran_args: ['-fopenmp','-lfftw3', '-O3', '-fno-math-errno', '-fno-trapping-math', '-march=native'],	
+```
+
+and 
+
+```
+  c_args: ['-fopenmp','-lfftw3', '-O3', '-fno-math-errno', '-fno-trapping-math', '-march=native'],	
+```
 ///
 
 ## Basic Usage Python

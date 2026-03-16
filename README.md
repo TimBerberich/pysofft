@@ -18,7 +18,7 @@ $$
 * X-ray scattering simulations of randomly oriented particles.
 
 ## Main features:
-* __Fast__ (see docs for more details)
+* [__Fast__](https://pysofft.readthedocs.io/en/latest/speed/)
 * __OpenMP__ routines to speed up single transforms or compute many in parallel. 
 * Dedicated faster transforms for real data.
 * Compute __rotational cross-correlations__.
@@ -38,6 +38,9 @@ PySOFT is made available with consent of the original soft-2.0 authors and under
 
 ## Installation
 
+See the documentation for details:
+
+
 Untill I get to fix pypi the only way to get the current way of pysofft is to clone the repo go into its folder and call
 
 `pip install .`
@@ -47,8 +50,8 @@ Non-python dependencies are __fftw__, __openmp__, __meson__, __gcc__ and __gfort
 
 ### Pixi
  If you use [pixi](https://pixi.prefix.dev/latest/) you can use the following pixi.toml for installation.
- ``` toml
-  [workspace]
+  ``` toml
+ [workspace]
  channels = ["conda-forge"]
  description = "Workspace for pysofft"
  name = "temp"
@@ -69,6 +72,9 @@ Non-python dependencies are __fftw__, __openmp__, __meson__, __gcc__ and __gfort
  meson-python = ">=0.19.0,<0.20"
  fftw = ">=3.3.10,<4"
  openmp = ">=8.0.1,<9"
+ 
+ [pypi-dependencies]
+ pysofft = ">=0.9.0, <2.0.0"
  ```
  
 ## Basic Usage Python
