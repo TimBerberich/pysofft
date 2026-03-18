@@ -45,13 +45,13 @@ You can install PySOFT via
 
 `pip install pysofft`
 	
-The only python dependency is __numpy__.  
-Non-python dependencies are __fftw__, __openmp__, __meson__, __gcc__ and __gfortran__.  
-Note: If you don't have some of the non-python dependencies installed the install will fail!
+The only python dependency is [__numpy__](https://numpy.org/).  
+Non-python dependencies are:  [__fftw__](https://fftw.org/), [__openmp__](https://www.openmp.org/), [__meson__](https://mesonbuild.com/) and [__gcc__/__gfortran__](https://gcc.gnu.org/).  
+__Note:__ If you don't have some of the non-python dependencies installed the install will fail!
 
 ### Pixi
- If you use [pixi](https://pixi.prefix.dev/latest/) you can use the following pixi.toml for installation.
- This way you dont have to care about the non-python dependencies separately.
+ If you use [pixi](https://pixi.prefix.dev/latest/) you can use the following pixi.toml for installation.  
+ Here you don't have to install the non-python dependencies separately.
  
   ``` toml
  [workspace]
