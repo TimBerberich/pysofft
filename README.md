@@ -39,18 +39,20 @@ PySOFT is made available with consent of the original soft-2.0 authors and under
 
 ## Installation
 
-See the documentation for details:
+See the [documentation](https://pysofft.readthedocs.io) for more details:
 
+You can install PySOFT via 
 
-Untill I get to fix pypi the only way to get the current way of pysofft is to clone the repo go into its folder and call
-
-`pip install .`
+`pip install pysofft`
 	
 The only python dependency is __numpy__.
 Non-python dependencies are __fftw__, __openmp__, __meson__, __gcc__ and __gfortran__.
+Note: If you don't have some of the non-python dependencies installed the install will fail!
 
 ### Pixi
  If you use [pixi](https://pixi.prefix.dev/latest/) you can use the following pixi.toml for installation.
+ This way you dont have to care about the non-python dependencies separately.
+ 
   ``` toml
  [workspace]
  channels = ["conda-forge"]
