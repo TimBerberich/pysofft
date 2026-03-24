@@ -3600,6 +3600,7 @@ contains
     fft_array=0.0_dp
     call self%inverse_wigner_trf_cmplx(coeff,fft_array,use_mp)
     call dfftw_execute_dft(self%plan_c2c_forward,fft_array,so3func)
+    so3func = so3func * (1._dp/(2._dp*pi))
   end subroutine isoft_
   subroutine isoft(self,coeff,so3func,use_mp)
     class(so3ft),intent(inout) :: self
@@ -3621,7 +3622,10 @@ contains
     
     fft_array = 0.0_dp
     call dfftw_execute_dft(self%plan_c2c_backward,so3func,fft_array)
-    fft_array = fft_array * (1._dp/real(2_dp*self%bw,kind=dp)**2) ! * 1/(2*bw) * 1/(2*bw)    
+    fft_array = fft_array * (2._dp*pi/real(2_dp*self%bw,kind=dp)**2) ! * [(2*pi/(2*bw) * 1/sqrt(2*pi))] * [2*pi/(2*bw) * 1/sqrt(2*pi)]
+    ! 2*pi/(2*bw) corrects the integration range of a single fourier transform while 1/(sqrt(2*pi)) is due to the used normalization
+    ! of the Wigner d matrices, that is  (D^l_m,n)^{ortho} = \sqrt{(2l+1)/8\pi^2}, where \sqrt{(2l+1)/2} is already contained in
+    ! the small wigner matrices d^l_mn
     call self%forward_wigner_trf_cmplx(fft_array,coeff,use_mp)
   end subroutine soft_
   subroutine soft(self,so3func,coeff,use_mp)
@@ -3647,6 +3651,7 @@ contains
     call self%inverse_wigner_trf_real(coeff,fft_array,use_mp)
     fft_array = CONJG(fft_array) ! to correct for the fact that we have to compute the forward not the backward fft.
     call dfftw_execute_dft_c2r(self%plan_c2r_backward,fft_array,so3func)
+    so3func = so3func * (1._dp/(2._dp*pi))
   end subroutine irsoft_
   subroutine irsoft(self,coeff,so3func,use_mp)
     class(so3ft),intent(inout) :: self
@@ -3668,7 +3673,7 @@ contains
     
     fft_array=0.0_dp
     call dfftw_execute_dft_r2c(self%plan_r2c_forward,so3func,fft_array)
-    fft_array = fft_array * (1._dp/real(2_dp*self%bw,kind=dp)**2) ! * 1/(2*bw) * 1/(2*bw)
+    fft_array = fft_array * (2._dp*pi/real(2_dp*self%bw,kind=dp)**2) ! * 1/(2*bw) * 1/(2*bw)
     fft_array = CONJG(fft_array) ! to correct for the fact that we have to compute the backward not the forward fft.
     call self%forward_wigner_trf_real(fft_array,coeff,use_mp)    
   end subroutine rsoft_

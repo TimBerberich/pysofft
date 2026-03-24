@@ -97,13 +97,13 @@ def wigner_Dlmn_limited_l(l,m,n,alpha,beta,gamma):
         else:
             raise NotImplementedError()
     d *=normalization
-    D = np.exp(-1.j*m*alpha[None,:,None])*d[:,None,None]*np.exp(-1.j*n*gamma[None,None,:])
+    D = (1/(2*np.pi))*np.exp(-1.j*m*alpha[None,:,None])*d[:,None,None]*np.exp(-1.j*n*gamma[None,None,:])
     return D
 
 def cos_2eta_coeff(l,eta):
     from math import lgamma
     if l<=(2*eta) and l%2==0:
-        kcos = (2*eta+1)*np.sqrt((2*l+1)/2)
+        kcos = (2*eta+1)*np.sqrt((2*l+1)/2)*2*np.pi
         ll=l//2
         return kcos*np.exp(lgamma(2*eta+1)+lgamma(eta+ll+1)+(l+1)*np.log(2)-lgamma(eta-l//2+1)-lgamma(2*eta+l+2))
     else:
