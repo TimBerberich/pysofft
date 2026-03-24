@@ -70,35 +70,36 @@ class CharFuncSO3(np.ndarray):
     property that calculates the SO3 distribution by inverse fourier transform of the current characteristic function.
     """
     def __new__(cls,bw : int,char_func=None,density=None):
-        _soft = Soft(bw)
+        s = Soft(bw)
         _density_shape = (2*bw)*3
-        char = _soft.get_empty_coeff()
+        char = s.get_coeff(raw = True)
         char[0]=1
         if char_func is not None:
             assert char_func.shape == char.shape, f'specified characteristic function has wrong shape, expected {char.shape} given shape {char_func.shape}'
             char = char_func
         elif density is not None:
             assert density.shape == _density_shape, f'specified density has wrong shape, expected {_density_shape} given shape {density.shape}'
-            char[:]=soft.forward_cmplx(density)
+            char[:]= s.soft(density)
 
         char = char.view(cls)
 
-        char._soft = _soft
+        char._soft = s
         char._density_shape=_density_shape
         
-        lnks = _soft.lnks
+        lnks = s.coeff_indices
         char.lnk = CharView(char,lnks)
         char.so3_const = np.sqrt(8*np.pi**2) # sqrt of SO(3) volume.
-        char.so3_grid = _soft.grid
+        char.so3_grid = np.stack(np.meshgrid(*s.euler_angles.values(),indexing='ij'),3) #beta,gamma,alpha
+        char.legendre_weights = _soft.utils.legendre_quadrature_weights(s.bw)
         return char
     @property
     def distrib(self):
-        return self._soft.inverse_cmplx(self).reshape(self.so3_grid.shape[:-1])/self.so3_const
+        return self._soft.isoft(self)/self.so3_const
     @property
     def pmf(self):
         density = self.distrib
         N = len(self.so3_grid)
-        pmf = (density.real*(2*np.pi/N)**2*self._soft.legendre_weights[None,:,None])
+        pmf = (density.real*(2*np.pi/N)**2*self.legendre_weights[:,None,None])
         min_pmf = pmf.min()
         if min_pmf<0:
             pmf[pmf<np.abs(min_pmf)]=0
@@ -107,8 +108,9 @@ class CharFuncSO3(np.ndarray):
         
     @property
     def integrate_distrib(self):
-        distrib = self._soft.inverse_cmplx(self).reshape(self.so3_grid.shape[:-1])/self.so3_const
+        distrib = self._soft.inverse_cmplx(self)/self.so3_const
         return self._soft.integrate_over_so3(distrib)
+    
     def sample(self,size = 100):
         pmf = self.pmf.copy()
         flat_pmf = pmf.reshape(-1)
