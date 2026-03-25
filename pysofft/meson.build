@@ -24,8 +24,19 @@ incdir_f2py = run_command(py,
 inc_np = include_directories(incdir_numpy, incdir_f2py,fftw_include)
 
 f2py_skip = fs.read('f2py_skip.txt',encoding: 'utf-8')
+
+# Order matters for f2py scanning: provider module first
+fortran_sources = files(
+  'precision.f90',
+  'math_constants.f90',
+  'utils.f90',
+  'wigner.f90',
+  'soft.f08',
+  'py_wrap.f90'	
+)
+
 pysofft_source = custom_target('_softmodule.c',
-  input : ['soft.f95'],  # .f so no F90 wrappers
+  input : fortran_sources,  # .f so no F90 wrappers
   output : ['_softmodule.c', '_soft-f2pywrappers2.f90'],
   command : [py, '-m', 'numpy.f2py','-I','/usr/include','-m', '_soft',
              '--lower','skip:',f2py_skip,':','@INPUT@', '--build-dir', 'pysofft'],
@@ -39,7 +50,8 @@ run_command(py,
 
 py.extension_module('_soft',
   [
-    'soft.f95', pysofft_source
+    fortran_sources,
+	pysofft_source
   ],
   incdir_f2py / 'fortranobject.c',
   # for debugging: -g -fbacktrace in fortran_args and -g in c_args
