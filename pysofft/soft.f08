@@ -170,14 +170,14 @@ contains
     
     
     if (self%plans_allocated_c .AND. (.NOT. apply_to_real_fft)) then
-       call self%dealloc_fft_arrays(.TRUE.)
+       call self%dealloc_fft_arrays(.False.)
        call dfftw_destroy_plan(self%plan_c2c_forward)
        call dfftw_destroy_plan(self%plan_c2c_backward)
        self%plans_allocated_c = .FALSE.
     end if
 
     if (self%plans_allocated_r .AND. apply_to_real_fft) then
-       call self%dealloc_fft_arrays(.FALSE.)
+       call self%dealloc_fft_arrays(.True.)
        call dfftw_destroy_plan(self%plan_r2c_forward)
        call dfftw_destroy_plan(self%plan_c2r_backward)
        self%plans_allocated_r = .FALSE.
