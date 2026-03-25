@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.stats import rv_discrete
-from pysofft import _soft,Soft
+from pysofft import _soft,Soft,wigner,utils
 
 ########################################
 ## Probability distributions on SO(3) ##
@@ -70,35 +70,36 @@ class CharFuncSO3(np.ndarray):
     property that calculates the SO3 distribution by inverse fourier transform of the current characteristic function.
     """
     def __new__(cls,bw : int,char_func=None,density=None):
-        _soft = Soft(bw)
+        s = Soft(bw)
         _density_shape = (2*bw)*3
-        char = _soft.get_empty_coeff()
+        char = s.get_coeff(raw = True)
         char[0]=1
         if char_func is not None:
             assert char_func.shape == char.shape, f'specified characteristic function has wrong shape, expected {char.shape} given shape {char_func.shape}'
             char = char_func
         elif density is not None:
             assert density.shape == _density_shape, f'specified density has wrong shape, expected {_density_shape} given shape {density.shape}'
-            char[:]=soft.forward_cmplx(density)
+            char[:]= s.soft(density)
 
         char = char.view(cls)
 
-        char._soft = _soft
+        char._soft = s
         char._density_shape=_density_shape
         
-        lnks = _soft.lnks
+        lnks = s.coeff_indices
         char.lnk = CharView(char,lnks)
         char.so3_const = np.sqrt(8*np.pi**2) # sqrt of SO(3) volume.
-        char.so3_grid = _soft.grid
+        char.so3_grid = np.stack(np.meshgrid(*s.euler_angles.values(),indexing='ij'),3) #beta,gamma,alpha
+        char.legendre_weights = _soft.utils.legendre_quadrature_weights(s.bw) 
         return char
     @property
     def distrib(self):
-        return self._soft.inverse_cmplx(self).reshape(self.so3_grid.shape[:-1])/self.so3_const
+        return self._soft.isoft(self)/self.so3_const
     @property
     def pmf(self):
         density = self.distrib
         N = len(self.so3_grid)
-        pmf = (density.real*(2*np.pi/N)**2*self._soft.legendre_weights[None,:,None])
+        pmf = (density.real*(2*np.pi/N)**2*self.legendre_weights[None,None,:])
         min_pmf = pmf.min()
         if min_pmf<0:
             pmf[pmf<np.abs(min_pmf)]=0
@@ -107,8 +108,9 @@ class CharFuncSO3(np.ndarray):
         
     @property
     def integrate_distrib(self):
-        distrib = self._soft.inverse_cmplx(self).reshape(self.so3_grid.shape[:-1])/self.so3_const
+        distrib = self._soft.inverse_cmplx(self)/self.so3_const
         return self._soft.integrate_over_so3(distrib)
+    
     def sample(self,size = 100):
         pmf = self.pmf.copy()
         flat_pmf = pmf.reshape(-1)
@@ -218,7 +220,7 @@ class CharFuncSO3(np.ndarray):
 class CharFuncFactory:
     """
     Factory that can create various characteristic functions of probability distribitions on SO(3)
-    
+    All of the distributions here use orthonormalized versions of the Wigner D matrices
     ...
 
     Methods
@@ -239,21 +241,21 @@ class CharFuncFactory:
         return u
 
     @staticmethod
-    def delta(bw = 16,angle_ids=None):
+    def delta(bw = 16,angles=None):
         r'''
         Creates characteristic function for the deltadistribution 
         $$ M_{lnk} = D^l_{nk}(\alpha,\beta,\gamma) $$        
         '''        
         delta = CharFuncSO3(bw)
-        if angle_ids is not None:            
-            D = delta._soft.wigners
-            delta[:]=D.abg[angle_ids[0],angle_ids[1],angle_ids[2]]
+        if angles is not None:
+            a,b,g = angles
+            delta[:]=wigner.full_big_d_risbo(bw,a,b,g,True).conj()
         else:
-            lnks = delta._soft.lnks
+            lnks = delta.lnk._lnks
             delta[:]=0
             for _id,(l,n,k) in enumerate(lnks):
                 if n==k:
-                    delta[_id]=1
+                    delta[_id] = np.sqrt((2*l+1)/(8*np.pi**2))
         return delta
     
 
@@ -263,16 +265,16 @@ class CharFuncFactory:
         if sigma<np.sqrt(2*np.pi)/bw:
             log.warning('sigma < sqrt(2*pi)/bw : distribution will contain negative values due to finite sampling. Incriase bw or decrease sigma to avoid this situation.')
         gauss = CharFuncSO3(bw)
-        coeffs = gauss._soft.lnks
+        coeffs = gauss.lnk._lnks
         if center_rotation is None:
             for _id,(l,n,k) in enumerate(coeffs):
                 if n == k:
-                    gauss[_id]=np.exp(-sigma**2*l*(l+1)/2)
+                    gauss[_id] = np.sqrt((2*l+1)/(8*np.pi**2)) * np.exp(-sigma**2*l*(l+1)/2)
                 else:
                     gauss[_id]=0
         else:
-            D = gauss._soft.wigners
-            gauss[:]=D.abg[center_rotation[0],center_rotation[1],center_rotation[2]]
+            a,b,g = center_rotation
+            gauss[:]=wigner.full_big_d_risbo(bw,a,b,g,True)
             for _id,(l,n,k) in enumerate(coeffs):
                 gauss[_id]*=np.exp(-sigma**2*l*(l+1)/2)
         return gauss
