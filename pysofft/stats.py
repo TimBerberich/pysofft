@@ -1,6 +1,12 @@
 import numpy as np
-from scipy.stats import rv_discrete
 from pysofft import _soft,Soft,wigner,utils
+try:
+    from scipy.stats import rv_discrete
+except ImportError as e:
+    raise ImportError(
+        "pysofft.stats requires the optional 'stats' dependencies. "
+        "Install them with: pip install 'pysofft[stats]'"
+    ) from e
 
 ########################################
 ## Probability distributions on SO(3) ##

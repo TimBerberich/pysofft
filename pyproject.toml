@@ -17,6 +17,10 @@ dependencies = [
 ]
 requires-python = ">=3.11"
 
+[project.optional-dependencies]
+stats = [
+  "scipy>=1.13",
+]
 [project.urls]
 Homepage = "https://github.com/TimBerberich/pysofft"
 

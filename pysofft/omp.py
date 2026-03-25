@@ -2,16 +2,20 @@
 Wrapper for fftw options
 '''
 from pysofft import _soft
+from multiprocessing import cpu_count
 
-def set_num_threads(nthreads:int):
+def set_num_threads(nthreads:int=None):
     r'''
     Set the maximal number of OpenMP threads.
     
     Parameters
     ----------
     nthreads:int64
-        Maximal number of threads.
+        Maximal number of threads. By default nthreads is set to half the available cpu threads.
     '''
+    if nthreads is None:
+        nthreads = cpu_count()//2
+    
     _soft.py.omp_set_num_threads_(nthreads)
     
 def get_max_threads()->int:
