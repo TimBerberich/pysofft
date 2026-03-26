@@ -251,7 +251,8 @@ contains
     
     if (use_real_fft) then
        
-       fft_onembed = [bw2/2+1,bw2]
+       !fft_onembed = [bw2/2+1,bw2]
+       fft_onembed = [bw2,bw2/2+1]
        call self%alloc_fft_arrays(.TRUE.)
        self%plan_r2c_forward_p = fftw_plan_many_dft_r2c(&
             & fft_rank,fft_n,fft_howmany,&
@@ -314,8 +315,10 @@ contains
     if (use_real_fft) then
        self%fft_r2c_out_p = fftw_alloc_real(int(bw2 * bw2 * bw2, C_SIZE_T))
        call c_f_pointer(self%fft_r2c_out_p, self%fft_r2c_out, [bw2,bw2,bw2])
-       self%fft_c2r_in_p = fftw_alloc_complex(int(bw2 * (bw2/2+1) * bw2, C_SIZE_T))
-       call c_f_pointer(self%fft_c2r_in_p, self%fft_c2r_in, [bw2,bw2/2+1,bw2])
+       !self%fft_c2r_in_p = fftw_alloc_complex(int(bw2 * (bw2/2+1) * bw2, C_SIZE_T))
+       !call c_f_pointer(self%fft_c2r_in_p, self%fft_c2r_in, [bw2,bw2/2+1,bw2])
+       self%fft_c2r_in_p = fftw_alloc_complex(int((bw2/2+1) * bw2 * bw2, C_SIZE_T))
+       call c_f_pointer(self%fft_c2r_in_p, self%fft_c2r_in, [bw2/2+1,bw2,bw2])
     else
        self%fft_c2c_in_p = fftw_alloc_complex(int(bw2 * bw2 * bw2, C_SIZE_T))
        call c_f_pointer(self%fft_c2c_in_p, self%fft_c2c_in, [bw2,bw2,bw2])
