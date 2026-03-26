@@ -1,6 +1,7 @@
 import numpy as np
 from pysofft import _soft
 from pysofft._soft import py
+from pysofft._fftw_aligned_alloc import create_float64,create_complex128
 from pysofft import fftw
 import os
 from collections import namedtuple
@@ -11,9 +12,6 @@ utils = _soft.utils
 def log(txt):
     print(txt)
 
-#> ---
-## @brief fubar
-##
 class Soft:
     r"""
     Python wrapper arround fortran class, that handles all transforms.
@@ -151,10 +149,11 @@ class Soft:
         s.get_coeff(random=True)
         ```
         '''
+        n_coeff = utils.total_num_coeffs(self.bw)
         if howmany>0:
-            coeff = utils.get_empty_coeff_many(self.bw,howmany).T #Transpose to go from F_CONTIGUOUS to C_CONTIGUOUS array
+            coeff = create_complex128((howmany,n_coeff))
         else:
-            coeff = utils.get_empty_coeff(self.bw)
+            coeff = create_complex128(n_coeff)
         if random:
             coeff = self._fill_random(coeff,seed=seed)
             if real:
@@ -168,11 +167,14 @@ class Soft:
                         utils.enforce_real_sym_lmn_many(coeff.T,self.bw)
                     else:
                         utils.enforce_real_sym_lmn(coeff,self.bw)
+        else:
+            coeff[:]=0
+            
         if not raw:
             if (self.recurrence_type == self.recurrence_types.kostelec) or self.wigners_are_precomputed:
                 coeff = CoeffSO3(coeff,self.coeff_indices,coeff_order = 'mnl')
             else:
-                coeff = CoeffSO3(coeff,self.coeff_indices,coeff_order = 'lmn')
+                coeff = CoeffSO3(coeff,self.coeff_indices,coeff_order = 'lmn')        
         return coeff
 
     def get_so3func(self,real=False,random=False,seed=12345,howmany=0):
@@ -203,19 +205,22 @@ class Soft:
         s.get_so3func(random=True)
         ```
         '''
+        euler_shape = utils.euler_shape(self.bw)
         if real:
             if howmany>0:
-                func = utils.get_empty_so3func_real_many(self.bw,howmany)
+                func = create_float64((howmany,)+euler_shape)
             else:
-                func = utils.get_empty_so3func_real(self.bw)
+                func = create_float64(euler_shape)
         else:
             if howmany>0:
-                func = utils.get_empty_so3func_cmplx_many(self.bw,howmany)
+                func = create_complex128((howmany,)+euler_shape)
             else:
-                func = utils.get_empty_so3func_cmplx(self.bw)
+                func = create_complex128(euler_shape)
         if random:
             func = self._fill_random(func,seed=seed)
-        return func.T #Transpose to go from F_CONTIGUOUS to C_CONTIGUOUS array
+        else:
+            func[:]=0
+        return func
 
     def enforce_real_symmetry(self,coeff):
         r'''

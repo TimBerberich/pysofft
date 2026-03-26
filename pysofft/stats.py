@@ -1,5 +1,6 @@
 import numpy as np
 from pysofft import _soft,Soft,wigner,utils
+
 try:
     from scipy.stats import rv_discrete
 except ImportError as e:

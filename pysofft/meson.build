@@ -48,6 +48,7 @@ run_command(py,
   check : true
 ).stdout().strip()
 
+# Fortran part
 py.extension_module('_soft',
   [
     fortran_sources,
@@ -64,6 +65,17 @@ py.extension_module('_soft',
   dependencies : [py_dep, omp, fftw],
   subdir: 'pysofft',
   install : true,
+)
+
+# C routine for fftw array creation
+py.extension_module(
+  '_fftw_aligned_alloc',
+  '_fftw_aligned_alloc.c',
+  c_args: ['-O3', '-DNPY_NO_DEPRECATED_API=NPY_2_0_API_VERSION'],
+  include_directories: inc_np,
+  dependencies: [py_dep, fftw],
+  subdir: 'pysofft',
+  install: true,
 )
 #add_global_arguments('--opt="-O3 -fno-math-errno -fno-trapping-math"', language : 'fortran')
 

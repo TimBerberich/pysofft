@@ -564,7 +564,7 @@ contains
     integer(kind=idp) ,intent(in) :: bw
     integer(kind=idp) :: n
     do n=1,SIZE(coeff_many,2)
-       call enforce_real_sym_mnl(coeff_many(:,n),bw)
+       call enforce_real_sym_lmn(coeff_many(:,n),bw)
     end do
   end subroutine enforce_real_sym_lmn_many
   

@@ -25,11 +25,19 @@ module softclass
      real(kind = dp), allocatable :: trig_samples_risbo(:,:)
      real(kind = dp), allocatable :: sqrts_risbo(:)
      real(kind = dp), allocatable :: legendre_weights(:)
-     real(kind = dp), allocatable :: fft_r2c_out(:,:,:)
-     complex(kind = dp), allocatable :: fft_c2c_in(:,:,:)
-     complex(kind = dp), allocatable :: fft_c2r_in(:,:,:)
-     complex(kind = dp), allocatable :: fft_c2c_out(:,:,:)
+     real(kind = c_dp), pointer :: fft_r2c_out(:,:,:) => null()
+     type(c_ptr) :: fft_r2c_out_p = c_null_ptr
+     complex(kind = c_cdp), pointer :: fft_c2c_in(:,:,:) => null()
+     type(c_ptr) :: fft_c2c_in_p = c_null_ptr
+     complex(kind = c_cdp), pointer :: fft_c2r_in(:,:,:) => null()
+     type(c_ptr) :: fft_c2r_in_p = c_null_ptr
+     complex(kind = c_cdp), pointer :: fft_c2c_out(:,:,:) => null()
+     type(c_ptr) :: fft_c2c_out_p = c_null_ptr
      integer(kind=dp) :: plan_c2c_forward,plan_c2c_backward,plan_r2c_forward,plan_c2r_backward
+     type(c_ptr) :: plan_r2c_forward_p = c_null_ptr
+     type(c_ptr) :: plan_c2r_backward_p = c_null_ptr
+     type(c_ptr) :: plan_c2c_forward_p = c_null_ptr
+     type(c_ptr) :: plan_c2c_backward_p = c_null_ptr
      integer(kind = isp) :: fftw_flags   ! FFTW_ESTIMATE=64, FFTW_MEASURE=0
      logical :: plans_allocated_c  = .FALSE.
      logical :: plans_allocated_r = .FALSE.
@@ -171,15 +179,15 @@ contains
     
     if (self%plans_allocated_c .AND. (.NOT. apply_to_real_fft)) then
        call self%dealloc_fft_arrays(.False.)
-       call dfftw_destroy_plan(self%plan_c2c_forward)
-       call dfftw_destroy_plan(self%plan_c2c_backward)
+       call fftw_destroy_plan(self%plan_c2c_forward_p)
+       call fftw_destroy_plan(self%plan_c2c_backward_p)
        self%plans_allocated_c = .FALSE.
     end if
 
     if (self%plans_allocated_r .AND. apply_to_real_fft) then
        call self%dealloc_fft_arrays(.True.)
-       call dfftw_destroy_plan(self%plan_r2c_forward)
-       call dfftw_destroy_plan(self%plan_c2r_backward)
+       call fftw_destroy_plan(self%plan_r2c_forward_p)
+       call fftw_destroy_plan(self%plan_c2r_backward_p)
        self%plans_allocated_r = .FALSE.
     end if
     
@@ -213,13 +221,11 @@ contains
   subroutine init_fft(self,use_real_fft)
     logical, intent(in) :: use_real_fft
     class(so3ft),intent(inout) :: self
-    integer(kind = isp) :: fft_rank,fft_n(2),fft_howmany,fft_inembed(2),fft_istride,fft_idist,fft_onembed(2),fft_ostride,fft_odist,bw2
-    integer(kind = idp) :: elshape(3)
+    integer(kind = c_isp) :: fft_rank,fft_n(2),fft_howmany,fft_inembed(2),fft_istride,fft_idist,fft_onembed(2),fft_ostride,fft_odist,bw2
 
     ! Destroy FFTs if they already exist.
     call self%destroy_fft(use_real_fft)
     
-    elshape = euler_shape(self%bw)
     bw2 = int(2_idp*self%bw,kind = isp)
     fft_rank = 2
 
@@ -232,7 +238,7 @@ contains
     !fft_onembed = fft_n
     !fft_idist = product(fft_n)
     !fft_odist = product(fft_n)
-
+    
     !slower correct result !wrong result but fast <=> np.fft2(,axes = (2,1))
     fft_n = [bw2,bw2]
     fft_howmany = bw2
@@ -246,21 +252,17 @@ contains
     if (use_real_fft) then
        
        fft_onembed = [bw2/2+1,bw2]
-       !fft_odist = product(fft_onembed)
        call self%alloc_fft_arrays(.TRUE.)
-       
-       call dfftw_plan_many_dft_r2c(self%plan_r2c_forward,&
+       self%plan_r2c_forward_p = fftw_plan_many_dft_r2c(&
             & fft_rank,fft_n,fft_howmany,&
             & self%fft_r2c_out,fft_inembed,fft_istride,fft_idist,&
             & self%fft_c2r_in,fft_onembed,fft_ostride,fft_odist,&
             & self%fftw_flags)       
-       
-       call dfftw_plan_many_dft_c2r(self%plan_c2r_backward,&
+       self%plan_c2r_backward_p = fftw_plan_many_dft_c2r(&
             & fft_rank,fft_n,fft_howmany,&
             & self%fft_c2r_in,fft_onembed,fft_ostride,fft_odist,&
             & self%fft_r2c_out,fft_inembed,fft_istride,fft_idist,&
             & self%fftw_flags)
-       
        self%plans_allocated_r = .TRUE.
        ! fftw_plan_many_dft(rank,n,howmany,in,inembed,istride,idist
        ! rank (int) = dimension of fft
@@ -276,19 +278,18 @@ contains
        ! odist (int) = distance betwene start of each of the howmany outputs (here prod(n))
        
     else
+       fft_onembed = fft_n
        call self%alloc_fft_arrays(.FALSE.)
-
-       call dfftw_plan_many_dft(self%plan_c2c_forward,&
+       self%plan_c2c_forward_p = fftw_plan_many_dft(&
             & fft_rank,fft_n,fft_howmany,&
             & self%fft_c2c_in,fft_inembed,fft_istride,fft_idist,&
             & self%fft_c2c_out,fft_onembed,fft_ostride,fft_odist,&
             & FFTW_FORWARD,self%fftw_flags)
-       call dfftw_plan_many_dft(self%plan_c2c_backward,&
+       self%plan_c2c_backward_p = fftw_plan_many_dft(&
             & fft_rank,fft_n,fft_howmany,&
             & self%fft_c2c_out,fft_onembed,fft_ostride,fft_odist,&
             & self%fft_c2c_in,fft_inembed,fft_istride,fft_idist,&
             & FFTW_BACKWARD,self%fftw_flags)
-       
        self%plans_allocated_c = .TRUE.
        ! fftw_plan_many_dft(rank,n,howmany,in,inembed,istride,idist
        ! rank (int) = dimension of fft
@@ -309,12 +310,17 @@ contains
     class(so3ft), intent(inout) :: self
     integer(kind = idp) :: bw2
     bw2=2_idp*self%bw
+
     if (use_real_fft) then
-       allocate(self%fft_r2c_out(bw2,bw2,bw2))       
-       allocate(self%fft_c2r_in(bw2,bw2/2+1,bw2))
+       self%fft_r2c_out_p = fftw_alloc_real(int(bw2 * bw2 * bw2, C_SIZE_T))
+       call c_f_pointer(self%fft_r2c_out_p, self%fft_r2c_out, [bw2,bw2,bw2])
+       self%fft_c2r_in_p = fftw_alloc_complex(int(bw2 * (bw2/2+1) * bw2, C_SIZE_T))
+       call c_f_pointer(self%fft_c2r_in_p, self%fft_c2r_in, [bw2,bw2/2+1,bw2])
     else
-       allocate(self%fft_c2c_in(bw2,bw2,bw2))
-       allocate(self%fft_c2c_out(bw2,bw2,bw2))       
+       self%fft_c2c_in_p = fftw_alloc_complex(int(bw2 * bw2 * bw2, C_SIZE_T))
+       call c_f_pointer(self%fft_c2c_in_p, self%fft_c2c_in, [bw2,bw2,bw2])
+       self%fft_c2c_out_p = fftw_alloc_complex(int(bw2 * bw2 * bw2, C_SIZE_T))
+       call c_f_pointer(self%fft_c2c_out_p, self%fft_c2c_out, [bw2,bw2,bw2])
     end if
   end subroutine alloc_fft_arrays
   subroutine dealloc_fft_arrays(self,use_real_fft)
@@ -322,18 +328,22 @@ contains
     class(so3ft), intent(inout) :: self
     
     if (use_real_fft) then
-       if (allocated(self%fft_c2r_in))then
-          deallocate(self%fft_c2r_in)
+       if (c_associated(self%fft_c2r_in_p))then
+          call fftw_free(self%fft_c2r_in_p)
+          self%fft_c2r_in_p = c_null_ptr
        end if
-       if (allocated(self%fft_r2c_out))then
-          deallocate(self%fft_r2c_out)
+       if (c_associated(self%fft_r2c_out_p))then
+          call fftw_free(self%fft_r2c_out_p)
+          self%fft_r2c_out_p = c_null_ptr
        end if
     else
-       if (allocated(self%fft_c2c_in))then
-          deallocate(self%fft_c2c_in)
+       if (c_associated(self%fft_c2c_in_p))then
+          call fftw_free(self%fft_c2c_in_p)
+          self%fft_c2c_in_p = c_null_ptr
        end if
-       if (allocated(self%fft_c2c_out))then
-          deallocate(self%fft_c2c_out)
+       if (c_associated(self%fft_c2c_out_p))then
+          call fftw_free(self%fft_c2c_out_p)
+          self%fft_c2c_out_p = c_null_ptr
        end if
     end if
   end subroutine dealloc_fft_arrays
@@ -429,8 +439,8 @@ contains
     if (allocated(self%trig_samples_risbo)) then
        deallocate(self%trig_samples_risbo)
     end if
-    call self%destroy_fft(.True.)
     call self%destroy_fft(.False.)
+    call self%destroy_fft(.True.)
     self%bw=0
     self%lmax=0
   end subroutine destroy
@@ -1896,7 +1906,7 @@ contains
 
     fft_array=0._dp
     call self%inverse_wigner_trf_cmplx(coeff,fft_array,use_mp)
-    call dfftw_execute_dft(self%plan_c2c_forward,fft_array,so3func)
+    call fftw_execute_dft(self%plan_c2c_forward_p,fft_array,so3func)
     so3func = so3func * (1._dp/(2._dp*pi))
   end subroutine isoft_
   subroutine isoft(self,coeff,so3func,use_mp)
@@ -1914,11 +1924,11 @@ contains
     class(so3ft),intent(inout) :: self
     complex(kind = dp), intent(inout) :: coeff(:)
     complex(kind = dp), intent(inout) :: fft_array(:,:,:)
-    complex(kind = dp), intent(in) :: so3func(:,:,:)
+    complex(kind = dp), intent(inout) :: so3func(:,:,:)
     logical,intent(in) :: use_mp
     
     fft_array = 0._dp
-    call dfftw_execute_dft(self%plan_c2c_backward,so3func,fft_array)
+    call fftw_execute_dft(self%plan_c2c_backward_p,so3func,fft_array)
     fft_array = fft_array * (2._dp*pi/real(2_idp*self%bw,kind=dp)**2) ! * [(2*pi/(2*bw) * 1/sqrt(2*pi))] * [2*pi/(2*bw) * 1/sqrt(2*pi)]
     ! 2*pi/(2*bw) corrects the integration range of a single fourier transform while 1/(sqrt(2*pi)) is due to the used normalization
     ! of the Wigner d matrices, that is  (D^l_m,n)^{ortho} = \sqrt{(2l+1)/8\pi^2}, where \sqrt{(2l+1)/2} is already contained in
@@ -1928,7 +1938,7 @@ contains
   subroutine soft(self,so3func,coeff,use_mp)
     class(so3ft),intent(inout) :: self
     complex(kind = dp), intent(inout) :: coeff(:)
-    complex(kind = dp), intent(in) :: so3func(:,:,:)
+    complex(kind = dp), intent(inout) :: so3func(:,:,:)
     logical,intent(in) :: use_mp
 
     if (.NOT. self%plans_allocated_c) then
@@ -1947,7 +1957,7 @@ contains
     fft_array=0._dp
     call self%inverse_wigner_trf_real(coeff,fft_array,use_mp)
     fft_array = CONJG(fft_array) ! to correct for the fact that we have to compute the forward not the backward fft.
-    call dfftw_execute_dft_c2r(self%plan_c2r_backward,fft_array,so3func)
+    call fftw_execute_dft_c2r(self%plan_c2r_backward_p,fft_array,so3func)
     so3func = so3func * (1._dp/(2._dp*pi))
   end subroutine irsoft_
   subroutine irsoft(self,coeff,so3func,use_mp)
@@ -1965,11 +1975,11 @@ contains
     class(so3ft),intent(inout) :: self
     complex(kind = dp), intent(inout) :: coeff(:)
     complex(kind = dp), intent(inout) :: fft_array(:,:,:)
-    real(kind = dp), intent(in) :: so3func(:,:,:)
+    real(kind = dp), intent(inout) :: so3func(:,:,:)
     logical,intent(in) :: use_mp
     
     fft_array=0._dp
-    call dfftw_execute_dft_r2c(self%plan_r2c_forward,so3func,fft_array)
+    call fftw_execute_dft_r2c(self%plan_r2c_forward_p,so3func,fft_array)
     fft_array = fft_array * (2._dp*pi/real(2_idp*self%bw,kind=dp)**2) ! * 1/(2*bw) * 1/(2*bw)
     fft_array = CONJG(fft_array) ! to correct for the fact that we have to compute the backward not the forward fft.
     call self%forward_wigner_trf_real(fft_array,coeff,use_mp)    
@@ -1977,7 +1987,7 @@ contains
   subroutine rsoft(self,so3func,coeff,use_mp)
     class(so3ft),intent(inout) :: self
     complex(kind = dp), intent(inout) :: coeff(:)
-    real(kind = dp), intent(in) :: so3func(:,:,:)
+    real(kind = dp), intent(inout) :: so3func(:,:,:)
     logical,intent(in) :: use_mp
     
     if (.NOT. self%plans_allocated_r) then
@@ -1988,7 +1998,7 @@ contains
   subroutine soft_many(self,so3funcs,coeffs,use_mp)
     !f2py threadsafe
     class(so3ft),intent(inout) :: self
-    complex(kind=dp),intent(in) :: so3funcs(:,:,:,:)
+    complex(kind=dp),intent(inout) :: so3funcs(:,:,:,:)
     complex(kind=dp),intent(inout) :: coeffs(:,:)
     logical, intent(in) :: use_mp
     complex(kind=dp) :: fft_c2c_in(self%bw*2,self%bw*2,self%bw*2)
@@ -2058,7 +2068,7 @@ contains
   subroutine rsoft_many(self,so3funcs,coeffs,use_mp)
     !f2py threadsafe
     class(so3ft),intent(inout) :: self
-    real(kind=dp),intent(in) :: so3funcs(:,:,:,:)
+    real(kind=dp),intent(inout) :: so3funcs(:,:,:,:)
     complex(kind=dp),intent(inout) :: coeffs(:,:)
     logical, intent(in) :: use_mp
     complex(kind=dp) :: fft_c2r_in(self%bw*2,self%bw+1,self%bw*2)
@@ -2623,7 +2633,7 @@ contains
     ! non-fft part of the SO(3) fourier transform + assembly of cc_lmn = wig_norm * f_ml_part * g_ml_part * sym_const_m1 * sym_const_m2
     call self%inverse_wigner_trf_corr_cmplx(f_lm, g_lm,fft_array,use_mp)
     ! Compute inverse fft
-    call dfftw_execute_dft(self%plan_c2c_forward,fft_array,cc)
+    call fftw_execute_dft(self%plan_c2c_forward_p,fft_array,cc)
     cc = cc * (1/(2._dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)   
   end subroutine cross_correlation_ylm_cmplx_
   subroutine cross_correlation_ylm_cmplx(self,f_lm,g_lm,cc,use_mp)
@@ -3130,7 +3140,7 @@ contains
     call self%inverse_wigner_trf_corr_real(f_ml,g_ml,fft_array,use_mp)
     ! Compute fft.
     fft_array = CONJG(fft_array) ! to correct for the fact that we have to compute the forward not the backward fft.
-    call dfftw_execute_dft_c2r(self%plan_c2r_backward,fft_array,cc)
+    call fftw_execute_dft_c2r(self%plan_c2r_backward_p,fft_array,cc)
     cc = cc * (1/(2._dp*pi)) ! * 1/(2*bw) * (2*bw)/(2*pi)   
   end subroutine cross_correlation_ylm_real_
   subroutine cross_correlation_ylm_real(self,f_ml,g_ml,cc,use_mp)

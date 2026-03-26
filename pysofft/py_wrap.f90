@@ -248,7 +248,7 @@ contains
     !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp), intent(inout) :: coeff(:)
-    complex(kind = dp), intent(in) :: so3func(:,:,:)
+    complex(kind = dp), intent(inout) :: so3func(:,:,:)
     logical,intent(in) :: use_mp
     type(so3ft_ptr) :: self_ptr
     type(so3ft),pointer :: self
@@ -270,7 +270,7 @@ contains
     !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp), intent(inout) :: coeff(:)
-    real(kind = dp), intent(in) :: so3func(:,:,:)
+    real(kind = dp), intent(inout) :: so3func(:,:,:)
     logical,intent(in) :: use_mp
     type(so3ft_ptr) :: self_ptr
     type(so3ft),pointer :: self
@@ -292,7 +292,7 @@ contains
     !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp), intent(inout) :: coeffs(:,:)
-    complex(kind = dp), intent(in) :: so3funcs(:,:,:,:)
+    complex(kind = dp), intent(inout) :: so3funcs(:,:,:,:)
     logical,intent(in) :: use_mp
     type(so3ft_ptr) :: self_ptr
     type(so3ft),pointer :: self
@@ -314,7 +314,7 @@ contains
     !f2py threadsafe
     integer(kind=dp),intent(in) :: self_int
     complex(kind = dp), intent(inout) :: coeffs(:,:)
-    real(kind = dp), intent(in) :: so3funcs(:,:,:,:)
+    real(kind = dp), intent(inout) :: so3funcs(:,:,:,:)
     logical,intent(in) :: use_mp
     type(so3ft_ptr) :: self_ptr
     type(so3ft),pointer :: self

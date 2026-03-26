@@ -1,8 +1,9 @@
 import numpy as np
 import pysofft
 from math import factorial
-from pysofft import _soft
+from pysofft import _soft,utils
 from pysofft.soft import Soft
+from pysofft._fftw_aligned_alloc import create_float64,create_complex128
 
 def compute_dlml_naiv(l,m,betas):
     # This exact formula is only good for small l !
@@ -111,6 +112,42 @@ def cos_2eta_coeff(l,eta):
 def cos_2eta_func(betas,eta):
     kcos = 2*eta+1
     return kcos*np.cos(betas)**(eta*2)
+
+def get_empty_coeff(bw):
+    n_coeff = utils.total_num_coeffs(bw)
+    coeff = create_complex128(n_coeff)
+    coeff[:]=0
+    return coeff
+
+def get_empty_so3func_cmplx(bw):
+    euler_shape = utils.euler_shape(bw).tolist()
+    so3func = create_complex128(euler_shape)
+    so3func[:]=0
+    return so3func
+
+def get_empty_so3func_real(bw):
+    euler_shape = utils.euler_shape(bw).tolist()
+    so3func = create_float64(euler_shape)
+    so3func[:]=0
+    return so3func
+
+def get_empty_coeff_many(bw,howmany):
+    n_coeff = utils.total_num_coeffs(bw)
+    coeff = create_complex128((howmany,n_coeff))
+    coeff[:]=0
+    return coeff
+def get_empty_so3func_cmplx_many(bw,howmany):
+    euler_shape = utils.euler_shape(bw).tolist()
+    so3func = create_complex128([howmany]+euler_shape)
+    so3func[:]=0
+    return so3func
+def get_empty_so3func_real_many(bw,howmany):
+    euler_shape = utils.euler_shape(bw).tolist()
+    so3func = create_float64([howmany]+euler_shape)
+    so3func[:]=0
+    return so3func
+    
+    
 
 class TestMakeWigner:
     bw = 15
@@ -304,7 +341,7 @@ class TestSo3ft:
         precompute_wigners = False
         s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0,0)
         
-        coeff = _soft.utils.get_empty_coeff(bw)
+        coeff = get_empty_coeff(bw)
         beta = _soft.make_wigner.create_beta_samples(2*bw)
         alpha = _soft.make_wigner.create_alpha_gamma_samples(2*bw)
         gamma = alpha.copy()
@@ -315,44 +352,44 @@ class TestSo3ft:
                     for n in range(-l,l+1):
                         #print(f'l,n,m = {l,n,m}')
                         d_test = wigner_Dlmn_limited_l(l,m,n,alpha,beta,gamma)
-                        coeff = _soft.utils.get_empty_coeff(bw)
-                        d =  _soft.utils.get_empty_so3func_cmplx(bw)
-                        d2 =  _soft.utils.get_empty_so3func_cmplx(bw)
+                        coeff = get_empty_coeff(bw)
+                        d =  get_empty_so3func_cmplx(bw)
+                        d2 =  get_empty_so3func_cmplx(bw)
                         cid = _soft.utils.coeff_location_mnl(m,n,l,bw)-1
                         coeff[cid]=1
-                        _soft.py.py_isoft(s_int,coeff,d,False)
-                        assert np.allclose(d_test,d), f'wigner mismatch for l,m,n,= {l,m,n}'
+                        _soft.py.py_isoft(s_int,coeff,d.T,False)
+                        assert np.allclose(d_test,d.T), f'wigner mismatch for l,m,n,= {l,m,n}'
                         _soft.py.omp_set_num_threads_(4)
-                        _soft.py.py_isoft(s_int,coeff,d2,True)
-                        assert np.allclose(d_test,d2), f'wigner mismatch using OMP for l,m,n,= {l,m,n}'
+                        _soft.py.py_isoft(s_int,coeff,d2.T,True)
+                        assert np.allclose(d_test,d2.T), f'wigner mismatch using OMP for l,m,n,= {l,m,n}'
                 else:
                     n=l
                     #print(f'l,n,m = {l,n,m}')
                     d_test = wigner_Dlmn_limited_l(l,m,n,alpha,beta,gamma)
-                    coeff = _soft.utils.get_empty_coeff(bw)
-                    d =  _soft.utils.get_empty_so3func_cmplx(bw)
-                    d2 =  _soft.utils.get_empty_so3func_cmplx(bw)
+                    coeff = get_empty_coeff(bw)
+                    d =  get_empty_so3func_cmplx(bw)
+                    d2 =  get_empty_so3func_cmplx(bw)
                     cid = _soft.utils.coeff_location_mnl(m,n,l,bw)-1
                     coeff[cid]=1
-                    _soft.py.py_isoft(s_int,coeff,d,False)
-                    assert np.allclose(d_test,d), f'wigner mismatch for l,m,n,= {l,m,n}'
+                    _soft.py.py_isoft(s_int,coeff,d.T,False)
+                    assert np.allclose(d_test,d.T), f'wigner mismatch for l,m,n,= {l,m,n}'
                     _soft.py.omp_set_num_threads_(4)
-                    _soft.py.py_isoft(s_int,coeff,d2,True)
-                    assert np.allclose(d_test,d2), f'wigner mismatch using OMP for l,m,n,= {l,m,n}'
+                    _soft.py.py_isoft(s_int,coeff,d2.T,True)
+                    assert np.allclose(d_test,d2.T), f'wigner mismatch using OMP for l,m,n,= {l,m,n}'
                     
         for eta in range(1,bw//2):
-            d =  _soft.utils.get_empty_so3func_cmplx(bw)
-            d2 =  _soft.utils.get_empty_so3func_cmplx(bw)
-            coeff = _soft.utils.get_empty_coeff(bw)
+            d =  get_empty_so3func_cmplx(bw)
+            d2 =  get_empty_so3func_cmplx(bw)
+            coeff = get_empty_coeff(bw)
             for l in range(bw):
                 cid = _soft.utils.coeff_location_mnl(0,0,l,bw)-1
                 coeff[cid]=cos_2eta_coeff(l,eta)
-            _soft.py.py_isoft(s_int,coeff,d,False)
+            _soft.py.py_isoft(s_int,coeff,d.T,False)
             d_test = cos_2eta_func(beta,eta)
-            assert np.allclose(d_test,d[:,0,0]),f'isoft & cos(beta)^(2*eta) mismatch at eta={eta}'
+            assert np.allclose(d_test,d.T[:,0,0]),f'isoft & cos(beta)^(2*eta) mismatch at eta={eta}'
             _soft.py.omp_set_num_threads_(4)
-            _soft.py.py_isoft(s_int,coeff,d2,True)
-            assert np.allclose(d_test,d2[:,0,0]),f'isoft OMP & cos(beta)^(2*eta) mismatch at eta={eta}'
+            _soft.py.py_isoft(s_int,coeff,d2.T,True)
+            assert np.allclose(d_test,d2.T[:,0,0]),f'isoft OMP & cos(beta)^(2*eta) mismatch at eta={eta}'
         _soft.py.py_destroy(s_int)
         _soft.py.omp_set_num_threads_(1)        
     def test_soft(self):
@@ -370,7 +407,7 @@ class TestSo3ft:
         precompute_wigners = False
         s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,0,0)
         
-        coeff = _soft.utils.get_empty_coeff(bw)
+        coeff = get_empty_coeff(bw)
         beta = _soft.make_wigner.create_beta_samples(2*bw)
         alpha = _soft.make_wigner.create_alpha_gamma_samples(2*bw)
         gamma = alpha.copy()
@@ -380,43 +417,43 @@ class TestSo3ft:
                 if l<3:
                     for n in range(-l,l+1):
                         #print(f'l,n,m = {l,n,m}')
-                        coeff_test = _soft.utils.get_empty_coeff(bw)
+                        coeff_test = get_empty_coeff(bw)
                         cid = _soft.utils.coeff_location_mnl(m,n,l,bw)-1
                         coeff_test[cid]=1
-                        coeff = _soft.utils.get_empty_coeff(bw)
-                        coeff2 = _soft.utils.get_empty_coeff(bw)
-                        d = wigner_Dlmn_limited_l(l,m,n,alpha,beta,gamma)
-                        _soft.py.py_soft(s_int,d,coeff,False)
+                        coeff = get_empty_coeff(bw)
+                        coeff2 = get_empty_coeff(bw)
+                        d = wigner_Dlmn_limited_l(l,m,n,alpha,beta,gamma).T
+                        _soft.py.py_soft(s_int,d.T,coeff,False)
                         assert np.allclose(coeff_test,coeff), f'wigner mismatch for l,m,n,= {l,m,n}'
                         _soft.py.omp_set_num_threads_(4)
-                        _soft.py.py_soft(s_int,d,coeff2,True)
+                        _soft.py.py_soft(s_int,d.T,coeff2,True)
                         assert np.allclose(coeff_test,coeff2), f'wigner mismatch OMP for l,m,n,= {l,m,n}'
                 else:
                     n=l
                     #print(f'l,n,m = {l,n,m}')
-                    coeff_test = _soft.utils.get_empty_coeff(bw)
+                    coeff_test = get_empty_coeff(bw)
                     cid = _soft.utils.coeff_location_mnl(m,n,l,bw)-1
                     coeff_test[cid]=1
-                    coeff = _soft.utils.get_empty_coeff(bw)
-                    d = wigner_Dlmn_limited_l(l,m,n,alpha,beta,gamma)
-                    _soft.py.py_soft(s_int,d,coeff,False)
+                    coeff = get_empty_coeff(bw)
+                    d = wigner_Dlmn_limited_l(l,m,n,alpha,beta,gamma).T
+                    _soft.py.py_soft(s_int,d.T,coeff,False)
                     assert np.allclose(coeff_test,coeff), f'wigner mismatch for l,m,n,= {l,m,n}'
                     _soft.py.omp_set_num_threads_(4)
-                    _soft.py.py_soft(s_int,d,coeff2,True)
+                    _soft.py.py_soft(s_int,d.T,coeff2,True)
                     assert np.allclose(coeff_test,coeff2), f'wigner mismatch OMP for l,m,n,= {l,m,n}'
                     
         for eta in range(1,bw//2):
-            d =  _soft.utils.get_empty_so3func_cmplx(bw)
-            d[:,:,:] =  cos_2eta_func(beta,eta)[:,None,None]
-            coeff = _soft.utils.get_empty_coeff(bw)
-            coeff_test = _soft.utils.get_empty_coeff(bw)
+            d =  get_empty_so3func_cmplx(bw)
+            d[:,:,:] =  cos_2eta_func(beta,eta)[None,None,:]
+            coeff = get_empty_coeff(bw)
+            coeff_test = get_empty_coeff(bw)
             for l in range(bw):
                 cid = _soft.utils.coeff_location_mnl(0,0,l,bw)-1
                 coeff_test[cid]=cos_2eta_coeff(l,eta)
-            _soft.py.py_soft(s_int,d,coeff,False)
+            _soft.py.py_soft(s_int,d.T,coeff,False)
             assert np.allclose(coeff_test,coeff),f'isoft & cos(beta)^(2*eta) mismatch at eta={eta}'
             _soft.py.omp_set_num_threads_(4)
-            _soft.py.py_soft(s_int,d,coeff2,True)
+            _soft.py.py_soft(s_int,d.T,coeff2,True)
             assert np.allclose(coeff_test,coeff2),f'isoft OMP & cos(beta)^(2*eta) mismatch at eta={eta}'
         _soft.py.py_destroy(s_int)
         _soft.py.omp_set_num_threads_(1)
@@ -433,17 +470,17 @@ class TestSo3ft:
             for bw in range(1,32):
                 precompute_wigners = False
                 s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,recurrence_type,0)
-                coeff = _soft.utils.get_empty_coeff(bw)
-                coeff2 = _soft.utils.get_empty_coeff(bw)
-                d = _soft.utils.get_empty_so3func_cmplx(bw)
-                d2 = _soft.utils.get_empty_so3func_cmplx(bw)
+                coeff = get_empty_coeff(bw)
+                coeff2 = get_empty_coeff(bw)
+                d = get_empty_so3func_cmplx(bw)
+                d2 = get_empty_so3func_cmplx(bw)
                 
                 coeff[...] = np.random.rand(*coeff.shape) + 1.j*np.random.rand(*coeff.shape)
-                _soft.py.py_isoft(s_int,coeff,d,False)
-                _soft.py.py_soft(s_int,d,coeff2,False)
+                _soft.py.py_isoft(s_int,coeff,d.T,False)
+                _soft.py.py_soft(s_int,d.T,coeff2,False)
                 assert np.allclose(coeff,coeff2), f'isoft soft not identity for bw = {bw}'
                 
-                _soft.py.py_isoft(s_int,coeff2,d2,False)
+                _soft.py.py_isoft(s_int,coeff2,d2.T,False)
                 assert np.allclose(d,d2), f'soft isoft not identity for bw = {bw}'
                 
                 _soft.py.py_destroy(s_int)
@@ -458,16 +495,18 @@ class TestSo3ft:
         for recurrence_type in [0,1]:
             for bw in range(1,32):        
                 s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,recurrence_type,0)
-                d = _soft.utils.get_empty_so3func_cmplx(bw)            
-                coeff = _soft.utils.get_empty_coeff(bw)
-                coeff2 = _soft.utils.get_empty_coeff(bw)
-                coeff3 = _soft.utils.get_empty_coeff(bw)
+                d = get_empty_so3func_cmplx(bw)
+                dr = get_empty_so3func_real(bw)            
+                coeff = get_empty_coeff(bw)
+                coeff2 = get_empty_coeff(bw)
+                coeff3 = get_empty_coeff(bw)
                 d[...] = np.random.rand(*d.shape)
-                _soft.py.py_soft(s_int,d,coeff,False)
-                _soft.py.py_rsoft(s_int,d.real,coeff2,False)
+                dr[:] = d.real
+                _soft.py.py_soft(s_int,d.T,coeff,False)
+                _soft.py.py_rsoft(s_int,dr.T,coeff2,False)
                 assert np.allclose(coeff,coeff2),f'rsoft,soft mismatch for bw={bw}'
                 _soft.py.omp_set_num_threads_(4)
-                _soft.py.py_rsoft(s_int,d.real,coeff3,True)
+                _soft.py.py_rsoft(s_int,dr.T,coeff3,True)
                 assert np.allclose(coeff,coeff3),f'rsoft OMP,soft mismatch for bw={bw}'
                 _soft.py.omp_set_num_threads_(1)
                 _soft.py.py_destroy(s_int)            
@@ -481,21 +520,21 @@ class TestSo3ft:
         for recurrence_type in [0,1]:
             for bw in range(1,32):        
                 s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,recurrence_type,0)
-                coeff = _soft.utils.get_empty_coeff(bw)
-                d = _soft.utils.get_empty_so3func_cmplx(bw)
-                d2 = _soft.utils.get_empty_so3func_real(bw)
-                d3 = _soft.utils.get_empty_so3func_real(bw)            
+                coeff = get_empty_coeff(bw)
+                d = get_empty_so3func_cmplx(bw)
+                d2 = get_empty_so3func_real(bw)
+                d3 = get_empty_so3func_real(bw)            
                 coeff[...] = np.random.rand(*coeff.shape) + 1.j*np.random.rand(*coeff.shape)
                 if recurrence_type==0:
                     _soft.utils.enforce_real_sym_mnl(coeff,bw)
                 else:
                     _soft.utils.enforce_real_sym_lmn(coeff,bw)
                 
-                _soft.py.py_isoft(s_int,coeff,d,False)
-                _soft.py.py_irsoft(s_int,coeff,d2,False)
+                _soft.py.py_isoft(s_int,coeff,d.T,False)
+                _soft.py.py_irsoft(s_int,coeff,d2.T,False)
                 assert np.allclose(d.real,d2),f'irsoft,isoft mismatch for bw={bw} and recurrence_type = {recurrence_type}'
                 _soft.py.omp_set_num_threads_(4)
-                _soft.py.py_irsoft(s_int,coeff,d3,True)
+                _soft.py.py_irsoft(s_int,coeff,d3.T,True)
                 assert np.allclose(d.real,d3),f'irsoft OMP,isoft  mismatch for bw={bw} and recurrence_type = {recurrence_type}'
                 _soft.py.omp_set_num_threads_(1)
                 _soft.py.py_destroy(s_int)         
@@ -508,21 +547,21 @@ class TestSo3ft:
         for recurrence_type in [0,1]:
             for bw in range(1,32):        
                 s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,recurrence_type,0)
-                coeff = _soft.utils.get_empty_coeff(bw)
-                coeff2 = _soft.utils.get_empty_coeff(bw)
-                d = _soft.utils.get_empty_so3func_real(bw)
-                d2 = _soft.utils.get_empty_so3func_real(bw)
+                coeff = get_empty_coeff(bw)
+                coeff2 = get_empty_coeff(bw)
+                d = get_empty_so3func_real(bw)
+                d2 = get_empty_so3func_real(bw)
                 
                 coeff[...] = np.random.rand(*coeff.shape) + 1.j*np.random.rand(*coeff.shape)
                 if recurrence_type==0:
                     _soft.utils.enforce_real_sym_mnl(coeff,bw)
                 else:
                     _soft.utils.enforce_real_sym_lmn(coeff,bw)
-                _soft.py.py_irsoft(s_int,coeff,d,False)
-                _soft.py.py_rsoft(s_int,d,coeff2,False)
+                _soft.py.py_irsoft(s_int,coeff,d.T,False)
+                _soft.py.py_rsoft(s_int,d.T,coeff2,False)
                 assert np.allclose(coeff,coeff2), f'isoft soft not identity for bw = {bw} and recurrence_type={recurrence_type}'
                 
-                _soft.py.py_irsoft(s_int,coeff2,d2,False)
+                _soft.py.py_irsoft(s_int,coeff2,d2.T,False)
                 assert np.allclose(d,d2), f'soft isoft not identity for bw = {bw} and recurrence_type={recurrence_type}'
                 
                 _soft.py.py_destroy(s_int)                        
@@ -537,17 +576,17 @@ class TestSo3ft:
         precompute_wigners = False
         for recurrence_type in [0,1]:
             s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,recurrence_type,0)
-            d = _soft.utils.get_empty_so3func_cmplx_many(bw,howmany)
-            coeff = _soft.utils.get_empty_coeff_many(bw,howmany)
-            coeff2 = _soft.utils.get_empty_coeff_many(bw,howmany)
-            coeff3 = _soft.utils.get_empty_coeff_many(bw,howmany)
+            d = get_empty_so3func_cmplx_many(bw,howmany)
+            coeff = get_empty_coeff_many(bw,howmany)
+            coeff2 = get_empty_coeff_many(bw,howmany)
+            coeff3 = get_empty_coeff_many(bw,howmany)
             d[:]=np.random.rand(*d.shape)
             for i in range(howmany):
-                _soft.py.py_soft(s_int,d[...,i],coeff[:,i],False)
-            _soft.py.py_soft_many(s_int,d,coeff2,False)
+                _soft.py.py_soft(s_int,d[i].T,coeff[i],False)
+            _soft.py.py_soft_many(s_int,d.T,coeff2.T,False)
             assert np.allclose(coeff,coeff2),'Mismatch between soft and soft_many'
             _soft.py.omp_set_num_threads_(4)
-            _soft.py.py_soft_many(s_int,d,coeff3,True)
+            _soft.py.py_soft_many(s_int,d.T,coeff3.T,True)
             assert np.allclose(coeff,coeff3),'Mismatch between soft and soft_many using OMP'        
             _soft.py.py_destroy(s_int)
             _soft.py.omp_set_num_threads_(1)
@@ -560,12 +599,12 @@ class TestSo3ft:
         precompute_wigners = False
         for recurrence_type in [0,1]:
             s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,recurrence_type,0)
-            d = _soft.utils.get_empty_so3func_real_many(bw,howmany)
-            d2 = _soft.utils.get_empty_so3func_real_many(bw,howmany)
-            d3 = _soft.utils.get_empty_so3func_real_many(bw,howmany)
-            coeff = _soft.utils.get_empty_coeff_many(bw,howmany)
-            coeff2 = _soft.utils.get_empty_coeff_many(bw,howmany)
-            coeff3 = _soft.utils.get_empty_coeff_many(bw,howmany)
+            d = get_empty_so3func_real_many(bw,howmany).T
+            d2 = get_empty_so3func_real_many(bw,howmany).T
+            d3 = get_empty_so3func_real_many(bw,howmany).T
+            coeff = get_empty_coeff_many(bw,howmany).T
+            coeff2 = get_empty_coeff_many(bw,howmany).T
+            coeff3 = get_empty_coeff_many(bw,howmany).T
             d[:]=np.random.rand(*d.shape)
             d2[:] = d
             d3[:] = d
@@ -588,10 +627,10 @@ class TestSo3ft:
         precompute_wigners = False
         for recurrence_type in [0,1]:
             s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,recurrence_type,0)
-            coeff = _soft.utils.get_empty_coeff_many(bw,howmany)
-            d = _soft.utils.get_empty_so3func_cmplx_many(bw,howmany)
-            d2 = _soft.utils.get_empty_so3func_cmplx_many(bw,howmany)
-            d3 = _soft.utils.get_empty_so3func_cmplx_many(bw,howmany)
+            coeff = get_empty_coeff_many(bw,howmany).T
+            d = get_empty_so3func_cmplx_many(bw,howmany).T
+            d2 = get_empty_so3func_cmplx_many(bw,howmany).T
+            d3 = get_empty_so3func_cmplx_many(bw,howmany).T
             coeff[:]=np.random.rand(*coeff.shape)+1.j*np.random.rand(*coeff.shape)
             for i in range(howmany):
                 _soft.py.py_isoft(s_int,coeff[:,i],d[...,i],False)
@@ -611,11 +650,11 @@ class TestSo3ft:
         precompute_wigners = False
         for recurrence_type in [0,1]:
             s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,True,recurrence_type,0)
-            coeff = _soft.utils.get_empty_coeff_many(bw,howmany)
-            coeff2 = _soft.utils.get_empty_coeff_many(bw,howmany)
-            d = _soft.utils.get_empty_so3func_real_many(bw,howmany)        
-            d2 = _soft.utils.get_empty_so3func_real_many(bw,howmany)
-            d3 = _soft.utils.get_empty_so3func_real_many(bw,howmany)
+            coeff = get_empty_coeff_many(bw,howmany).T
+            coeff2 = get_empty_coeff_many(bw,howmany).T
+            d = get_empty_so3func_real_many(bw,howmany).T        
+            d2 = get_empty_so3func_real_many(bw,howmany).T
+            d3 = get_empty_so3func_real_many(bw,howmany).T
             coeff[:]=np.random.rand(*coeff.shape)+1.j*np.random.rand(*coeff.shape)
             if recurrence_type==0:
                 _soft.utils.enforce_real_sym_mnl(coeff,bw)
@@ -640,8 +679,8 @@ class TestSo3ft:
         bw = 64
         precompute_wigners = False
         s_int = _soft.py.py_init_soft(bw,bw-1,precompute_wigners,False,0,0)
-        dr = _soft.utils.get_empty_so3func_real(bw)
-        dc = _soft.utils.get_empty_so3func_cmplx(bw)
+        dr = get_empty_so3func_real(bw).T
+        dc = get_empty_so3func_cmplx(bw).T
         dr[:]=1
         dc[:]=1
         
@@ -671,8 +710,8 @@ class TestSo3ft:
                         rotation_index = (np.random.rand(3)*len(albe)).astype(int)
                         eulers = (albe[rotation_index[0]],betas[rotation_index[1]],albe[rotation_index[2]])
                         rot_coeff = Soft.rotate_ylm_cmplx(coeff[None,...],eulers)
-                        so_coeff= _soft.utils.get_empty_coeff(bw).copy()
-                        corr = _soft.utils.get_empty_so3func_cmplx(bw)
+                        so_coeff= get_empty_coeff(bw).copy()
+                        corr = get_empty_so3func_cmplx(bw).T
                         _soft.py.py_cross_correlation_ylm_cmplx(s_int,coeff,rot_coeff,corr,multiprocessing)
                         found_rotation_index = np.array(np.unravel_index(np.argmax(np.abs(corr)),corr.shape))
                         tmp = found_rotation_index[0]
@@ -699,8 +738,8 @@ class TestSo3ft:
                         rotation_index = (np.random.rand(3)*len(albe)).astype(int)
                         eulers = (albe[rotation_index[0]],betas[rotation_index[1]],albe[rotation_index[2]])
                         rot_coeff = Soft.rotate_ylm_real(coeff[None,...],eulers)
-                        so_coeff= _soft.utils.get_empty_coeff(bw).copy()
-                        corr = _soft.utils.get_empty_so3func_real(bw)
+                        so_coeff= get_empty_coeff(bw)
+                        corr = get_empty_so3func_real(bw).T
                         _soft.py.py_cross_correlation_ylm_real(s_int,coeff,rot_coeff,corr,multiprocessing)
                         found_rotation_index = np.array(np.unravel_index(np.argmax(np.abs(corr)),corr.shape))
                         tmp = found_rotation_index[0]
@@ -731,7 +770,7 @@ class TestSo3ft:
                         rad_points = np.arange(coefft.shape[1]).astype(float)
                         rad_lim = np.array((1,coefft.shape[1]))
                     
-                        corr = _soft.utils.get_empty_so3func_cmplx(bw)
+                        corr = get_empty_so3func_cmplx(bw).T
                         _soft.py.py_cross_correlation_ylm_cmplx_3d(s_int,coefft,rot_coeff,corr,rad_points,rad_lim,multiprocessing)
                         found_rotation_index = np.array(np.unravel_index(np.argmax(np.abs(corr)),corr.shape))
                         tmp = found_rotation_index[0]
@@ -762,7 +801,7 @@ class TestSo3ft:
                         rad_points = np.arange(coefft.shape[1]).astype(float)
                         rad_lim = np.array((1,coefft.shape[1]))
                     
-                        corr = _soft.utils.get_empty_so3func_real(bw)
+                        corr = get_empty_so3func_real(bw).T
                         _soft.py.py_cross_correlation_ylm_real_3d(s_int,coefft,rot_coeff,corr,rad_points,rad_lim,multiprocessing)
                         found_rotation_index = np.array(np.unravel_index(np.argmax(np.abs(corr)),corr.shape))
                         tmp = found_rotation_index[0]
