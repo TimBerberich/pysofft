@@ -422,11 +422,11 @@ class TestSo3ft:
                         coeff_test[cid]=1
                         coeff = get_empty_coeff(bw)
                         coeff2 = get_empty_coeff(bw)
-                        d = wigner_Dlmn_limited_l(l,m,n,alpha,beta,gamma)
-                        _soft.py.py_soft(s_int,d.T,coeff,False)
+                        d = wigner_Dlmn_limited_l(l,m,n,alpha,beta,gamma).T
+                        _soft.py.py_soft(s_int,d,coeff,False)
                         assert np.allclose(coeff_test,coeff), f'wigner mismatch for l,m,n,= {l,m,n}'
                         _soft.py.omp_set_num_threads_(4)
-                        _soft.py.py_soft(s_int,d.T,coeff2,True)
+                        _soft.py.py_soft(s_int,d,coeff2,True)
                         assert np.allclose(coeff_test,coeff2), f'wigner mismatch OMP for l,m,n,= {l,m,n}'
                 else:
                     n=l

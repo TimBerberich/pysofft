@@ -417,7 +417,7 @@ contains
   subroutine py_fft(self_int,f1,f2)
     !f2py threadsafe
     integer(kind = idp), intent(in) :: self_int
-    complex(kind = dp), intent(in) :: f1(:,:,:)
+    complex(kind = dp), intent(inout) :: f1(:,:,:)
     complex(kind = dp), intent(inout) :: f2(:,:,:)
     type(so3ft_ptr) :: self_ptr
     type(so3ft),pointer :: self
@@ -427,7 +427,7 @@ contains
   subroutine py_ifft(self_int,f1,f2)
     !f2py threadsafe
     integer(kind = idp), intent(in) :: self_int
-    complex(kind = dp), intent(in) :: f1(:,:,:)
+    complex(kind = dp), intent(inout) :: f1(:,:,:)
     complex(kind = dp), intent(inout) :: f2(:,:,:)
     type(so3ft_ptr) :: self_ptr
     type(so3ft),pointer :: self
@@ -437,7 +437,7 @@ contains
   subroutine py_rfft(self_int,f1,f2)
     !f2py threadsafe
     integer(kind = idp), intent(in) :: self_int
-    real(kind = dp), intent(in) :: f1(:,:,:)
+    real(kind = dp), intent(inout) :: f1(:,:,:)
     complex(kind = dp), intent(inout) :: f2(:,:,:)
     type(so3ft_ptr) :: self_ptr
     type(so3ft),pointer :: self
@@ -447,7 +447,7 @@ contains
   subroutine py_irfft(self_int,f1,f2)
     !f2py threadsafe
     integer(kind = idp), intent(in) :: self_int
-    complex(kind = dp), intent(in) :: f1(:,:,:)
+    complex(kind = dp), intent(inout) :: f1(:,:,:)
     real(kind = dp), intent(inout) :: f2(:,:,:)
     type(so3ft_ptr) :: self_ptr
     type(so3ft),pointer :: self

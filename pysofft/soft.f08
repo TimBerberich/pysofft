@@ -33,7 +33,6 @@ module softclass
      type(c_ptr) :: fft_c2r_in_p = c_null_ptr
      complex(kind = c_cdp), pointer :: fft_c2c_out(:,:,:) => null()
      type(c_ptr) :: fft_c2c_out_p = c_null_ptr
-     integer(kind=dp) :: plan_c2c_forward,plan_c2c_backward,plan_r2c_forward,plan_c2r_backward
      type(c_ptr) :: plan_r2c_forward_p = c_null_ptr
      type(c_ptr) :: plan_c2r_backward_p = c_null_ptr
      type(c_ptr) :: plan_c2c_forward_p = c_null_ptr
@@ -3271,30 +3270,30 @@ contains
   ! Standalone 2D ffts used in SO(3)FFT
   subroutine fft(self,f1,f2)
     class(so3ft),intent(in) :: self
-    complex(kind = dp), intent(in) :: f1(:,:,:)
+    complex(kind = dp), intent(inout) :: f1(:,:,:)
     complex(kind = dp), intent(inout) :: f2(:,:,:)    
-    call dfftw_execute_dft(self%plan_c2c_forward,f1,f2)
+    call fftw_execute_dft(self%plan_c2c_forward_p,f1,f2)
     f2 = f2 * (1._dp/real(Size(f1,1),kind=dp)) 
   end subroutine fft
   subroutine ifft(self,f1,f2)
     class(so3ft),intent(in) :: self
-    complex(kind = dp), intent(in) :: f1(:,:,:)
+    complex(kind = dp), intent(inout) :: f1(:,:,:)
     complex(kind = dp), intent(inout) :: f2(:,:,:)    
-    call dfftw_execute_dft(self%plan_c2c_backward,f1,f2)
+    call fftw_execute_dft(self%plan_c2c_backward_p,f1,f2)
     f2 = f2 * (1._dp/real(Size(f1,1),kind=dp)) 
   end subroutine ifft
   subroutine rfft(self,f1,f2)
     class(so3ft),intent(in) :: self
-    real(kind = dp), intent(in) :: f1(:,:,:)
+    real(kind = dp), intent(inout) :: f1(:,:,:)
     complex(kind = dp), intent(inout) :: f2(:,:,:)    
-    call dfftw_execute_dft_r2c(self%plan_r2c_forward,f1,f2)
+    call fftw_execute_dft_r2c(self%plan_r2c_forward_p,f1,f2)
     f2 = f2 * (1._dp/real(Size(f1,1),kind=dp)) 
   end subroutine rfft
   subroutine irfft(self,f1,f2)
     class(so3ft),intent(in) :: self
-    complex(kind = dp), intent(in) :: f1(:,:,:)
+    complex(kind = dp), intent(inout) :: f1(:,:,:)
     real(kind = dp), intent(inout) :: f2(:,:,:)    
-    call dfftw_execute_dft_c2r(self%plan_c2r_backward,f1,f2)
+    call fftw_execute_dft_c2r(self%plan_c2r_backward_p,f1,f2)
     f2 = f2 * (1._dp/(real(Size(f1,1),kind=dp)))
   end subroutine irfft
   
