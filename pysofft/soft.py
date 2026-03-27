@@ -205,7 +205,7 @@ class Soft:
         s.get_so3func(random=True)
         ```
         '''
-        euler_shape = utils.euler_shape(self.bw)
+        euler_shape = tuple(utils.euler_shape(self.bw).tolist())
         if real:
             if howmany>0:
                 func = create_float64((howmany,)+euler_shape)

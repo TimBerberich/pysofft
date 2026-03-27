@@ -317,7 +317,7 @@ contains
        !self%fft_c2r_in_p = fftw_alloc_complex(int(bw2 * (bw2/2+1) * bw2, C_SIZE_T))
        !call c_f_pointer(self%fft_c2r_in_p, self%fft_c2r_in, [bw2,bw2/2+1,bw2])
        self%fft_c2r_in_p = fftw_alloc_complex(int((bw2/2+1) * bw2 * bw2, C_SIZE_T))
-       call c_f_pointer(self%fft_c2r_in_p, self%fft_c2r_in, [bw2/2+1,bw2,bw2])
+       call c_f_pointer(self%fft_c2r_in_p, self%fft_c2r_in, [bw2,bw2/2+1,bw2])
     else
        self%fft_c2c_in_p = fftw_alloc_complex(int(bw2 * bw2 * bw2, C_SIZE_T))
        call c_f_pointer(self%fft_c2c_in_p, self%fft_c2c_in, [bw2,bw2,bw2])
