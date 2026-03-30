@@ -248,9 +248,7 @@ contains
     fft_idist = 1
     fft_odist = 1 ! product(fft_n)
     
-    if (use_real_fft) then
-       
-       !fft_onembed = [bw2/2+1,bw2]
+    if (use_real_fft) then       
        fft_onembed = [bw2,bw2/2+1]
        call self%alloc_fft_arrays(.TRUE.)
        self%plan_r2c_forward_p = fftw_plan_many_dft_r2c(&
@@ -275,8 +273,7 @@ contains
        ! out (array dim = rank+1) = output array
        ! onembed (array dim = rank) = n (specifies the subarray size of the out to be used for each fft)
        ! ostride (int) = distance between sucessive elements of the output data set (here 1)
-       ! odist (int) = distance betwene start of each of the howmany outputs (here prod(n))
-       
+       ! odist (int) = distance betwene start of each of the howmany outputs (here prod(n))       
     else
        fft_onembed = fft_n
        call self%alloc_fft_arrays(.FALSE.)
@@ -291,18 +288,6 @@ contains
             & self%fft_c2c_in,fft_inembed,fft_istride,fft_idist,&
             & FFTW_BACKWARD,self%fftw_flags)
        self%plans_allocated_c = .TRUE.
-       ! fftw_plan_many_dft(rank,n,howmany,in,inembed,istride,idist
-       ! rank (int) = dimension of fft
-       ! n (array 1d) = shape of a single fft, array has to be of length rank
-       ! howmany (int) = number of individual ffts to be computed
-       ! in (array dim = rank+1) = input array
-       ! inembed (array dim = rank) = n  (specifyies the subarray size of in to be used for each fft)
-       ! istride (int) = distance between sucessive lements of the input data (here 1)
-       ! idist (int) = distance between howmany different ffts (here prod(n))
-       ! out (array dim = rank+1) = output array
-       ! onembed (array dim = rank) = n (specifies the subarray size of the out to be used for each fft)
-       ! ostride (int) = distance between sucessive elements of the output data set (here 1)
-       ! odist (int) = distance betwene start of each of the howmany outputs (here prod(n))
     end if
   end subroutine init_fft
   subroutine alloc_fft_arrays(self,use_real_fft)
