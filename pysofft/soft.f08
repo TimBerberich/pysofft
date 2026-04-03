@@ -2128,7 +2128,7 @@ contains
     class(so3ft),intent(in) :: self
     complex(kind = dp),intent(in) :: f(:,:,:)
     complex(kind = dp) :: integral
-    integral = SUM(SUM(SUM(f,1),1)*self%legendre_weights)
+    integral = SUM(SUM(SUM(f,2),2)*self%legendre_weights)
     integral = integral*(pi/real(self%bw,kind=dp))**2
   end function integrate_over_so3_cmplx
   function integrate_over_so3_real(self,f) result(integral)
@@ -2140,7 +2140,7 @@ contains
     class(so3ft),intent(in) :: self
     real(kind = dp),intent(in) :: f(:,:,:)
     real(kind = dp) :: integral
-    integral = SUM(SUM(SUM(f,1),1)*self%legendre_weights)
+    integral = SUM(SUM(SUM(f,2),2)*self%legendre_weights)
     integral = integral*(pi/real(self%bw,kind=dp))**2
   end function integrate_over_so3_real
 

@@ -3,6 +3,7 @@ from pysofft import _soft,Soft,wigner,utils
 
 try:
     from scipy.stats import rv_discrete
+    from scipy.special import gammaln,loggamma,erfi,iv,i0
 except ImportError as e:
     raise ImportError(
         "pysofft.stats requires the optional 'stats' dependencies. "
@@ -101,21 +102,18 @@ class CharFuncSO3(np.ndarray):
         return char
     @property
     def distrib(self):
-        return self._soft.isoft(self)/self.so3_const
+        return self._soft.irsoft(self)/self.so3_const
     @property
     def pmf(self):
         density = self.distrib
-        N = len(self.so3_grid)
-        pmf = (density.real*(2*np.pi/N)**2*self.legendre_weights[None,None,:])
-        min_pmf = pmf.min()
-        if min_pmf<0:
-            pmf[pmf<np.abs(min_pmf)]=0
-            pmf/=np.sum(pmf)
+        bw = self._soft.bw
+        pmf = (density.real*(np.pi/bw)**2*self.legendre_weights[None,None,:])
         return pmf
         
     @property
     def integrate_distrib(self):
-        distrib = self._soft.inverse_cmplx(self)/self.so3_const
+        N = len(self.so3_grid)
+        distrib = self.distrib
         return self._soft.integrate_over_so3(distrib)
     
     def sample(self,size = 100):
@@ -256,15 +254,14 @@ class CharFuncFactory:
         delta = CharFuncSO3(bw)
         if angles is not None:
             a,b,g = angles
-            delta[:]=wigner.full_big_d_risbo(bw,a,b,g,True).conj()
+            delta[:]=wigner.full_big_d_risbo(bw,a,b,g,True).conj()*(2*np.sqrt(2)*np.pi)
         else:
             lnks = delta.lnk._lnks
             delta[:]=0
             for _id,(l,n,k) in enumerate(lnks):
                 if n==k:
-                    delta[_id] = np.sqrt((2*l+1)/(8*np.pi**2))
+                    delta[_id] = np.sqrt((2*l+1))
         return delta
-    
 
     #1D distribution to SO(3) distribution via Bernstein functions
     @staticmethod
@@ -276,29 +273,29 @@ class CharFuncFactory:
         if center_rotation is None:
             for _id,(l,n,k) in enumerate(coeffs):
                 if n == k:
-                    gauss[_id] = np.sqrt((2*l+1)/(8*np.pi**2)) * np.exp(-sigma**2*l*(l+1)/2)
+                    gauss[_id] = np.sqrt(2*l+1) * np.exp(-(sigma**2)*l*(l+1)/2)
                 else:
                     gauss[_id]=0
         else:
             a,b,g = center_rotation
-            gauss[:]=wigner.full_big_d_risbo(bw,a,b,g,True)
+            gauss[:]=wigner.full_big_d_risbo(bw,a,b,g,True)*(2*np.sqrt(2)*np.pi)
             for _id,(l,n,k) in enumerate(coeffs):
-                gauss[_id]*=np.exp(-sigma**2*l*(l+1)/2)
+                gauss[_id]*=np.exp(-(sigma**2)*l*(l+1)/2)
         return gauss
 
     @staticmethod
     def cauchy(bw = 16, gamma=1,center_rotation=None):
         cauchy = CharFuncSO3(bw)
-        coeffs = cauchy._soft.lnks
+        coeffs = cauchy.lnk._lnks
         if center_rotation is None:
             for _id,(l,n,k) in enumerate(coeffs):
                 if n == k:
-                    cauchy[_id]=np.exp(-gamma*np.sqrt(l*(l+1)))
+                    cauchy[_id]=np.sqrt(2*l+1) * np.exp(-gamma*np.sqrt(l*(l+1)))
                 else:
                     cauchy[_id]=0
         else:
-            D = cauchy._soft.wigners
-            cauchy[:]=D.abg[center_rotation[0],center_rotation[1],center_rotation[2]]
+            a,b,g = center_rotation
+            cauchy[:]=wigner.full_big_d_risbo(bw,a,b,g,True)*(2*np.sqrt(2)*np.pi)
             for _id,(l,n,k) in enumerate(coeffs):
                 cauchy[_id]*=np.exp(-gamma*np.sqrt(l*(l+1)))
         return cauchy
@@ -306,16 +303,16 @@ class CharFuncFactory:
     @staticmethod
     def laplace(bw = 16, b=1,center_rotation=None):
         laplace = CharFuncSO3(bw)
-        coeffs = laplace._soft.lnks
+        coeffs = laplace.lnk._lnks
         if center_rotation is None:
             for _id,(l,n,k) in enumerate(coeffs):
                 if n == k:
-                    laplace[_id]=1/(1+b**2*l*(l+1))
+                    laplace[_id]=np.sqrt(2*l+1) * 1/(1+b**2*l*(l+1))
                 else:
                     laplace[_id]=0
         else:
-            D = laplace._soft.wigners
-            laplace[:]=D.abg[center_rotation[0],center_rotation[1],center_rotation[2]]
+            a,b,g = center_rotation
+            laplace[:]=wigner.full_big_d_risbo(bw,a,b,g,True)*(2*np.sqrt(2)*np.pi)
             for _id,(l,n,k) in enumerate(coeffs):
                 laplace[_id]/=(1+b**2*l*(l+1))
         return laplace
@@ -323,7 +320,7 @@ class CharFuncFactory:
     @staticmethod
     def voigt(bw = 16, sigma=1,gamma=1,center_rotation=None):
         voigt = CharFuncSO3(bw)
-        coeffs = voigt._soft.lnks
+        coeffs = voigt.lnk._lnks
         if center_rotation is None:
             for _id,(l,n,k) in enumerate(coeffs):
                 if n == k:
@@ -331,8 +328,8 @@ class CharFuncFactory:
                 else:
                     voigt[_id]=0
         else:
-            D = voigt._soft.wigners
-            voigt[:]=D.abg[center_rotation[0],center_rotation[1],center_rotation[2]]
+            a,b,g = center_rotation
+            voigt[:]=wigner.full_big_d_risbo(bw,a,b,g,True)*(2*np.sqrt(2)*np.pi)
             for _id,(l,n,k) in enumerate(coeffs):
                 voigt[_id]*=np.exp(-gamma*np.sqrt(l*(l+1))-sigma**2*l*(l+1)/2)
         return voigt    
@@ -344,13 +341,13 @@ class CharFuncFactory:
         nn=n
         cos2n = CharFuncSO3(bw)
         Kcos = (2*nn+1)
-        coeffs = cos2n._soft.lnks
+        coeffs = cos2n.lnk._lnks
         for _id,(l,n,k) in enumerate(coeffs):
             nonzero_value =  (l%2==0) and (n==0) and (k==0) and (l<=2*nn)
             if nonzero_value:
-                #The following two equations are equivalent
-                #cos2n[_id]=Kcos*np.sqrt(np.pi)*np.exp(loggamma(2*nn+1)-(2*nn+1)*np.log(2)-loggamma(nn-l//2+1)-loggamma(nn+l//2+3/2))
-                cos2n[_id]=Kcos*np.exp(loggamma(2*nn+1)+loggamma(nn+l//2+1)+(l+1)*np.log(2)-loggamma(nn-l//2+1)-loggamma(2*nn+l+2))
+                cos2n[_id]=Kcos*np.sqrt(np.pi)*np.exp(gammaln(2*nn+1)-(2*nn+1)*np.log(2)-gammaln(nn-l//2+1)-gammaln(nn+l//2+3/2))
+                # The following equation is numerically unstable.
+                #cos2n[_id]=Kcos*np.exp(loggamma(2*nn+1)+loggamma(nn+l//2+1)+(l+1)*np.log(2)-loggamma(nn-l//2+1)-loggamma(2*nn+l+2))
             else:
                 cos2n[_id]=0
         return cos2n
@@ -359,19 +356,35 @@ class CharFuncFactory:
     def mises_fisher(bw=16,kappa=1):
         mf = CharFuncSO3(bw)
         Kmf = kappa/(2*np.sinh(kappa))
-        coeffs = mf._soft.lnks
+        coeffs = mf.lnk._lnks
         for _id,(l,n,k) in enumerate(coeffs):
             nonzero_value = (n==0) and (k==0)
             if nonzero_value:
-                mf[_id]= Kmf*np.sqrt(2*np.pi/kappa)*gsl.bessel_Inu(l+1/2,kappa)
+                mf[_id] = Kmf*np.sqrt(2*np.pi/kappa)*iv(l+1/2,kappa)
             else:
-                mf[_id]=0
+                mf[_id] = 0
         return mf
+    
     @staticmethod
     def watson(bw=16,kappa=1):
         watson = CharFuncSO3(bw)
-        so3_grid = watson.so3_grid
-        Kw=2/(np.sqrt(np.pi/kappa)*error_function_imag(np.sqrt(kappa))) #/(1.j*np.sqrt(kappa)*error_function(1.j*np.sqrt(kappa)))
-        distribution = Kw*np.exp(kappa*np.cos(so3_grid[...,1])**2).astype(complex)
-        watson[:] = watson._soft.forward_cmplx(distribution/watson.so3_const)
+        Kw = 2*(np.sqrt(kappa/np.pi)*1/erfi(np.sqrt(kappa)))
+        coeffs = watson.lnk._lnks
+        for _id,(l,n,k) in enumerate(coeffs):
+            nonzero_value =  (l%2==0) and (n==0) and (k==0)
+            if nonzero_value:
+                sum_ = 0
+                for m in range(1000):
+                    logsumd =  m*np.log(kappa)+gammaln(m+0.5)
+                    logsumd -= np.log(2)+gammaln(m-l/2+1)+gammaln(l/2+m+3/2)
+                    sumd = np.exp(logsumd)
+                    if sumd < sum_*1e-15:
+                        break
+                    sum_ += sumd
+                if m==1000:
+                    raise Exception('Watson computation did not converge.')
+                else:
+                    watson[_id]=Kw*sum_
+            else:
+                watson[_id]=0
         return watson
