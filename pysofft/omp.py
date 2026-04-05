@@ -14,7 +14,7 @@ def set_num_threads(nthreads:int=None):
         Maximal number of threads. By default nthreads is set to half the available cpu threads.
     '''
     if nthreads is None:
-        nthreads = cpu_count()//2
+        nthreads = max(1,cpu_count()//2)
     
     _soft.py.omp_set_num_threads_(nthreads)
     
