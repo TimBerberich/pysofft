@@ -4,6 +4,7 @@ from pysofft._soft import py
 from pysofft._fftw_aligned_alloc import create_float64,create_complex128
 from pysofft import fftw
 import os
+import weakref
 from collections import namedtuple
 import multiprocessing
 utils = _soft.utils
@@ -65,12 +66,22 @@ class Soft:
         if use_fftw_wisdom:
             fftw.save_wisdom_to_file()
         self._lmns = None
+        self._coeff_indexer = None
+        
+    # support context manager API
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc, tb):
+        if multiprocessing.current_process().name == self._init_process_name:
+            # free up any used fortran memory
+            py.py_destroy(self._fortran_pointer)
             
     def __del__(self):
         if multiprocessing.current_process().name == self._init_process_name:
             # free up any used fortran memory
             py.py_destroy(self._fortran_pointer)
-    
+            
+            
     @property
     def bw(self):
         return py.py_get_bw(self._fortran_pointer)
@@ -94,7 +105,7 @@ class Soft:
     @property
     def fftw_flags(self):
         return py.py_get_fftw_flags(self._fortran_pointer)
-
+    
     @property
     def coeff_indices(self):
         if self._lmns is None:
@@ -104,6 +115,17 @@ class Soft:
                 self._lmns=utils.get_coeff_degrees_risbo(self.bw)
             self._lmns.flags.writeable=False
         return self._lmns
+    @property
+    def coeff_indexer(self):
+        if self._coeff_indexer is None:
+            lmns = self.coeff_indices
+            if (self.recurrence_type == self.recurrence_types.kostelec) or self.wigners_are_precomputed:
+                self._coeff_indexer = CoeffIndexer(lmns,coeff_order = 'mnl')
+            else:
+                self._coeff_indexer = CoeffIndexer(lmns,coeff_order = 'lmn')
+        return self._coeff_indexer
+        
+        
     @property
     def euler_angles(self):
         beta = _soft.make_wigner.create_beta_samples(self.bw*2)
@@ -820,19 +842,20 @@ class CoeffSO3(np.ndarray):
         allows to acces $f^l_{m,n}$ by its indices $l,n,k$.
     """
     _coeff_orders = ['mnl','lmn']
-    def __new__(cls, coeff,lmn_indices,coeff_order = 'mnl'):
+    def __new__(cls, coeff,lmn_indices,coeff_order = 'mnl',indexer = None):
         # Input array is an already formed ndarray instance
         # We first cast to be our class type
         obj = np.asarray(coeff).view(cls)
         
          # add the new attribute to the created instance
         lmn_indices.flags.writeable = False
-        obj._lmns = lmn_indices
-        obj.lmn = CoeffView(obj,lmn_indices,coeff_order)
-        obj.bw = obj.lmn.bw
-        obj.coeff_order = obj.lmn.coeff_order
+        if isinstance(indexer,CoeffIndexer):
+            obj._indexer = indexer
+        else:
+            obj._indexer = CoeffIndexer(lmn_indices, coeff_order)
+        obj.bw = obj._indexer.bw
+        obj.coeff_order = obj._indexer.coeff_order
         
-        # Finally, we must return the newly created object:
         return obj
 
     def __array_finalize__(self, obj):
@@ -840,86 +863,119 @@ class CoeffSO3(np.ndarray):
         if obj is None:
             return
         
-        self._lmns = getattr(obj, '_lmns', None)
-        if self._lmns is None:
-            self.lmn = None
-            self.bw = None
-            self.coeff_order = None
-        else:
-            self.lmn = CoeffView(self,self._lmns)
-            self.bw = obj.lmn.bw
-            self.coeff_order = obj.lmn.coeff_order
+        self._indexer = getattr(obj, '_indexer', None)
+        self.bw = getattr(obj, 'bw', None)
+        self.coeff_order = getattr(obj, 'coeff_order', None)
+
 
     def __array_ufunc__(self, ufunc, method, *inputs, out=None, **kwargs):
         # Enables ufuncs like +,-,*,/ to preserve the additional attributes _lmns,lmn,bw
-        
-        # convert args and output to ndarray
-        args = []
-        for i, input_ in enumerate(inputs):
-            if isinstance(input_, CoeffSO3):
-                args.append(input_.view(np.ndarray))
-            else:
-                args.append(input_)
-        outputs = out
-        if outputs:
-            out_args = []
-            for j, output in enumerate(outputs):
-                if isinstance(output, CoeffSO3):
-                    out_args.append(output.view(np.ndarray))
-                else:
-                    out_args.append(output)
-            kwargs['out'] = tuple(out_args)
-        else:
-            outputs = (None,) * ufunc.nout
 
-        # compute ufuncs
-        results = super().__array_ufunc__(ufunc, method, *args, **kwargs)
-        if results is NotImplemented:
+        def as_ndarray(x):
+            return x.view(np.ndarray) if isinstance(x, CoeffSO3) else x
+        
+        # Convert CoeffSO3 inputs to plain ndarray
+        args = [as_ndarray(x) for x in inputs]
+        # Handle out=
+        if out is not None:
+            kwargs["out"] = tuple(as_ndarray(x) for x in out)
+
+        # Perform operation
+        result = getattr(ufunc, method)(*args, **kwargs)
+        if result is NotImplemented:
             return NotImplemented
+        if method == "at":
+            return None
 
-        if ufunc.nout == 1:
-            results = (results,)
-            
-        if method == 'at':
-            if isinstance(inputs[0], c):
-                inputs[0].info = info
-            return
-        
-        # Convert result back to CoeffSO3
-        results = list((np.asarray(result).view(CoeffSO3)
-                         if output is None else output)
-                        for result, output in zip(results, outputs))
-        
-        #If the shape did not change add back the propper attributes
-        if len(inputs)>0:
-            coeff_inputs = tuple(i for i in inputs if isinstance(i,CoeffSO3))
-            for res_id,res in enumerate(results):
-                res_modified = False
-                for inp in coeff_inputs:
-                    if res.shape == inp.shape:
-                        res._lmns = inp._lmns
-                        res.lmn = CoeffView(res,res._lmns)
-                        res.bw = res.lmn.bw
-                        res_modified = True
-                        break
-                if not res_modified:
-                    results[res_id]=res.view(np.ndarray)
-                
+        results = (result,) if ufunc.nout == 1 else result
+        # Get CoeffSO3 intput if present
+        template = next((x for x in inputs if isinstance(x, CoeffSO3)), None)
+
+        if template is not None:
+            # reaply CoeffSO3 if shage did not change
+            results = tuple(
+                res.view(CoeffSO3) if isinstance(res, np.ndarray) and res.shape == template.shape else res
+                for res in results
+            )
+            # add propper _indexer back
+            for res in results:
+                if isinstance(res, CoeffSO3):
+                    res._indexer = template._indexer
+                    
         return results[0] if len(results) == 1 else results
-    
-class CoeffView:
+                        
+    @property
+    def lmn(self):
+        if self._indexer is None:
+            raise AttributeError("This CoeffSO3 instance has no indexer ")
+        return _BoundCoeffView(weakref.ref(self), self._indexer)
+
+    @property
+    def _lmns(self):
+        """Optional convenience accessor for the raw metadata."""
+        if self._indexer is None:
+            return None
+        return self._indexer._lmns
+
+class _BoundCoeffView:
+    """
+    Temporary adapter that binds a CoeffIndexer to one concrete array.
+
+    Returned by CoeffSO3.lmn, so one can write:
+        coeff.lmn[1, 0, -1]
+        coeff.lmn[:, 0, :]
+    """
+
+    def __init__(self, array_ref, indexer):
+        self._array_ref = array_ref
+        self._indexer = indexer
+
+    @property
+    def array(self):
+        arr = self._array_ref()
+        if arr is None:
+            raise ReferenceError("Parent CoeffSO3 object no longer exists")
+        return arr
+
+    @property
+    def bw(self):
+        return self._indexer.bw
+
+    @property
+    def coeff_order(self):
+        return self._indexer.coeff_order
+
+    @property
+    def ls(self):
+        return self._indexer.ls
+
+    @property
+    def ns(self):
+        return self._indexer.ns
+
+    @property
+    def ks(self):
+        return self._indexer.ks
+
+    def __getitem__(self, items):
+        mask = self._indexer.get_mask(items)
+        return self.array[mask]
+
+    def __setitem__(self, items, value):
+        mask = self._indexer.get_mask(items)
+        self.array[mask] = value
+
+class CoeffIndexer:
     _coeff_orders = ['mnl','lmn']
     """
-    Helper class that allows to access a Wigner coefficients $f^l_{n,k}$ by its degrees l,n,k,
-    i.e. `coeffview[l,n,k]` returns  $f^l_{n,k}$. For example, it is also possible to use slice notation like
-    charview[:,0,:], which returns a view into $f^l_{n,k}$ corresponding to all values with n=0. 
+    Helper class that creates masks into Wigner coefficients $f^l_{n,k}$ based on degrees l,n,k,
+    i.e. `coeffIndex[l,n,k]` returns  the index of $f^l_{n,k}$. It is also possible to use slice notation like
+    coeffIndexer[:,0,:], which returns a mask which is true for all $f^l_{n,k}$ with n=0. 
 
     Attributes
     ----------
     bw:int
         Bandwidth
-    array : ndarray
-        `(4*bw^3-bw)/3,) complex`: Wigner coefficient array
     ls:ndarray
         `(bw,), int64`: l indices 0,...,bw
     ns:ndarray,
@@ -929,8 +985,7 @@ class CoeffView:
     _lmns:ndarray
         `(3,(4*bw**4-bw)/3), int64`: l,n,k values associated to each entry in array.
     """
-    def __init__(self,coeff_array,lmn_indices,coeff_order='mnl'):
-        self.array = coeff_array
+    def __init__(self,lmn_indices,coeff_order='mnl'):
         self._lmns = lmn_indices
         self.ls = np.sort(np.unique(lmn_indices[:,0]))
         bw = len(self.ls)
@@ -952,7 +1007,7 @@ class CoeffView:
         except AssertionError as e:
             raise e
         
-    def _get_mask(self,items):
+    def get_mask(self,items):
         if not isinstance(items,tuple):
             items = (items,)
         assert len(items)<=3
@@ -968,9 +1023,6 @@ class CoeffView:
             masks = [np.isin(lmn,sids) for sids,lmn in zip(selection_ids,self._lmns.T)]
             out = np.prod(masks,axis = 0,dtype=bool)
         return out
-    def __getitem__(self, items):        
-        mask = self._get_mask(items)
-        return self.array[mask]
-    def __setitem__(self,items,value):
-        m = self._get_mask(items)
-        self.array[m] = value
+
+    def __getitem__(self,items):
+        return self.get_mask(items)

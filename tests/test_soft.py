@@ -3,8 +3,11 @@ import pysofft
 from math import factorial
 from pysofft import _soft
 from pysofft import soft,Soft
+from pysofft._fftw_aligned_alloc import create_float64,create_complex128
 from multiprocessing import Pool
 import pytest
+import weakref
+import gc
 
 try:
     import shtns
@@ -73,6 +76,36 @@ class TestRotate:
         theta_ids = tuple(np.argmax(o.real.mean(axis = 1)) for o in z_out)
         assert (phi_ids == (0,0,128,128)) and (theta_ids == (31,96,96,31)), 'Density maxima do not coincide with right handed rotations around y-axis'
 
-        #print(f"phi_loc = {[np.argmax(o.real.mean(axis=0))for o in z_out]}")
-        #print(f"theta_loc = {[np.argmax(o.real.mean(axis=1))for o in z_out]}")
+class TestCoeffSO3:
+    def test_mem_leak(self):
+        bw =32
+        n_coeff = _soft.utils.total_num_coeffs(bw)
+        lmns = _soft.utils.get_coeff_degrees(bw)
+        c1 = create_complex128(n_coeff)
+        c2 = soft.CoeffSO3(c1,lmns,'mnl')
+        c1w = weakref.ref(c1)
+        c2w = weakref.ref(c2)
+    
+        del c1
+        del c2
+        assert (c1w() is None) and (c2w() is None), 'CoeffSO3 memory leak detected, for "mnl" order '
+        
+        lmns = _soft.utils.get_coeff_degrees_risbo(bw)
+        c1 = create_complex128(n_coeff)
+        c2 = soft.CoeffSO3(c1,lmns,'mnl')
+        c1w = weakref.ref(c1)
+        c2w = weakref.ref(c2)
+        del c1
+        del c2
+        assert (c1w() is None) and (c2w() is None), 'CoeffSO3 memory leak detected, for "lmn" order '
+
+class TestIntegration:
+    def test_CoeffSO3_same_as_manual_indexer(self):
+        bw = 32
+        for recurrence_type in Soft.recurrence_types:
+            s = Soft(bw,recurrence_type = recurrence_type)
+            c = s.get_coeff(random=True)
+            assert np.allclose(c.lmn[4:10,4,:],c[s.coeff_indexer[4:10,4,:]]) , f'Rucurrence type {rucurrence_type}: Indexing mismatch between CoeffSO3.lmn[] and Soft.coeff_indexer[].'
+        
+
         
