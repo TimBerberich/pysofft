@@ -49,7 +49,7 @@ contains
   !!  trig_samples(:,3) = cos(betas/2_idp)**2              ! <= needed for d^l_ml computation
   !! ```
   function create_trig_samples(bw) result(trig_samples)
-    integer(kind=dp) :: bw
+    integer(kind=idp) :: bw
     real(kind = dp) :: trig_samples(2*bw,3),betas(2*bw)
     betas = create_beta_samples(2*bw)
     trig_samples(:,1) = cos(betas)                      ! <= Chebyshev nodes
@@ -67,7 +67,7 @@ contains
   !!  trig_samples(:,2) = sin(betas/2)
   !! ```
   function create_trig_samples_risbo(bw) result(trig_samples)
-    integer(kind=dp) :: bw
+    integer(kind=idp) :: bw
     real(kind = dp) :: trig_samples(2*bw,2),betas(2*bw)
     betas = create_beta_samples(2*bw)
     trig_samples(:,1) = cos(betas/2)
@@ -79,9 +79,9 @@ contains
   !!
   !! Returns $\sqrt{l}$ for $0 \leq l \leq (2\mathrm{bw}-2)$.
   function create_sqrts_risbo(bw) result(sqrts)
-    integer(kind=dp), intent(in) :: bw
+    integer(kind=idp), intent(in) :: bw
     real(kind = dp) :: sqrts(2*bw-1)
-    integer(kind=dp) :: i
+    integer(kind=idp) :: i
     do i=0,2*bw-2
        sqrts(i+1) = SQRT(real(i,dp))
     end do
@@ -131,7 +131,7 @@ contains
     !! dlml for all l at fixed m. Has to be of size [Size(sincos,1),bw]
     real(kind = dp),intent(inout) :: dlml(:,:)
     !! bandwidth 0<=l<bw
-    integer(kind=dp),intent(in) :: m,bw
+    integer(kind=idp),intent(in) :: m,bw
     !! Arrays containing $sin(\frac{\beta}{2})*cos(\frac{\beta}{2})$ and $cos(\frac{\beta}{2})**2$
     real(kind = dp),intent(in) :: sincos(:),cos2(:)
     logical,intent(in) :: normalized
@@ -163,14 +163,14 @@ contains
   !! That is $d^l\\_{m,l}$ is stored at index $=$ triangular_to_flat_index(m,l,bw)
   function compute_all_dlml_l_contiguous(bw,sincos,cos2,normalized) result(dlml)
     !! bandwidth 0<=l<bw
-    integer(kind=dp),intent(in) :: bw
+    integer(kind=idp),intent(in) :: bw
     !! Arrays containing $sin(\frac{\beta}{2})*cos(\frac{\beta}{2})$ and $cos(\frac{\beta}{2})**2$
     real(kind = dp),intent(in) :: sincos(:),cos2(:)
     logical,intent(in) :: normalized
     !f2py logical :: normalized = 1
     !! Array of output Wigner small d values 
     real(kind = dp) :: dlml(SIZE(cos2,1),(bw*(bw+1))/2_idp),dlml_tmp(Size(cos2,1),bw)
-    integer(kind=dp) :: m,lm_id,next_lm_id
+    integer(kind=idp) :: m,lm_id,next_lm_id
     
     ! Compute dlml values for m=0
     dlml(:,1) = MERGE(SQRT(0.5_dp),1._dp,normalized)     ! In agreement with our normalization $\sqrt{\frac{2l+1}{2}}$ at l=0
@@ -368,7 +368,7 @@ contains
     integer(kind = idp) :: m,n,i,mid,nid,neg_mid,neg_nid,o,bw,nbeta
 
     dl = 0
-    sym_const_l = (-1._dp)**l
+    sym_const_l = (-1_idp)**l
     trig(:,1) = cos(betas)                      
     trig(:,2) = cos(betas/2_idp)*sin(betas/2_idp) 
     trig(:,3) = cos(betas/2_idp)**2
@@ -379,12 +379,12 @@ contains
     do m=0,l
        mid = l+1_idp+m
        neg_mid = l+1_idp-m
-       sym_const_m = (-1._dp)**m
+       sym_const_m = (-1_idp)**m
        call dlml_recursion_l_contiguous(dlml_workspace, m, bw, trig(:,2), trig(:,3),normalized)
        do n=m,l
           nid = l+1_idp+n
           neg_nid = l+1_idp-n
-          sym_const_n = (-1._dp)**n
+          sym_const_n = (-1_idp)**n
           !norm = SQRT(2._dp/real(2_idp*l+1_idp,kind=dp))
           
           workspace(:,1) = 0
@@ -788,7 +788,7 @@ contains
     real(kind=dp), intent(inout) :: wigners(:,:)
     real(kind = dp) :: dl(2_idp*bw,(bw*(bw+1_idp))/2)
     real(kind = dp) :: betas(2_idp*bw),cos_b(2_idp*bw),sin_b(2_idp*bw),ls_sqrt(2_idp*bw)
-    integer(kind=dp) :: ndl,ndlmm,i,l,mn,mnl,m,n
+    integer(kind=idp) :: ndl,ndlmm,i,l,mn,mnl,m,n
 
     betas = create_beta_samples(2_idp*bw)
     cos_b = COS(betas/2._dp)
@@ -850,7 +850,7 @@ contains
     complex(kind= dp) :: aarg,garg
     real(kind = dp) :: dl(2,(bw*(bw+1_idp))/2)
     real(kind = dp) :: betas(2),cos_b(2),sin_b(2),ls_sqrt(2_idp*bw),two_pi_inv
-    integer(kind=dp) :: ndl,ndlmm,i,l,mn,mnl,m,n,loc,sym_const_n,sym_const_m,sym_const_l
+    integer(kind=idp) :: ndl,ndlmm,i,l,mn,mnl,m,n,loc,sym_const_n,sym_const_m,sym_const_l
     
     betas(1)=beta
     betas(2)=pi-beta
@@ -865,12 +865,12 @@ contains
     do l=0_idp,bw-1_idp
        ndl   = ((l+1)*(l+2))/2
        ndlmm = (l*(l+1))/2
-       sym_const_l = (-1._dp)**l
+       sym_const_l = (-1_idp)**l
        dl(:,1:ndl) = wigner_recurrence_risbo_reduced(dl(:,1:ndlmm), l, cos_b, sin_b, ls_sqrt,normalized)
        do m=0_idp,l
-          sym_const_m = (-1._dp)**m
+          sym_const_m = (-1_idp)**m
           do n=m,l
-             sym_const_n = (-1._dp)**n
+             sym_const_n = (-1_idp)**n
              mn = triangular_to_flat_index(m,n,l+1_idp)
 
              !populate coefficients
@@ -941,18 +941,18 @@ contains
         integer(kind = idp) :: m,n,mn,nbeta,mid,nid,neg_mid,neg_nid
         real(kind=dp) :: sym_const_m,sym_const_n,sym_const_l
         
-        sym_const_l=(-1._dp)**l
+        sym_const_l=(-1_idp)**l
         nbeta=SIZE(sym_dl,1)
         dl=0
         do m=0,l
            mid = l+1_idp+m
            neg_mid = l+1_idp-m
-           sym_const_m = (-1._dp)**m
+           sym_const_m = (-1_idp)**m
 
            do n=m,l
               nid = l+1_idp+n
               neg_nid = l+1_idp-n
-              sym_const_n = (-1._dp)**n
+              sym_const_n = (-1_idp)**n
 
               mn = triangular_to_flat_index(m,n,l+1_idp)
               

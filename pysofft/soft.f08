@@ -133,38 +133,42 @@ module softclass
   abstract interface
      subroutine inverse_wigner_kostelec_interface(self,coeff,so3func,m1,m2,sym_array,sym_const_m1)
        import :: dp  ! Otherwise dp is undefined in _abstract interface blocks
+       import :: idp
        import :: so3ft
        class(so3ft),intent(in),target :: self
        complex(kind = dp), intent(in) :: coeff(:)
        complex(kind = dp), intent(inout) :: so3func(:,:,:)
-       integer(kind=dp), intent(in) :: m1,m2
+       integer(kind = idp), intent(in) :: m1,m2
        real(kind=dp),intent(in) :: sym_array(:),sym_const_m1
      end subroutine inverse_wigner_kostelec_interface
      subroutine forward_wigner_kostelec_interface(self,so3func,coeff,m1,m2,sym_array,sym_const_m1)
        import :: dp  ! Otherwise dp is undefined in _abstract interface blocks
+       import :: idp
        import :: so3ft
        class(so3ft),intent(in),target :: self
        complex(kind = dp), intent(inout) :: coeff(:)
        complex(kind = dp), intent(in) :: so3func(:,:,:)
-       integer(kind=dp), intent(in) :: m1,m2
+       integer(kind=idp), intent(in) :: m1,m2
        real(kind=dp),intent(in) :: sym_array(:),sym_const_m1
      end subroutine forward_wigner_kostelec_interface
      subroutine wigner_corr_interface(self,f_ml,g_ml,so3func,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_slice,nm1_slice)
        import :: dp  ! Otherwise dp is undefined in _abstract interface blocks
+       import :: idp
        import :: so3ft
        class(so3ft),intent(in),target :: self
        complex(kind = dp), intent(in) :: f_ml(:),g_ml(:)
        complex(kind = dp), intent(inout) :: so3func(:,:,:)
-       integer(kind=dp), intent(in) :: m1,m2,pm1_slice(:),nm1_slice(:)
+       integer(kind=idp), intent(in) :: m1,m2,pm1_slice(:),nm1_slice(:)
        real(kind=dp),intent(in) :: sym_array(:),wig_norm(:),sym_const_m1
      end subroutine wigner_corr_interface
      subroutine wigner_corr_real_interface(self,f_ml,g_ml,so3func,m1,m2,sym_array,wig_norm,sym_const_m1,pm1_slice)
-       import :: so3ft
        import :: dp  ! Otherwise dp is undefined in _abstract interface blocks
+       import :: idp
+       import :: so3ft
        class(so3ft),intent(in),target :: self
        complex(kind = dp), intent(in) :: f_ml(:),g_ml(:)
        complex(kind = dp), intent(inout) :: so3func(:,:,:)
-       integer(kind=dp), intent(in) :: m1,m2,pm1_slice(:)
+       integer(kind=idp), intent(in) :: m1,m2,pm1_slice(:)
        real(kind=dp),intent(in) :: sym_array(:),wig_norm(:),sym_const_m1
      end subroutine wigner_corr_real_interface
   end interface
@@ -375,7 +379,7 @@ contains
   end subroutine init
   subroutine init_kostelec_recurrence(self)
     class(so3ft),intent(inout) :: self
-    integer(kind=dp) :: bw
+    integer(kind=idp) :: bw
     bw = self%bw
     allocate(self%trig_samples(2*bw,3))
     self%trig_samples = create_trig_samples(bw)
@@ -384,7 +388,7 @@ contains
   end subroutine init_kostelec_recurrence
   subroutine init_risbo_recurrence(self)
     class(so3ft),intent(inout) :: self
-    integer(kind=dp) :: bw
+    integer(kind=idp) :: bw
     bw = self%bw
     allocate(self%trig_samples_risbo(2*bw,2))
     self%trig_samples_risbo = create_trig_samples_risbo(bw)
@@ -437,12 +441,12 @@ contains
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(in) :: coeff(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
-    integer(kind=dp), intent(in) :: m1,m2
+    integer(kind=idp), intent(in) :: m1,m2
     real(kind=dp),intent(in) :: sym_array(:),sym_const_m1
     real(kind = dp),pointer :: wig_mat(:,:)
     complex(kind = dp) :: coeff_part(self%bw-m2)
     real(kind = dp) :: sym_const_m2
-    integer(kind=dp) :: s_ids(2),c_slice(2),bw,bw2,t_slice(2)
+    integer(kind=idp) :: s_ids(2),c_slice(2),bw,bw2,t_slice(2)
     ! This method assiumes 0<=m1<=m2<=bw
     ! which also means m = max(abs(m1),abs(m2)) = m2
     
@@ -535,12 +539,12 @@ contains
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(in) :: coeff(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
-    integer(kind=dp), intent(in) :: m1,m2
+    integer(kind=idp), intent(in) :: m1,m2
     real(kind=dp),intent(in) :: sym_array(:),sym_const_m1
     real(kind = dp) :: wig_mat(self%bw-m2,2*self%bw)
     complex(kind = dp) :: coeff_part(self%bw-m2)
     real(kind = dp) :: sym_const_m2
-    integer(kind=dp) :: s_ids(2),c_slice(2),bw,bw2,dlml_id
+    integer(kind=idp) :: s_ids(2),c_slice(2),bw,bw2,dlml_id
 
     sym_const_m2 = (-1.0)**m2
     bw = self%bw
@@ -677,11 +681,11 @@ contains
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(in) :: coeff(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
-    integer(kind=dp), intent(in) :: l,m1,m2
+    integer(kind=idp), intent(in) :: l,m1,m2
     real(kind=dp),intent(in) :: sym_const_l,sym_const_m1
     real(kind=dp),intent(in) :: dlmn(:)
     real(kind = dp) :: sym_const_m2
-    integer(kind=dp) :: s_ids(2),c_loc,c_slice(2),bw,bw2,o,i
+    integer(kind=idp) :: s_ids(2),c_loc,c_slice(2),bw,bw2,o,i
 
     sym_const_m2 = (-1.0)**m2
     bw = self%bw
@@ -846,11 +850,11 @@ contains
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(inout) :: coeff(:)
     complex(kind = dp), intent(in) :: so3func(:,:,:)
-    integer(kind=dp), intent(in) :: m1,m2
+    integer(kind=idp), intent(in) :: m1,m2
     real(kind=dp),intent(in) :: sym_array(:),sym_const_m1
     real(kind = dp),pointer :: wig_mat(:,:)
     real(kind = dp) :: sym_const_m2     
-    integer(kind=dp) :: s_ids(2),c_slice(2),bw,bw2,l_slice(2)
+    integer(kind=idp) :: s_ids(2),c_slice(2),bw,bw2,l_slice(2)
     complex(kind=dp) :: so3func_part(2*self%bw)
 
     sym_const_m2 = (-1.0)**m2
@@ -938,11 +942,11 @@ contains
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(inout) :: coeff(:)
     complex(kind = dp), intent(in) :: so3func(:,:,:)
-    integer(kind=dp), intent(in) :: m1,m2
+    integer(kind=idp), intent(in) :: m1,m2
     real(kind=dp),intent(in) :: sym_array(:),sym_const_m1
     real(kind = dp) :: sym_const_m2     
     real(kind = dp) :: wig_mat(2*self%bw,self%bw-m2) ! possible source of optimization can make it allocatable
-    integer(kind=dp) :: s_ids(2),c_slice(2),bw,bw2,dlml_id
+    integer(kind=idp) :: s_ids(2),c_slice(2),bw,bw2,dlml_id
 
     sym_const_m2 = (-1.0)**m2
     bw = self%bw
@@ -1068,10 +1072,10 @@ contains
     complex(kind = dp), intent(inout) :: coeff(:)
     complex(kind = dp), intent(in) :: so3func(:,:,:)
     real(kind = dp), intent(in) :: dlmn(:)
-    integer(kind=dp), intent(in) ::l,m1,m2
+    integer(kind=idp), intent(in) ::l,m1,m2
     real(kind=dp),intent(in) :: sym_const_l,sym_const_m1
     real(kind = dp) :: sym_const_m2
-    integer(kind=dp) :: s_ids(2),c_slice(2),c_loc,bw,bw2,o
+    integer(kind=idp) :: s_ids(2),c_slice(2),c_loc,bw,bw2,o
 
     sym_const_m2 = (-1.0)**m2
     bw = self%bw
@@ -1207,11 +1211,11 @@ contains
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(in) :: coeff(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
-    integer(kind=dp), intent(in) :: m1,m2
+    integer(kind=idp), intent(in) :: m1,m2
     real(kind=dp),intent(in) :: sym_array(:),sym_const_m1
     real(kind = dp),pointer :: wig_mat(:,:)
     real(kind = dp) :: sym_const_m2
-    integer(kind=dp) :: s_ids(2),c_pm1pm2_slice(2),c_nm2nm1_slice(2),c_pm1nm2_slice(2),c_pm2nm1_slice(2),bw,bw2,t_slice(2)
+    integer(kind=idp) :: s_ids(2),c_pm1pm2_slice(2),c_nm2nm1_slice(2),c_pm1nm2_slice(2),c_pm2nm1_slice(2),bw,bw2,t_slice(2)
 
     sym_const_m2 = (-1._dp)**m2
     bw = self%bw
@@ -1262,13 +1266,13 @@ contains
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(in) :: coeff(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
-    integer(kind=dp), intent(in) :: m1,m2
+    integer(kind=idp), intent(in) :: m1,m2
     real(kind=dp),intent(in) :: sym_array(:),sym_const_m1
     !real(kind = dp),pointer :: wig_mat(:,:)
     real(kind = dp) :: sym_const_m2
     real(kind = dp) :: wig_mat(self%bw-m2,2*self%bw)
     complex(kind = dp):: coeff_part(self%bw-m2)
-    integer(kind=dp) :: s_ids(2),c_pm1pm2_slice(2),c_nm2nm1_slice(2),c_pm1nm2_slice(2),c_pm2nm1_slice(2),bw,bw2,dlml_id
+    integer(kind=idp) :: s_ids(2),c_pm1pm2_slice(2),c_nm2nm1_slice(2),c_pm1nm2_slice(2),c_pm2nm1_slice(2),bw,bw2,dlml_id
 
     sym_const_m2 = (-1._dp)**m2
     bw = self%bw
@@ -1381,11 +1385,11 @@ contains
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(in) :: coeff(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
-    integer(kind=dp), intent(in) :: l,m1,m2
+    integer(kind=idp), intent(in) :: l,m1,m2
     real(kind=dp),intent(in) :: sym_const_l,sym_const_m1
     real(kind=dp),intent(in) :: dlmn(:)
     real(kind = dp) :: sym_const_m2
-    integer(kind=dp) :: s_ids(2),c_loc,c_slice(2),bw,bw2,o,i
+    integer(kind=idp) :: s_ids(2),c_loc,c_slice(2),bw,bw2,o,i
 
     sym_const_m2 = (-1._dp)**m2
     bw = self%bw
@@ -1537,12 +1541,12 @@ contains
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(in) :: so3func(:,:,:)
     complex(kind = dp), intent(inout) :: coeff(:)
-    integer(kind=dp), intent(in) :: m1,m2
+    integer(kind=idp), intent(in) :: m1,m2
     real(kind=dp),intent(in) :: sym_array(:),sym_const_m1
     real(kind = dp),pointer :: wig_mat(:,:)
     real(kind = dp) :: sym_const_m2
     complex(kind = dp) :: so3func_part(2*self%bw)
-    integer(kind=dp) :: s_ids(2),c_slice(2),c_pm1pm2_slice(2),c_nm2nm1_slice(2),c_pm1nm2_slice(2),c_pm2nm1_slice(2),bw,bw2,l_slice(2)
+    integer(kind=idp) :: s_ids(2),c_slice(2),c_pm1pm2_slice(2),c_nm2nm1_slice(2),c_pm1nm2_slice(2),c_pm2nm1_slice(2),bw,bw2,l_slice(2)
 
     sym_const_m2 = (-1.0)**m2
     bw = self%bw
@@ -1623,12 +1627,12 @@ contains
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(in) :: so3func(:,:,:)
     complex(kind = dp), intent(inout) :: coeff(:)
-    integer(kind=dp), intent(in) :: m1,m2
+    integer(kind=idp), intent(in) :: m1,m2
     real(kind=dp),intent(in) :: sym_array(:),sym_const_m1
     real(kind = dp) :: sym_const_m2
     real(kind = dp) :: wig_mat(2*self%bw,self%bw-m2)
     complex(kind = dp) :: so3func_part(2*self%bw)
-    integer(kind=dp) :: s_ids(2),c_slice(2),c_pm1pm2_slice(2),c_nm2nm1_slice(2),c_pm1nm2_slice(2),c_pm2nm1_slice(2),bw,bw2,dlml_id
+    integer(kind=idp) :: s_ids(2),c_slice(2),c_pm1pm2_slice(2),c_nm2nm1_slice(2),c_pm1nm2_slice(2),c_pm2nm1_slice(2),bw,bw2,dlml_id
 
     sym_const_m2 = (-1.0)**m2
     bw = self%bw
@@ -1752,10 +1756,10 @@ contains
     complex(kind = dp), intent(inout) :: coeff(:)
     complex(kind = dp), intent(in) :: so3func(:,:,:)
     real(kind = dp), intent(in) :: dlmn(:)
-    integer(kind=dp), intent(in) ::l,m1,m2
+    integer(kind=idp), intent(in) ::l,m1,m2
     real(kind=dp),intent(in) :: sym_const_l,sym_const_m1
     real(kind = dp) :: sym_const_m2
-    integer(kind=dp) :: s_ids(2),c_slice(2),c_loc,bw,bw2,o
+    integer(kind=idp) :: s_ids(2),c_slice(2),c_loc,bw,bw2,o
 
     sym_const_m2 = (-1.0)**m2
     bw = self%bw
@@ -1990,7 +1994,7 @@ contains
     logical, intent(in) :: use_mp
     complex(kind=dp) :: fft_c2c_in(self%bw*2,self%bw*2,self%bw*2)
     complex(kind=dp), allocatable :: fft_c2c_in_2(:,:,:)
-    integer(kind=dp) :: n,i
+    integer(kind=idp) :: n,i
     n = size(so3funcs,4)
 
     if (.NOT. self%plans_allocated_c) then
@@ -2027,7 +2031,7 @@ contains
     complex(kind=dp) :: fft_c2c_in(self%bw*2,self%bw*2,self%bw*2)
     complex(kind=dp), allocatable :: fft_c2c_in_2(:,:,:)
     logical, intent(in) :: use_mp
-    integer(kind=dp) :: n,i
+    integer(kind=idp) :: n,i
     n = size(coeffs,2)
 
     if (.NOT. self%plans_allocated_c) then
@@ -2060,7 +2064,7 @@ contains
     logical, intent(in) :: use_mp
     complex(kind=dp) :: fft_c2r_in(self%bw*2,self%bw+1,self%bw*2)
     complex(kind=dp), allocatable :: fft_c2r_in_2(:,:,:)
-    integer(kind=dp) :: n,i
+    integer(kind=idp) :: n,i
     n = size(so3funcs,4)
 
     if (.NOT. self%plans_allocated_r) then
@@ -2094,7 +2098,7 @@ contains
     logical, intent(in) :: use_mp
     complex(kind=dp) :: fft_c2r_in(self%bw*2,self%bw+1,self%bw*2)
     complex(kind=dp),allocatable :: fft_c2r_in_2(:,:,:)
-    integer(kind=dp) :: n,i
+    integer(kind=idp) :: n,i
     n = size(coeffs,2)
 
     if (.NOT. self%plans_allocated_r) then
@@ -2149,12 +2153,12 @@ contains
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(in) :: f_ml(:),g_ml(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
-    integer(kind=dp), intent(in) :: m1,m2,pm1_slice(:),nm1_slice(:)
+    integer(kind=idp), intent(in) :: m1,m2,pm1_slice(:),nm1_slice(:)
     real(kind=dp),intent(in) :: sym_array(:),wig_norm(:),sym_const_m1
     real(kind = dp),pointer :: wig_mat(:,:)
     real(kind = dp) :: sym_const_m2,sym_const_m1m2
     complex(kind = dp) :: cc_lmn(self%bw-m2)
-    integer(kind=dp) :: s_ids(2),bw,bw2,nm2_slice(2),pm2_slice(2),l_start,t_slice(2)
+    integer(kind=idp) :: s_ids(2),bw,bw2,nm2_slice(2),pm2_slice(2),l_start,t_slice(2)
 
     sym_const_m2 = (-1._dp)**m2
     sym_const_m1m2 = sym_const_m1*sym_const_m2
@@ -2243,12 +2247,12 @@ contains
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(in) :: f_ml(:),g_ml(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
-    integer(kind=dp), intent(in) :: m1,m2,pm1_slice(:),nm1_slice(:)
+    integer(kind=idp), intent(in) :: m1,m2,pm1_slice(:),nm1_slice(:)
     real(kind=dp),intent(in) :: sym_array(:),wig_norm(:),sym_const_m1
     real(kind = dp) :: wig_mat(self%bw-m2,2*self%bw)
     real(kind = dp) :: sym_const_m2,sym_const_m1m2
     complex(kind = dp) :: cc_lmn(self%bw-m2)
-    integer(kind=dp) :: s_ids(2),bw,bw2,nm2_slice(2),pm2_slice(2),l_start,dlml_id
+    integer(kind=idp) :: s_ids(2),bw,bw2,nm2_slice(2),pm2_slice(2),l_start,dlml_id
 
     sym_const_m2 = (-1._dp)**m2
     sym_const_m1m2 = sym_const_m1*sym_const_m2
@@ -2422,12 +2426,12 @@ contains
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(in) :: f_lm(:),g_lm(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
-    integer(kind=dp), intent(in) :: l,m1,m2
+    integer(kind=idp), intent(in) :: l,m1,m2
     real(kind=dp),intent(in) :: wig_norm,sym_const_l,sym_const_m1
     real(kind=dp),intent(in) :: dlmn(:)
     real(kind = dp) :: sym_const_m2,sym_const_m1m2
     complex(kind = dp) :: cc_lmn
-    integer(kind=dp) :: s_ids(2),bw,bw2,l_start,i,nm1,nm2,pm1,pm2
+    integer(kind=idp) :: s_ids(2),bw,bw2,l_start,i,nm1,nm2,pm1,pm2
 
     sym_const_m2 = (-1._dp)**m2
     sym_const_m1m2 = sym_const_m1*sym_const_m2
@@ -2685,7 +2689,7 @@ contains
     complex(kind = dp), allocatable :: tmp_corr(:,:,:),fft_c2c_in(:,:,:)
     logical :: dimensions_wrong
     real(kind = dp) :: inv_radial_range,radial_step
-    integer(kind=dp) :: rid
+    integer(kind=idp) :: rid
     
     ! Make sure fft plans and matrices are allocated
     if (.NOT. self%plans_allocated_c) then
@@ -2744,12 +2748,12 @@ contains
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(in) :: f_ml(:),g_ml(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
-    integer(kind=dp), intent(in) :: m1,m2,pm1_slice(:)
+    integer(kind=idp), intent(in) :: m1,m2,pm1_slice(:)
     real(kind=dp),intent(in) :: sym_array(:),wig_norm(:),sym_const_m1
     real(kind = dp),pointer :: wig_mat(:,:)
     real(kind = dp) :: sym_const_m2,sym_const_m1m2
     complex(kind = dp) :: cc_lmn(self%bw-m2)
-    integer(kind=dp) :: s_ids(2),bw,bw2,pm2_slice(2),l_start,t_slice(2)
+    integer(kind=idp) :: s_ids(2),bw,bw2,pm2_slice(2),l_start,t_slice(2)
 
     sym_const_m2 = (-1._dp)**m2
     sym_const_m1m2 = sym_const_m1*sym_const_m2
@@ -2808,12 +2812,12 @@ contains
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(in) :: f_ml(:),g_ml(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
-    integer(kind=dp), intent(in) :: m1,m2,pm1_slice(:)
+    integer(kind=idp), intent(in) :: m1,m2,pm1_slice(:)
     real(kind=dp),intent(in) :: sym_array(:),wig_norm(:),sym_const_m1
     real(kind = dp) :: wig_mat(self%bw-m2,2*self%bw)
     real(kind = dp) :: sym_const_m2,sym_const_m1m2
     complex(kind = dp) :: cc_lmn(self%bw-m2)
-    integer(kind=dp) :: s_ids(2),bw,bw2,pm2_slice(2),l_start,dlml_id
+    integer(kind=idp) :: s_ids(2),bw,bw2,pm2_slice(2),l_start,dlml_id
 
     sym_const_m2 = (-1._dp)**m2
     sym_const_m1m2 = sym_const_m1*sym_const_m2
@@ -2950,12 +2954,12 @@ contains
     class(so3ft),intent(in),target :: self
     complex(kind = dp), intent(in) :: f_ml(:),g_ml(:)
     complex(kind = dp), intent(inout) :: so3func(:,:,:)
-    integer(kind=dp), intent(in) :: l,m1,m2
+    integer(kind=idp), intent(in) :: l,m1,m2
     real(kind=dp),intent(in) :: wig_norm,sym_const_l,sym_const_m1
     real(kind=dp),intent(in) :: dlmn(:)
     real(kind = dp) :: sym_const_m2,sym_const_m1m2
     complex(kind = dp) :: cc_lmn
-    integer(kind=dp) :: s_ids(2),bw,bw2,l_start,i,pm1,pm2
+    integer(kind=idp) :: s_ids(2),bw,bw2,l_start,i,pm1,pm2
 
 
     sym_const_m2 = (-1._dp)**m2
@@ -3193,7 +3197,7 @@ contains
     complex(kind = dp), allocatable :: fft_c2r_in(:,:,:)
     logical :: dimensions_wrong
     real(kind = dp) :: inv_radial_range,radial_step
-    integer(kind=dp) :: rid
+    integer(kind=idp) :: rid
 
 
     ! Make sure fft plans and matrices are allocated
