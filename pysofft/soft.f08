@@ -2643,10 +2643,6 @@ contains
     ! output :
     !   C_values: array of shape (2*bw,2*bw,2*bw)
     !   The maximum in C corresponds to the Rotation that best maps f to g
-    !
-    !   The Idis of the maximum in C i_max,j_max,k_max correspond to the euler anglees beta,alpha,gamma in this order.
-    !   Somehow there is still a bug. The resulting euler angles need to be modified as follows to yield correct results
-    !   alpha,beta,gamma -----> 2*pi - alpha, beta , 2*pi-gamma
     class(so3ft),intent(inout),target :: self
     complex(kind = dp),target,intent(in) :: f_lm(:),g_lm(:)
     complex(kind = dp), intent(inout) :: cc(:,:,:)
@@ -2674,11 +2670,7 @@ contains
     ! output :
     !   C_values: array of shape (2*bw,2*bw,2*bw)
     !   The maximum in C corresponds to the Rotation that best maps f to g
-    !
-    !   The Idis of the maximum in C i_max,j_max,k_max correspond to the euler anglees beta,alpha,gamma in this order.
-    !   Somehow there is still a bug. The resulting euler angles need to be modified as follows to yield correct results
-    !   alpha,beta,gamma -----> 2*pi - alpha, beta , 2*pi-gamma
-
+    
     !f2py threadsafe
     class(so3ft),intent(inout),target :: self
     complex(kind = dp),target,intent(in) :: f_lms(:,:),g_lms(:,:)
@@ -2707,12 +2699,14 @@ contains
        print *, "shape(f_lm) = ", shape(f_lms)
        print *, "shape(g_lm) = ", shape(g_lms)
        print *, "shape(radial_sampling_points) = ", shape(radial_sampling_points)
-       ERROR STOP "Wrong input array dimensions!"
+       ! I should error stop but this breaks python integration as it would crash the interpreter
+       !ERROR STOP "Wrong input array dimensions!"
     end if
     ! make sure radial_limits stay within bounds
     if ((radial_limits(1)<1) .or. (radial_limits(2)>size(radial_sampling_points,1))) then
        print *,"radial_limits out of bounds for radial_sampling points of length",size(radial_sampling_points,1)
-       ERROR STOP "radial_limits contains out of bounds indices"
+       ! I should error stop but this breaks python integration as it would crash the interpreter
+       !ERROR STOP "radial_limits contains out of bounds indices"
     end if
 
     if (use_mp) then
@@ -3150,10 +3144,6 @@ contains
     ! output :
     !   C_values: array of shape (2*bw,2*bw,2*bw)
     !   The maximum in C corresponds to the Rotation that best maps f to g
-    !
-    !   The Idis of the maximum in C i_max,j_max,k_max correspond to the euler anglees beta,alpha,gamma in this order.
-    !   Somehow there is still a bug. The resulting euler angles need to be modified as follows to yield correct results
-    !   alpha,beta,gamma -----> 2*pi - alpha, beta , 2*pi-gamma
     class(so3ft),intent(inout),target :: self
     complex(kind = dp),target,intent(in) :: f_ml(:),g_ml(:)
     real(kind = dp), intent(inout) :: cc(:,:,:)
@@ -3181,10 +3171,6 @@ contains
     ! output :
     !   C_values: array of shape (2*bw,2*bw,2*bw)
     !   The maximum in C corresponds to the Rotation that best maps f to g
-    !
-    !   The Idis of the maximum in C i_max,j_max,k_max correspond to the euler anglees beta,alpha,gamma in this order.
-    !   Somehow there is still a bug. The resulting euler angles need to be modified as follows to yield correct results
-    !   alpha,beta,gamma -----> 2*pi - alpha, beta , 2*pi-gamma
 
     !f2py threadsafe
     class(so3ft),intent(inout),target :: self
@@ -3218,12 +3204,16 @@ contains
        print *, "shape(f_lm) = ", shape(f_mls)
        print *, "shape(g_lm) = ", shape(g_mls)
        print *, "shape(radial_sampling_points) = ", shape(radial_sampling_points)
-       ERROR STOP "Wrong input array dimensions!"
+
+       ! I should error stop but this breaks python integration as it would crash the interpreter
+       !ERROR STOP "Wrong input array dimensions!"
     end if
     ! make sure radial_limits stay within bounds
     if ((radial_limits(1)<1) .or. (radial_limits(2)>size(radial_sampling_points,1))) then
        print *,"radial_limits out of bounds for radial_sampling points of length",size(radial_sampling_points,1)
-       ERROR STOP "radial_limits contains out of bounds indices"
+
+       ! I should error stop but this breaks python integration as it would crash the interpreter
+       !ERROR STOP "radial_limits contains out of bounds indices"
     end if
     
     if (use_mp) then

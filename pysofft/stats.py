@@ -156,7 +156,7 @@ class CharFuncSO3(np.ndarray):
         
         mean = np.zeros(so3_function.shape[0],dtype=complex)
         for _id in range(len(mean)):
-            dconj_lnk = self._soft.forward_cmplx(so3_function[_id].conj())
+            dconj_lnk = self._soft.rsoft(so3_function[_id].conj())
             mean[_id] = np.sum(dconj_lnk*self)
         if len(shape)>3:
             mean=mean.reshape(shape[:-3])
@@ -212,15 +212,6 @@ class CharFuncSO3(np.ndarray):
         else:
             mean_coeff = mean_coeff[0]
         return mean_coeff
-        
-        
-    @property
-    def normalize(self):
-        so3_coeff =  self._soft.inverse_cmplx(self).reshape(self.so3_grid.shape[:-1])
-        new_coeff =  self._soft.forward_cmplx(so3_coeff.flatten())
-        scale = new_coeff[0].real*np.sqrt(2)
-        so3_coeff*=scale
-        self[:] = self._soft.forward_cmplx(so3_coeff.flatten())
         
 class CharFuncFactory:
     """
