@@ -302,6 +302,18 @@ class TestUtils:
                 _soft.utils.flat_to_pyramid_index(fi,fj,k)
                 assert i==int(fi) and j==int(fj), f'Index mismatch between i,j={(i,j)} and k={k}, fi,fj={(fi,fj)}.'
 
+    def test_euler_conversion(self):
+        rng = np.random.default_rng(12345) 
+        eulers = rng.random((3,20))
+        for a,b,g in eulers.T:
+            m = utils.euler_to_matrix(a,b,g)
+            a2,b2,g2 = utils.matrix_to_euler(m)
+            assert np.isclose(a,a2)
+            assert np.isclose(b,b2)
+            assert np.isclose(g,g2)
+        mats = utils.euler_to_matrix_many(eulers[0],eulers[1],eulers[2])
+        eulers2 = utils.matrix_to_euler_many(mats)
+        assert np.allclose(eulers,eulers2.T)
 class TestSo3ft:    
     def test_init(self):
         # exhaustive test init for segfaults or similar by trying out all obtions for bandwidth below a threshold.

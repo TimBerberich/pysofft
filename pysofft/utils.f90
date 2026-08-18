@@ -801,4 +801,92 @@ contains
     slice(2) = slice(1) + bw-abs(m)-1_idp
   end function MLc_slice
 
+
+  !> ------------
+  !! @brief Construct a 3-by-3 rotation matrix from three Euler angles.
+  !! This function assumes the Z-Y-Z covention for euler angles where
+  !! the rotation by alpha is applied first, then beta and then gamma.
+  function euler_to_matrix(alpha,beta,gam) result(so3mat)
+    real(kind = dp), intent(in) :: alpha,beta,gam
+    real(kind = dp) :: so3mat(3,3)
+    real(kind = dp) :: ca,sa,cb,sb,cg,sg
+
+    ca = cos(alpha)
+    sa = sin(alpha)
+    cb = cos(beta)
+    sb = sin(beta)
+    cg = cos(gam)
+    sg = sin(gam)
+    
+    so3mat(1,1) = ca*cb*cg - sa*sg
+    so3mat(2,1) = -sa*cb*cg - ca*sg
+    so3mat(3,1) = sb*cg
+    so3mat(1,2) = ca*cb*sg + sa*cg
+    so3mat(2,2) = ca*cg - sa*cb*sg
+    so3mat(3,2) = sb*sg
+    so3mat(1,3) = -ca*sb
+    so3mat(2,3) = sa*sb
+    so3mat(3,3) = cb       
+  end function euler_to_matrix
+    
+  !> ------------
+  !! @brief Construct 3-by-3 rotation matrices from sets of Euler angles.
+  !! This function assumes the Z-Y-Z covention for euler angles where
+  !! the rotation by alpha is applied first, then beta and then gamma.
+  function euler_to_matrix_many(alpha,beta,gam) result(so3mat)
+    real(kind = dp), intent(in) :: alpha(:),beta(:),gam(:)
+    real(kind = dp) :: so3mat(3,3,SIZE(alpha,1))
+    real(kind = dp) :: ca,sa,cb,sb,cg,sg
+    integer(kind = dp) :: n
+
+    do n=1,SIZE(alpha,1)
+       ca = cos(alpha(n))
+       sa = sin(alpha(n))
+       cb = cos(beta(n))
+       sb = sin(beta(n))
+       cg = cos(gam(n))
+       sg = sin(gam(n))
+       
+       so3mat(1,1,n) = ca*cb*cg - sa*sg
+       so3mat(2,1,n) = -sa*cb*cg - ca*sg
+       so3mat(3,1,n) = sb*cg
+       so3mat(1,2,n) = ca*cb*sg + sa*cg
+       so3mat(2,2,n) = ca*cg - sa*cb*sg
+       so3mat(3,2,n) = sb*sg
+       so3mat(1,3,n) = -ca*sb
+       so3mat(2,3,n) = sa*sb
+       so3mat(3,3,n) = cb       
+    end do
+  end function euler_to_matrix_many
+
+
+  !> ------------
+  !! @brief Compute euler angles from a 3-by-3 rotation matrix
+  !! This function assumes the Z-Y-Z covention for euler angles where
+  !! the rotation by alpha is applied first, then beta and then gamma.
+  function matrix_to_euler_many(so3mat) result(euler)
+    real(kind = dp), intent(in) :: so3mat(:,:,:)
+    real(kind = dp) :: euler(SIZE(so3mat,3),3)
+    integer(kind = dp) :: n
+
+    do n=1,SIZE(so3mat,3)
+       euler(n,1) = atan2(so3mat(2,3,n),-so3mat(1,3,n))
+       euler(n,2) = atan2(max(0.0_dp,sqrt(1.0_dp-so3mat(3,3,n)**2)),so3mat(3,3,n))
+       euler(n,3) = atan2(so3mat(3,2,n),so3mat(3,1,n))
+    end do
+  end function matrix_to_euler_many
+  
+  !> ------------
+  !! @brief Compute sets of euler angles from rotation matrices
+  !! This function assumes the Z-Y-Z covention for euler angles where
+  !! the rotation by alpha is applied first, then beta and then gamma.
+  function matrix_to_euler(so3mat) result(euler)
+    real(kind = dp), intent(in) :: so3mat(:,:)
+    real(kind = dp) :: euler(3)
+    euler(1) = atan2(so3mat(2,3),-so3mat(1,3))
+    euler(2) = atan2(sqrt(max(0.0_dp,1.0_dp-so3mat(3,3)**2)),so3mat(3,3))
+    euler(3) = atan2(so3mat(3,2),so3mat(3,1))    
+  end function matrix_to_euler
+    
+    
 end module utils
