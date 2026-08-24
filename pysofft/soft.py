@@ -723,6 +723,33 @@ class Soft:
         fortran_rlims = [radial_limits[0]+1,radial_limits[1]]
         py.py_cross_correlation_ylm_real_3d(self._fortran_pointer,f_lms.T,g_lms.T,out.T,radial_sampling_points,fortran_rlims,use_mp)
         return out
+
+    def cross_correlation_to_optimal_aligning_rotation_euler(self,cross_correlation):
+        s'''
+        Convenience function that returns the optimal euler angles corresponding to the maximum position in the cross_correlation
+        
+        Parameters
+        ----------
+        cross_correlation:ndarray
+            `(2*bw,2*bw,2*bw) complex`: cross-correlation
+        
+        Returns
+        -------
+        eulers:ndarray
+            `(3,) real`: alpha,beta,gamma
+        '''
+        argmax = np.argmax(cross_correlation.T)
+        rot_ids = np.unravel_index(argmax,cross_correlation.shape)
+        # The unraveled index has the format beta,alpha,gamma
+        # changing that to alpha,beta,gamma
+        rot_ids = np.array((found_rot_ids[1],found_rot_ids[0],found_rot_ids[2]))
+
+        af = self.euler_angles['alpha'][rot_ids[0]]
+        bf = self.euler_angles['beta'][rot_ids[1]]
+        gf = self.euler_angles['gamma'][rot_ids[2]]
+        return np.array(af,bf,gf)
+        
+    
     def _fft(self,f1,f2):
         py.py_fft(self._fortran_pointer,f1,f2)
     def _ifft(self,f1,f2):
