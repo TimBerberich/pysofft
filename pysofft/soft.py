@@ -724,8 +724,8 @@ class Soft:
         py.py_cross_correlation_ylm_real_3d(self._fortran_pointer,f_lms.T,g_lms.T,out.T,radial_sampling_points,fortran_rlims,use_mp)
         return out
 
-    def cross_correlation_to_optimal_aligning_rotation_euler(self,cross_correlation):
-        s'''
+    def cross_correlation_to_optimal_aligning_rotation(self,cross_correlation,return_max_corr=False):
+        r'''
         Convenience function that returns the optimal euler angles corresponding to the maximum position in the cross_correlation
         
         Parameters
@@ -747,7 +747,10 @@ class Soft:
         af = self.euler_angles['alpha'][rot_ids[0]]
         bf = self.euler_angles['beta'][rot_ids[1]]
         gf = self.euler_angles['gamma'][rot_ids[2]]
-        return np.array(af,bf,gf)
+        if return_max_corr:
+            return np.array((af,bf,gf)),cross_correlation.T[argmax]
+        else:
+            return np.array(af,bf,gf)
         
     
     def _fft(self,f1,f2):
