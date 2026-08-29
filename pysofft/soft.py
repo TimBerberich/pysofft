@@ -676,9 +676,9 @@ class Soft:
         For an example see [rotational cross-correlation](/usage/corr).
         '''
         if out is None:
-            out=self.get_so3func(howmany=len(f_lms))
+            out=self.get_so3func()
         if radial_sampling_points is None:
-            radial_sampling_points = np.linspace(0,1,len(f_lmns))
+            radial_sampling_points = np.linspace(0,1,len(f_lms))
         if radial_limits == None:
             radial_limits = [0,len(f_lms)]
         fortran_rlims = [radial_limits[0]+1,radial_limits[1]]
@@ -715,7 +715,7 @@ class Soft:
         For an example see [rotational cross-correlation](/usage/corr).
         '''
         if out is None:
-            out=self.get_so3func(real=True,howmany=len(f_lms))
+            out=self.get_so3func(real=True)
         if radial_sampling_points is None:
             radial_sampling_points = np.linspace(0,1,len(f_lms))
         if radial_limits == None:
@@ -724,7 +724,7 @@ class Soft:
         py.py_cross_correlation_ylm_real_3d(self._fortran_pointer,f_lms.T,g_lms.T,out.T,radial_sampling_points,fortran_rlims,use_mp)
         return out
 
-    def cross_correlation_to_optimal_aligning_rotation(self,cross_correlation,return_max_corr=False):
+    def cross_correlation_to_aligning_rotation(self,cross_correlation,return_max_corr=False):
         r'''
         Convenience function that returns the optimal euler angles corresponding to the maximum position in the cross_correlation
         
@@ -742,13 +742,13 @@ class Soft:
         rot_ids = np.unravel_index(argmax,cross_correlation.shape)
         # The unraveled index has the format beta,alpha,gamma
         # changing that to alpha,beta,gamma
-        rot_ids = np.array((found_rot_ids[1],found_rot_ids[0],found_rot_ids[2]))
+        rot_ids = np.array((rot_ids[1],rot_ids[0],rot_ids[2]))
 
         af = self.euler_angles['alpha'][rot_ids[0]]
         bf = self.euler_angles['beta'][rot_ids[1]]
         gf = self.euler_angles['gamma'][rot_ids[2]]
         if return_max_corr:
-            return np.array((af,bf,gf)),cross_correlation.T[argmax]
+            return np.array((af,bf,gf)),cross_correlation.T.ravel()[argmax]
         else:
             return np.array(af,bf,gf)
         
@@ -814,6 +814,7 @@ class Soft:
         if euler_angles.shape[0]==1 or ylms.shape[0]==1:
             ylms_rot = np.squeeze(ylms_rot)
         return ylms_rot
+    
     @staticmethod
     def rotate_ylm_real(ymls,euler_angles):
         '''
@@ -838,10 +839,13 @@ class Soft:
         bw = int( (np.sqrt(1+8*ymls.shape[-1])-1)/2 )
         ymls = np.atleast_2d(ymls)
         ylms = np.zeros((ymls.shape[:-1]+(bw**2,)),dtype = complex)
-    
+        euler_angles = np.atleast_2d(euler_angles)
         
         for l in range(bw):
-            for m in range(l+1):
+            ml_id = _soft.utils.mlr(0,l,bw)-1
+            lm_id = _soft.utils.lmc(l,0)-1
+            ylms[...,lm_id] = ymls[...,ml_id]
+            for m in range(1,l+1):
                 ml_id = _soft.utils.mlr(m,l,bw)-1
                 lm_id = _soft.utils.lmc(l,m)-1
                 lm_neg_id = _soft.utils.lmc(l,-m)-1
@@ -849,13 +853,16 @@ class Soft:
                 ylms[...,lm_neg_id] = ylms[...,lm_id].conj()*(-1)**m
         
         ylms_rot = Soft.rotate_ylm_cmplx(ylms,euler_angles)
-        ymls_rot = np.zeros_like(ymls)
-    
+        ymls_rot = np.zeros((len(euler_angles),)+ymls.shape,dtype = complex)
+
         for m in range(bw):
             for l in range(m,bw):
                 ml_id = _soft.utils.mlr(m,l,bw)-1
                 lm_id = _soft.utils.lmc(l,m)-1
                 ymls_rot[...,ml_id] = ylms_rot[...,lm_id]
+                
+        if euler_angles.shape[0]==1 or ylms.shape[0]==1:
+            ymls_rot = np.squeeze(ymls_rot)
         return ymls_rot
 
 
