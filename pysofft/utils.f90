@@ -883,9 +883,9 @@ contains
   function matrix_to_euler(so3mat) result(euler)
     real(kind = dp), intent(in) :: so3mat(:,:)
     real(kind = dp) :: euler(3)
-    euler(1) = atan2(so3mat(2,3),-so3mat(1,3))
+    euler(1) = MODULO(atan2(so3mat(2,3),-so3mat(1,3)),2.0_dp*PI)
     euler(2) = atan2(sqrt(max(0.0_dp,1.0_dp-so3mat(3,3)**2)),so3mat(3,3))
-    euler(3) = atan2(so3mat(3,2),so3mat(3,1))    
+    euler(3) = MODULO(atan2(so3mat(3,2),so3mat(3,1)),2.0_dp*PI)
   end function matrix_to_euler
     
     
