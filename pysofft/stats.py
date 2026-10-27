@@ -196,7 +196,7 @@ class CharFuncSO3(np.ndarray):
 
         n_coeffs = spherical_harmonic_coeff.shape[0]
         mean_coeff = np.zeros((n_coeffs,bw**2),dtype=complex)
-        matrix_ids = [self.matrix_indices(l) for l in range(self._soft.bw)]
+        matrix_ids = [self._matrix_indices(l) for l in range(self._soft.bw)]
         inv_normalization_constants = np.array([1/np.sqrt(2*l+1) for l in range(bw)])
         for _id in range(n_coeffs):
             coeff = spherical_harmonic_coeff[_id]            
