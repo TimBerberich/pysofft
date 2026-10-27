@@ -196,14 +196,17 @@ class CharFuncSO3(np.ndarray):
 
         n_coeffs = spherical_harmonic_coeff.shape[0]
         mean_coeff = np.zeros((n_coeffs,bw**2),dtype=complex)
+        matrix_ids = [self.matrix_indices(l) for l in range(self._soft.bw)]
+        inv_normalization_constants = np.array([1/np.sqrt(2*l+1) for l in range(bw)])
         for _id in range(n_coeffs):
             coeff = spherical_harmonic_coeff[_id]            
             for l in range(bw):
                 l_start = l*(l+1)-l
                 l_stop = l*(l+1)+l+1
-                Ml_mat = self.lnk[l].reshape(2*l+1,2*l+1).T
-                #np.roll is needed to convert -l,...,l format of spherical coeff to 0,..l,-l,...-1 in order to match the convention in Ml_mat that comes from ffts.
-                mean_coeff_part = Ml_mat@np.roll(coeff[l_start:l_stop],l+1)
+                Ml_mat = np.asarray(self)[matrix_ids[l]]
+                
+                mean_coeff_part = Ml_mat@np.roll(coeff[l_start:l_stop],l+1)                
+                mean_coeff_part *= inv_normalization_constants[l] # correct for the orthonormalization in the Ml matrices
                 #mean_coeff_part = Ml_mat@coeff[l_start:l_stop]
                 mean_coeff[_id,l_start:l_stop] = np.roll(mean_coeff_part,-(l+1))
             
@@ -212,7 +215,27 @@ class CharFuncSO3(np.ndarray):
         else:
             mean_coeff = mean_coeff[0]
         return mean_coeff
-        
+
+    def _matrix_indices(self, l):
+        """Indices into the full coefficient array.
+
+        Rows and columns correspond to n,k = -l,...,l.
+        """
+        l = int(l)
+        if not 0 <= l < self._soft.bw:
+            raise ValueError("Degree must satisfy 0 <= l < bandwidth")
+
+        indexer = self._soft.coeff_indexer
+
+        # Scalar lookup returns slice(index, index + 1).
+        return np.array(
+            [
+                [indexer[l, n, k].start for k in range(-l, l + 1)]
+                for n in range(-l, l + 1)
+            ],
+            dtype=np.intp,
+        )
+    
 class CharFuncFactory:
     """
     Factory that can create various characteristic functions of probability distribitions on SO(3)
@@ -258,7 +281,7 @@ class CharFuncFactory:
     @staticmethod
     def gaussian(bw = 16, sigma=1,center_rotation=None):
         if sigma<np.sqrt(2*np.pi)/bw:
-            log.warning('sigma < sqrt(2*pi)/bw : distribution will contain negative values due to finite sampling. Incriase bw or decrease sigma to avoid this situation.')
+            print(f'WARNING: sigma < sqrt(2*pi)/bw = { np.sqrt(2*np.pi)/bw} : distribution will contain negative values due to finite sampling. Incriase bw or decrease sigma to avoid this situation.')
         gauss = CharFuncSO3(bw)
         coeffs = gauss.lnk._lnks
         if center_rotation is None:
